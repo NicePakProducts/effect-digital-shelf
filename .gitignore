@@ -1,11 +1,29 @@
+# Reference snapshots (see .repos/README.md)
 .repos/
-node_modules
-dist
-.wrangler
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Cloudflare and Alchemy state
+.wrangler/
+.alchemy/
+
+# Environment variables
 .env
 .env.*
 !.env.example
-.alchemy
+*.local
+
+# Logs
+*.log
+pnpm-debug.log*
+
+# Agent tooling (per-machine)
 .claude/
 .agents/
 skills-lock.json
