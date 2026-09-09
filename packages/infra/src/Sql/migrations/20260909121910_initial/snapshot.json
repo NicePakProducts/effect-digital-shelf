@@ -2,57 +2,34 @@
   "version": "8",
   "dialect": "postgres",
   "id": "23056fec-d22f-492a-9183-68ea2ec175e4",
-  "prevIds": [
-    "00000000-0000-0000-0000-000000000000"
-  ],
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
-      "values": [
-        "daily",
-        "weekly",
-        "fortnightly",
-        "monthly"
-      ],
+      "values": ["daily", "weekly", "fortnightly", "monthly"],
       "name": "cadence",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "pending",
-        "running",
-        "success",
-        "failed"
-      ],
+      "values": ["pending", "running", "success", "failed"],
       "name": "extraction_status",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "listing",
-        "page"
-      ],
+      "values": ["listing", "page"],
       "name": "prompt_kind",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "basic",
-        "advance"
-      ],
+      "values": ["basic", "advance"],
       "name": "scrape_mode",
       "entityType": "enums",
       "schema": "public"
     },
     {
-      "values": [
-        "pending",
-        "running",
-        "success",
-        "failed"
-      ],
+      "values": ["pending", "running", "success", "failed"],
       "name": "scrape_status",
       "entityType": "enums",
       "schema": "public"
@@ -1795,14 +1772,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "listing_id"
-      ],
+      "columns": ["listing_id"],
       "schemaTo": "public",
       "tableTo": "listings",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "listing_variants_listing_id_listings_id_fkey",
@@ -1812,14 +1785,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "variant_id"
-      ],
+      "columns": ["variant_id"],
       "schemaTo": "public",
       "tableTo": "variants",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "listing_variants_variant_id_variants_id_fkey",
@@ -1829,14 +1798,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "product_id"
-      ],
+      "columns": ["product_id"],
       "schemaTo": "public",
       "tableTo": "products",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "listings_product_id_products_id_fkey",
@@ -1846,14 +1811,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "retailer_id"
-      ],
+      "columns": ["retailer_id"],
       "schemaTo": "public",
       "tableTo": "retailers",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "listings_retailer_id_retailers_id_fkey",
@@ -1863,14 +1824,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "brand_id"
-      ],
+      "columns": ["brand_id"],
       "schemaTo": "public",
       "tableTo": "brands",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "pages_brand_id_brands_id_fkey",
@@ -1880,14 +1837,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "retailer_id"
-      ],
+      "columns": ["retailer_id"],
       "schemaTo": "public",
       "tableTo": "retailers",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "pages_retailer_id_retailers_id_fkey",
@@ -1897,14 +1850,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "brand_id"
-      ],
+      "columns": ["brand_id"],
       "schemaTo": "public",
       "tableTo": "brands",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "products_brand_id_brands_id_fkey",
@@ -1914,14 +1863,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "product_id"
-      ],
+      "columns": ["product_id"],
       "schemaTo": "public",
       "tableTo": "products",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "variants_product_id_products_id_fkey",
@@ -1931,14 +1876,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "scrape_id"
-      ],
+      "columns": ["scrape_id"],
       "schemaTo": "public",
       "tableTo": "scrapes",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "extractions_scrape_id_scrapes_id_fkey",
@@ -1948,14 +1889,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "listing_id"
-      ],
+      "columns": ["listing_id"],
       "schemaTo": "public",
       "tableTo": "listings",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "scrapes_listing_id_listings_id_fkey",
@@ -1965,14 +1902,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "page_id"
-      ],
+      "columns": ["page_id"],
       "schemaTo": "public",
       "tableTo": "pages",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "scrapes_page_id_pages_id_fkey",
@@ -1981,10 +1914,7 @@
       "table": "scrapes"
     },
     {
-      "columns": [
-        "listing_id",
-        "variant_id"
-      ],
+      "columns": ["listing_id", "variant_id"],
       "nameExplicit": false,
       "name": "listing_variants_pkey",
       "entityType": "pks",
@@ -1992,9 +1922,7 @@
       "table": "listing_variants"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "brands_pkey",
       "schema": "public",
@@ -2002,9 +1930,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "listings_pkey",
       "schema": "public",
@@ -2012,9 +1938,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "pages_pkey",
       "schema": "public",
@@ -2022,9 +1946,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "products_pkey",
       "schema": "public",
@@ -2032,9 +1954,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "retailers_pkey",
       "schema": "public",
@@ -2042,9 +1962,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "variants_pkey",
       "schema": "public",
@@ -2052,9 +1970,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "extractions_pkey",
       "schema": "public",
@@ -2062,9 +1978,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "scrapes_pkey",
       "schema": "public",
