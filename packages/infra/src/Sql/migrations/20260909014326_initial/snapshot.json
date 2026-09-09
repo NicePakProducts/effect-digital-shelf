@@ -1,0 +1,1529 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "d5663ad1-7fb9-42d1-a681-bc3b1adcdc57",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "ddl": [
+    {
+      "name": "brands",
+      "entityType": "tables"
+    },
+    {
+      "name": "listing_variants",
+      "entityType": "tables"
+    },
+    {
+      "name": "listings",
+      "entityType": "tables"
+    },
+    {
+      "name": "pages",
+      "entityType": "tables"
+    },
+    {
+      "name": "products",
+      "entityType": "tables"
+    },
+    {
+      "name": "retailers",
+      "entityType": "tables"
+    },
+    {
+      "name": "variants",
+      "entityType": "tables"
+    },
+    {
+      "name": "extractions",
+      "entityType": "tables"
+    },
+    {
+      "name": "scrapes",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "paused",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "brands"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "listing_id",
+      "entityType": "columns",
+      "table": "listing_variants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "variant_id",
+      "entityType": "columns",
+      "table": "listing_variants"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "listings"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "product_id",
+      "entityType": "columns",
+      "table": "listings"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "retailer_id",
+      "entityType": "columns",
+      "table": "listings"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "url",
+      "entityType": "columns",
+      "table": "listings"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "cadence",
+      "entityType": "columns",
+      "table": "listings"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_scraped_at",
+      "entityType": "columns",
+      "table": "listings"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "listings"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "listings"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "pages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "brand_id",
+      "entityType": "columns",
+      "table": "pages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "retailer_id",
+      "entityType": "columns",
+      "table": "pages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "url",
+      "entityType": "columns",
+      "table": "pages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "cadence",
+      "entityType": "columns",
+      "table": "pages"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "paused",
+      "entityType": "columns",
+      "table": "pages"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_scraped_at",
+      "entityType": "columns",
+      "table": "pages"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "pages"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "pages"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "products"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "brand_id",
+      "entityType": "columns",
+      "table": "products"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "products"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "paused",
+      "entityType": "columns",
+      "table": "products"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "products"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "products"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "retailers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "retailers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "domain",
+      "entityType": "columns",
+      "table": "retailers"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "paused",
+      "entityType": "columns",
+      "table": "retailers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scrape_mode",
+      "entityType": "columns",
+      "table": "retailers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scrape_country",
+      "entityType": "columns",
+      "table": "retailers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "listing_extract_prompt",
+      "entityType": "columns",
+      "table": "retailers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "page_extract_prompt",
+      "entityType": "columns",
+      "table": "retailers"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "retailers"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "retailers"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "variants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "product_id",
+      "entityType": "columns",
+      "table": "variants"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "variants"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "variants"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "variants"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scrape_id",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "attempt",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "prompt_kind",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "prompt_snapshot",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "model",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "started_at",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "finished_at",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "extracted_json",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "prompt_tokens",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "completion_tokens",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "total_tokens",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "error_code",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "error_message",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "extractions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "listing_id",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "page_id",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "mode",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "country",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "request_url",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "request_headers",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "started_at",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "finished_at",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "error_code",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "error_message",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "html_r2_key",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "raw_r2_key",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "final_url",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status_code",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "response_headers",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "cookies",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "inner_text",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_agent",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "ip_info",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "type",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "session",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "attempts",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch() * 1000)",
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "scrapes"
+    },
+    {
+      "columns": ["listing_id"],
+      "tableTo": "listings",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_listing_variants_listing_id_listings_id_fk",
+      "entityType": "fks",
+      "table": "listing_variants"
+    },
+    {
+      "columns": ["variant_id"],
+      "tableTo": "variants",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_listing_variants_variant_id_variants_id_fk",
+      "entityType": "fks",
+      "table": "listing_variants"
+    },
+    {
+      "columns": ["product_id"],
+      "tableTo": "products",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_listings_product_id_products_id_fk",
+      "entityType": "fks",
+      "table": "listings"
+    },
+    {
+      "columns": ["retailer_id"],
+      "tableTo": "retailers",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_listings_retailer_id_retailers_id_fk",
+      "entityType": "fks",
+      "table": "listings"
+    },
+    {
+      "columns": ["brand_id"],
+      "tableTo": "brands",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_pages_brand_id_brands_id_fk",
+      "entityType": "fks",
+      "table": "pages"
+    },
+    {
+      "columns": ["retailer_id"],
+      "tableTo": "retailers",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_pages_retailer_id_retailers_id_fk",
+      "entityType": "fks",
+      "table": "pages"
+    },
+    {
+      "columns": ["brand_id"],
+      "tableTo": "brands",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_products_brand_id_brands_id_fk",
+      "entityType": "fks",
+      "table": "products"
+    },
+    {
+      "columns": ["product_id"],
+      "tableTo": "products",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_variants_product_id_products_id_fk",
+      "entityType": "fks",
+      "table": "variants"
+    },
+    {
+      "columns": ["scrape_id"],
+      "tableTo": "scrapes",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_extractions_scrape_id_scrapes_id_fk",
+      "entityType": "fks",
+      "table": "extractions"
+    },
+    {
+      "columns": ["listing_id"],
+      "tableTo": "listings",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_scrapes_listing_id_listings_id_fk",
+      "entityType": "fks",
+      "table": "scrapes"
+    },
+    {
+      "columns": ["page_id"],
+      "tableTo": "pages",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_scrapes_page_id_pages_id_fk",
+      "entityType": "fks",
+      "table": "scrapes"
+    },
+    {
+      "columns": ["listing_id", "variant_id"],
+      "nameExplicit": false,
+      "name": "listing_variants_pk",
+      "entityType": "pks",
+      "table": "listing_variants"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "brands_pk",
+      "table": "brands",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "listings_pk",
+      "table": "listings",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "pages_pk",
+      "table": "pages",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "products_pk",
+      "table": "products",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "retailers_pk",
+      "table": "retailers",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "variants_pk",
+      "table": "variants",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "extractions_pk",
+      "table": "extractions",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "scrapes_pk",
+      "table": "scrapes",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        {
+          "value": "variant_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "listing_variants_variant_id",
+      "entityType": "indexes",
+      "table": "listing_variants"
+    },
+    {
+      "columns": [
+        {
+          "value": "product_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "listings_product_id",
+      "entityType": "indexes",
+      "table": "listings"
+    },
+    {
+      "columns": [
+        {
+          "value": "retailer_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "listings_retailer_id",
+      "entityType": "indexes",
+      "table": "listings"
+    },
+    {
+      "columns": [
+        {
+          "value": "last_scraped_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "listings_last_scraped_at",
+      "entityType": "indexes",
+      "table": "listings"
+    },
+    {
+      "columns": [
+        {
+          "value": "brand_id",
+          "isExpression": false
+        },
+        {
+          "value": "retailer_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "pages_brand_id_retailer_id",
+      "entityType": "indexes",
+      "table": "pages"
+    },
+    {
+      "columns": [
+        {
+          "value": "retailer_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "pages_retailer_id",
+      "entityType": "indexes",
+      "table": "pages"
+    },
+    {
+      "columns": [
+        {
+          "value": "last_scraped_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "pages_last_scraped_at",
+      "entityType": "indexes",
+      "table": "pages"
+    },
+    {
+      "columns": [
+        {
+          "value": "brand_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "products_brand_id",
+      "entityType": "indexes",
+      "table": "products"
+    },
+    {
+      "columns": [
+        {
+          "value": "domain",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "retailers_domain",
+      "entityType": "indexes",
+      "table": "retailers"
+    },
+    {
+      "columns": [
+        {
+          "value": "product_id",
+          "isExpression": false
+        },
+        {
+          "value": "\"name\" COLLATE NOCASE",
+          "isExpression": true
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "variants_product_id_name",
+      "entityType": "indexes",
+      "table": "variants"
+    },
+    {
+      "columns": [
+        {
+          "value": "scrape_id",
+          "isExpression": false
+        },
+        {
+          "value": "attempt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "extractions_scrape_id_attempt",
+      "entityType": "indexes",
+      "table": "extractions"
+    },
+    {
+      "columns": [
+        {
+          "value": "scrape_id",
+          "isExpression": false
+        },
+        {
+          "value": "status",
+          "isExpression": false
+        },
+        {
+          "value": "attempt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "extractions_scrape_id_status_attempt",
+      "entityType": "indexes",
+      "table": "extractions"
+    },
+    {
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false
+        },
+        {
+          "value": "created_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "extractions_status_created_at",
+      "entityType": "indexes",
+      "table": "extractions"
+    },
+    {
+      "columns": [
+        {
+          "value": "prompt_kind",
+          "isExpression": false
+        },
+        {
+          "value": "status",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "extractions_prompt_kind_status",
+      "entityType": "indexes",
+      "table": "extractions"
+    },
+    {
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false
+        },
+        {
+          "value": "created_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "scrapes_status_created_at",
+      "entityType": "indexes",
+      "table": "scrapes"
+    },
+    {
+      "columns": [
+        {
+          "value": "listing_id",
+          "isExpression": false
+        },
+        {
+          "value": "status",
+          "isExpression": false
+        },
+        {
+          "value": "created_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "scrapes_listing_id_status_created_at",
+      "entityType": "indexes",
+      "table": "scrapes"
+    },
+    {
+      "columns": [
+        {
+          "value": "page_id",
+          "isExpression": false
+        },
+        {
+          "value": "status",
+          "isExpression": false
+        },
+        {
+          "value": "created_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "scrapes_page_id_status_created_at",
+      "entityType": "indexes",
+      "table": "scrapes"
+    },
+    {
+      "columns": [
+        {
+          "value": "created_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "scrapes_created_at",
+      "entityType": "indexes",
+      "table": "scrapes"
+    },
+    {
+      "value": "\"paused\" IN (0, 1)",
+      "name": "brands_paused_boolean",
+      "entityType": "checks",
+      "table": "brands"
+    },
+    {
+      "value": "\"cadence\" IN ('daily', 'weekly', 'fortnightly', 'monthly')",
+      "name": "listings_cadence_literal",
+      "entityType": "checks",
+      "table": "listings"
+    },
+    {
+      "value": "\"paused\" IN (0, 1)",
+      "name": "pages_paused_boolean",
+      "entityType": "checks",
+      "table": "pages"
+    },
+    {
+      "value": "\"cadence\" IN ('daily', 'weekly', 'fortnightly', 'monthly')",
+      "name": "pages_cadence_literal",
+      "entityType": "checks",
+      "table": "pages"
+    },
+    {
+      "value": "\"paused\" IN (0, 1)",
+      "name": "products_paused_boolean",
+      "entityType": "checks",
+      "table": "products"
+    },
+    {
+      "value": "\"paused\" IN (0, 1)",
+      "name": "retailers_paused_boolean",
+      "entityType": "checks",
+      "table": "retailers"
+    },
+    {
+      "value": "\"scrape_mode\" IN ('basic', 'advance')",
+      "name": "retailers_scrape_mode_literal",
+      "entityType": "checks",
+      "table": "retailers"
+    },
+    {
+      "value": "\"attempt\" >= 1",
+      "name": "extractions_attempt_positive",
+      "entityType": "checks",
+      "table": "extractions"
+    },
+    {
+      "value": "\"status\" IN ('pending', 'running', 'success', 'failed')",
+      "name": "extractions_status_literal",
+      "entityType": "checks",
+      "table": "extractions"
+    },
+    {
+      "value": "\"prompt_kind\" IN ('listing', 'page')",
+      "name": "extractions_prompt_kind_literal",
+      "entityType": "checks",
+      "table": "extractions"
+    },
+    {
+      "value": "\"error_code\" IS NULL OR \"error_code\" IN ('provider_error', 'json_mode_unmet', 'invalid_json', 'llm_timeout', 'context_overflow', 'unknown')",
+      "name": "extractions_error_code_literal",
+      "entityType": "checks",
+      "table": "extractions"
+    },
+    {
+      "value": "\"extracted_json\" IS NULL OR json_valid(\"extracted_json\")",
+      "name": "extractions_extracted_json_json",
+      "entityType": "checks",
+      "table": "extractions"
+    },
+    {
+      "value": "(\"listing_id\" IS NULL) <> (\"page_id\" IS NULL)",
+      "name": "scrapes_exactly_one_parent",
+      "entityType": "checks",
+      "table": "scrapes"
+    },
+    {
+      "value": "\"mode\" IN ('basic', 'advance')",
+      "name": "scrapes_mode_literal",
+      "entityType": "checks",
+      "table": "scrapes"
+    },
+    {
+      "value": "\"status\" IN ('pending', 'running', 'success', 'failed')",
+      "name": "scrapes_status_literal",
+      "entityType": "checks",
+      "table": "scrapes"
+    },
+    {
+      "value": "\"error_code\" IS NULL OR \"error_code\" IN ('timeout', 'navigation_failed', 'blocked', 'provider_error', 'invalid_url', 'parent_deleted', 'unknown')",
+      "name": "scrapes_error_code_literal",
+      "entityType": "checks",
+      "table": "scrapes"
+    },
+    {
+      "value": "\"request_headers\" IS NULL OR json_valid(\"request_headers\")",
+      "name": "scrapes_request_headers_json",
+      "entityType": "checks",
+      "table": "scrapes"
+    },
+    {
+      "value": "\"response_headers\" IS NULL OR json_valid(\"response_headers\")",
+      "name": "scrapes_response_headers_json",
+      "entityType": "checks",
+      "table": "scrapes"
+    },
+    {
+      "value": "\"cookies\" IS NULL OR json_valid(\"cookies\")",
+      "name": "scrapes_cookies_json",
+      "entityType": "checks",
+      "table": "scrapes"
+    },
+    {
+      "value": "\"ip_info\" IS NULL OR json_valid(\"ip_info\")",
+      "name": "scrapes_ip_info_json",
+      "entityType": "checks",
+      "table": "scrapes"
+    }
+  ],
+  "renames": []
+}

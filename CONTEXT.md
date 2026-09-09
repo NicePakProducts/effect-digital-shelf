@@ -19,7 +19,7 @@ A size, shade, or pack count of one Product, identified by a freeform name uniqu
 _Avoid_: Option, SKU, child product
 
 **Retailer**:
-A destination domain we scrape (e.g. _chemistwarehouse.com.au_), global and shared across all Brands. Carries the scrape defaults and the two Extraction prompts (one per parent kind); has no capability flags.
+A destination domain we scrape (e.g. _chemistwarehouse.com.au_), global and shared across all Brands. The domain is stored in canonical form: lower-case host, no scheme, path, port or leading `www.`, whatever the user pasted. Carries the scrape defaults and the two Extraction prompts (one per parent kind); has no capability flags.
 _Avoid_: Store, site, merchant, vendor
 
 **Listing**:
@@ -43,7 +43,7 @@ The set of Variants a Listing covers, chosen by the user when creating or editin
 _Avoid_: Variant mapping, detected variants
 
 **URL**:
-The current pointer on a Listing or Page. Changing it does not create a new row; URLs are not unique, and the user owns correctness.
+The current pointer on a Listing or Page. Changing it does not create a new row and rewrites no history: every Scrape keeps the URL it actually fetched, and the next Scrape uses the new one. URLs are not unique, and the user owns correctness.
 _Avoid_: Link, href, location
 
 ### Scraping
@@ -211,7 +211,7 @@ The clean structured output of a successful Extraction, stored on the Extraction
 _Avoid_: Result, output, data blob
 
 **Extraction model**:
-The LLM the Extraction ran against. Pinned as a global default with no per-Retailer override; the provider and model are configuration, not domain.
+The LLM the Extraction ran against, recorded on the Extraction. Pinned as a global default with no per-Retailer override; the provider and model are configuration, not domain.
 _Avoid_: Extract mode, engine
 
 **Token usage**:
@@ -283,6 +283,4 @@ Known drifts carried over from the previous app, to resolve in their own tickets
 
 - **Retention window**: the glossary and the sweep said 90 days; the earliest rebuild notes said 120 days. Pick one and note whether the per-tick sweep cap belongs in the domain at all.
 - **Extraction error code `context_overflow`**: the code classified it (a page too large for the model's context) but the glossary never listed it. Listed above as canonical; confirm the full set, and drop the storage-specific `schema_mismatch` the old code also emitted.
-- **Latest-extraction pointer semantics**: the two pointers live on the Scrape, but "latest extracted data" is asked per Parent, which means the Parent's latest successful Scrape first, then that Scrape's latest successful Extraction. Decide whether a Parent whose newest Scrape failed still surfaces the previous Scrape's data, and whether the pointers stay on the Scrape or move to the Parent.
-- **URL change semantics**: what happens to historical Scrapes when a Listing or Page URL changes.
 - **URL invariants**: host-must-match-Retailer and tracker-param normalisation were deferred in the old app; not yet part of this glossary.

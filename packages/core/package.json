@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@digital-shelf/domain": "workspace:*",
+    "drizzle-orm": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {
