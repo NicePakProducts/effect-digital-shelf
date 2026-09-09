@@ -13,3 +13,4 @@ Each entity (Brand, Product, Variant, Retailer, Listing, Page, Scrape, Extractio
 - The wire shape of an entity is an explicit pick/omit projection of the entity, decided per endpoint in the API contracts, never the entity itself.
 - Command inputs (`*Management.ts`) are hand-written structs, not derived insert schemas: what an API caller may say is a product decision, not a column list.
 - `drizzle-kit generate` reads the domain tables through `packages/infra/drizzle.config.ts`; migrations live in infra and are proven against PGlite in infra's tests.
+- Auth tables (better-auth's user, session, account, verification) also live in `packages/domain/src/Sql/`, as `Auth.ts`, so one schema drives one migration set; they get no derived entity schemas because nothing in the domain reads them as entities.

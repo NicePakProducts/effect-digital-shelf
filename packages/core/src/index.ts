@@ -1,1 +1,2 @@
-export const packageName = "@digital-shelf/core"
+// Import by subpath: `@digital-shelf/core/Catalog/Brands`, never from here.
+export {}

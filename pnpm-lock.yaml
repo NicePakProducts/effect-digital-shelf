@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@effect/sql-pglite':
+      specifier: 4.0.0-rc.112
+      version: 4.0.0-rc.112
     '@effect/tsgo':
       specifier: 0.43.0
       version: 0.43.0
@@ -41,12 +44,18 @@ importers:
 
   .:
     devDependencies:
+      '@effect/sql-pglite':
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112(effect@4.0.0-rc.112)
       '@effect/tsgo':
         specifier: 'catalog:'
         version: 0.43.0
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(vitest@4.1.11)
+      '@electric-sql/pglite':
+        specifier: 'catalog:'
+        version: 0.5.8
       '@types/node':
         specifier: 'catalog:'
         version: 26.5.0
@@ -92,14 +101,23 @@ importers:
         version: link:../domain
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112)
+        version: 1.0.0-rc.5-ab785fc(@effect/sql-pglite@4.0.0-rc.112(effect@4.0.0-rc.112))(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
     devDependencies:
+      '@effect/sql-pglite':
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112(effect@4.0.0-rc.112)
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(vitest@4.1.11)
+      '@electric-sql/pglite':
+        specifier: 'catalog:'
+        version: 0.5.8
+      drizzle-kit:
+        specifier: 'catalog:'
+        version: 1.0.0-rc.5-ab785fc
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -114,7 +132,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112)
+        version: 1.0.0-rc.5-ab785fc(@effect/sql-pglite@4.0.0-rc.112(effect@4.0.0-rc.112))(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -142,7 +160,7 @@ importers:
         version: link:../domain
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112)
+        version: 1.0.0-rc.5-ab785fc(@effect/sql-pglite@4.0.0-rc.112(effect@4.0.0-rc.112))(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -185,6 +203,11 @@ packages:
 
   '@drizzle-team/brocli@0.12.1':
     resolution: {integrity: sha512-yHwomvolVafvUXhy5TdiJVkuNCxXn+bKOs2aWiWEQh/5YaV97Oa/abJz3dmx7lxgIUsUlS1Jl4mEfvJPo3YsVw==}
+
+  '@effect/sql-pglite@4.0.0-rc.112':
+    resolution: {integrity: sha512-WExt8bbV/Q9J4z0ECkXyqBToljYfGzskv1TO1GwYU93zAfhaCk6hcj/O7ZVdET5TZqnMFu31gtvX6wpvT8L2yw==}
+    peerDependencies:
+      effect: ^4.0.0-rc.112
 
   '@effect/tsgo-darwin-arm64@0.43.0':
     resolution: {integrity: sha512-IG/JjY2n2YbUCQUwTLss9dF/VLe/m9tXQsyUHxhqFWW0Ih/3AJN3zIEnKu1JH19eQASFgsnm5zJQXHpVmiMRng==}
@@ -1691,6 +1714,11 @@ snapshots:
 
   '@drizzle-team/brocli@0.12.1': {}
 
+  '@effect/sql-pglite@4.0.0-rc.112(effect@4.0.0-rc.112)':
+    dependencies:
+      '@electric-sql/pglite': 0.5.8
+      effect: 4.0.0-rc.112
+
   '@effect/tsgo-darwin-arm64@0.43.0':
     optional: true
 
@@ -2281,8 +2309,9 @@ snapshots:
       get-tsconfig: 4.14.3
       jiti: 2.7.0
 
-  drizzle-orm@1.0.0-rc.5-ab785fc(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112):
+  drizzle-orm@1.0.0-rc.5-ab785fc(@effect/sql-pglite@4.0.0-rc.112(effect@4.0.0-rc.112))(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112):
     optionalDependencies:
+      '@effect/sql-pglite': 4.0.0-rc.112(effect@4.0.0-rc.112)
       '@electric-sql/pglite': 0.5.8
       effect: 4.0.0-rc.112
 

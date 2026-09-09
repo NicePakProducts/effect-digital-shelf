@@ -6,6 +6,7 @@
   "exports": {
     "./package.json": "./package.json",
     ".": "./src/index.ts",
+    "./test/*": "./test/*.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
@@ -18,7 +19,10 @@
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@effect/sql-pglite": "catalog:",
     "@effect/vitest": "catalog:",
+    "@electric-sql/pglite": "catalog:",
+    "drizzle-kit": "catalog:",
     "typescript": "catalog:",
     "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
     "vite-plus": "catalog:"
