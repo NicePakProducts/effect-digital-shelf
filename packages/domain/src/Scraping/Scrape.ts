@@ -8,6 +8,7 @@ import * as Schema from "effect/Schema"
 import { ListingId, PageId, ScrapeId } from "../Shared/Ids.ts"
 import { Json, Timestamp, nullable } from "../Shared/Refine.ts"
 import { scrapes } from "../Sql/Scraping.ts"
+import { SpanId } from "./Execution.ts"
 import { Headers } from "./ScrapeEnvelope.ts"
 import { ParentKind, ScrapeErrorCode } from "./Vocabulary.ts"
 
@@ -41,6 +42,7 @@ export const Scrape = createSelectSchema(scrapes, {
   id: ScrapeId,
   listingId: nullable(ListingId),
   pageId: nullable(PageId),
+  rootSpanId: SpanId,
   country: nullable(Schema.String),
   requestHeaders: nullable(Headers),
   startedAt: nullable(Timestamp),
@@ -82,6 +84,7 @@ export const ScrapeInsert = createInsertSchema(scrapes, {
   id: Schema.optionalKey(ScrapeId),
   listingId: Schema.optionalKey(nullable(ListingId)),
   pageId: Schema.optionalKey(nullable(PageId)),
+  rootSpanId: SpanId,
   country: Schema.optionalKey(nullable(Schema.String)),
   requestHeaders: Schema.optionalKey(nullable(Headers)),
   startedAt: Schema.optionalKey(nullable(Timestamp)),
@@ -109,6 +112,7 @@ export const ScrapeUpdate = createUpdateSchema(scrapes, {
   id: Schema.optionalKey(ScrapeId),
   listingId: Schema.optionalKey(nullable(ListingId)),
   pageId: Schema.optionalKey(nullable(PageId)),
+  rootSpanId: Schema.optionalKey(SpanId),
   country: Schema.optionalKey(nullable(Schema.String)),
   requestHeaders: Schema.optionalKey(nullable(Headers)),
   startedAt: Schema.optionalKey(nullable(Timestamp)),

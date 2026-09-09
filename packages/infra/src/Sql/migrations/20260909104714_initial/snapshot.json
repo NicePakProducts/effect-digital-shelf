@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "80ef49bc-2c7a-4a52-97e9-9ddd06a518f1",
+  "id": "a52aaccb-d234-45c7-a797-9ed7bc4bbeae",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
@@ -980,6 +980,19 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "name": "root_span_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "scrapes"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
       "name": "request_url",
       "entityType": "columns",
       "schema": "public",
@@ -1695,6 +1708,48 @@
       "table": "scrapes"
     },
     {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "listing_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"status\" IN ('pending', 'running')",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "scrapes_listing_in_flight",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "scrapes"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "page_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"status\" IN ('pending', 'running')",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "scrapes_page_in_flight",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "scrapes"
+    },
+    {
       "nameExplicit": false,
       "columns": ["listing_id"],
       "schemaTo": "public",
@@ -1926,6 +1981,13 @@
     {
       "value": "(\"listing_id\" IS NULL) <> (\"page_id\" IS NULL)",
       "name": "scrapes_exactly_one_parent",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "scrapes"
+    },
+    {
+      "value": "\"root_span_id\" ~ '^[0-9a-f]{16}$'",
+      "name": "scrapes_root_span_id_hex",
       "entityType": "checks",
       "schema": "public",
       "table": "scrapes"

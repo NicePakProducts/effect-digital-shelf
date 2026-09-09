@@ -8,13 +8,20 @@ import {
   text,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core"
 import {
   ExtractionErrorCodes,
   ScrapeErrorCodes,
 } from "../Scraping/Vocabulary.ts"
 import { listings, pages } from "./Catalog.ts"
-import { at, id, nullableLiteralsCheck, timestamps } from "./Columns.ts"
+import {
+  at,
+  id,
+  inLiterals,
+  nullableLiteralsCheck,
+  timestamps,
+} from "./Columns.ts"
 import {
   extractionStatusEnum,
   promptKindEnum,
@@ -36,7 +43,16 @@ import {
  * Stored HTML and the forensic provider response live in R2 under keys
  * derived from the Scrape id; the `*_r2_key` columns record that the object
  * was written.
+ *
+ * In-flight refusal is schema (ADR 0004): the two partial unique indexes let
+ * a Parent hold at most one Scrape in `pending` or `running`, so concurrent
+ * triggers need no lock. A Scrape's trace identity derives from the row (ADR
+ * 0007): `root_span_id` is the span id of the `Scrape.created` span emitted
+ * inside the insert transaction.
  */
+
+const inFlight = (t: { status: AnyPgColumn }) =>
+  inLiterals(t.status, ["pending", "running"])
 
 export const scrapes = pgTable(
   "scrapes",
@@ -50,6 +66,9 @@ export const scrapes = pgTable(
     mode: scrapeModeEnum("mode").notNull(),
     country: text("country"),
     status: scrapeStatusEnum("status").notNull(),
+    // Span id of the `Scrape.created` root span; the trace id is the Scrape
+    // id without dashes (ADR 0007).
+    rootSpanId: text("root_span_id").notNull(),
     // The URL actually fetched; a later Parent URL change rewrites nothing.
     requestUrl: text("request_url").notNull(),
     requestHeaders: jsonb("request_headers"),
@@ -90,6 +109,9 @@ export const scrapes = pgTable(
       t.createdAt,
     ),
     index("scrapes_created_at").on(t.createdAt),
+    uniqueIndex("scrapes_listing_in_flight").on(t.listingId).where(inFlight(t)),
+    uniqueIndex("scrapes_page_in_flight").on(t.pageId).where(inFlight(t)),
+    check("scrapes_root_span_id_hex", sql`${t.rootSpanId} ~ '^[0-9a-f]{16}$'`),
     nullableLiteralsCheck("scrapes", t.errorCode, ScrapeErrorCodes),
   ],
 )

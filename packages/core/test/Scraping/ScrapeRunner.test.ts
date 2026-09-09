@@ -1,0 +1,304 @@
+import { expect, it } from "@effect/vitest"
+import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
+import {
+  ScrapeRunner,
+  FetchOutcome,
+  TransitionRejected,
+} from "@digital-shelf/core/Scraping/ScrapeRunner"
+import * as ExtractionsRepo from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
+import { ScrapeProviderError } from "@digital-shelf/core/Providers/ScrapeProviders"
+import { Db } from "@digital-shelf/core/Sql/Db"
+import { query } from "@digital-shelf/core/Sql/Errors"
+import {
+  extractions,
+  scrapes as scrapeTable,
+} from "@digital-shelf/domain/Sql/Scraping"
+import { listings } from "@digital-shelf/domain/Sql/Catalog"
+import { eq } from "drizzle-orm"
+import * as DateTime from "effect/DateTime"
+import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+import * as TestClock from "effect/testing/TestClock"
+import * as CoreTest from "../layers/Core.ts"
+import { ExecutionsTest } from "../layers/Executions.ts"
+import { ScrapeProvidersTest, fetched } from "../layers/ScrapeProviders.ts"
+import { R2BucketTest } from "../layers/R2Bucket.ts"
+import { reset, seed } from "../fixtures/Scraping.ts"
+
+const setup = Effect.gen(function* () {
+  yield* reset
+  const target = yield* (yield* seed()).listing
+  const scrapes = yield* Scrapes
+  const row = yield* scrapes.trigger({ parent: target.parent })
+  return { target, scrapes, row, runner: yield* ScrapeRunner }
+})
+it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
+  "ScrapeRunner",
+  (it) => {
+    it.effect(
+      "retailer advance defaults are stored and forwarded to the provider",
+      () =>
+        Effect.gen(function* () {
+          yield* reset
+          const { parent, url } = yield* (yield* seed({
+            mode: "advance",
+            country: "Canada",
+          })).listing
+          const scrapes = yield* Scrapes
+          const row = yield* scrapes.trigger({ parent })
+          expect(row.mode).toBe("advance")
+          expect(row.country).toEqual(Option.some("Canada"))
+          const runner = yield* ScrapeRunner
+          const claimed = yield* runner.claim(row.id)
+          expect(claimed.country).toBe("Canada")
+          yield* runner.fetch(row.id, claimed)
+          expect(yield* (yield* ScrapeProvidersTest).requests).toEqual([
+            {
+              mode: "advance",
+              request: { url, country: Option.some("Canada") },
+            },
+          ])
+        }),
+    )
+    it.effect(
+      "catch-all leaves both terminal states completely unchanged",
+      () =>
+        Effect.gen(function* () {
+          const { row, runner, scrapes, target } = yield* setup
+          const fetched = yield* runner.fetch(
+            row.id,
+            yield* runner.claim(row.id),
+          )
+          yield* runner.finish(row.id, fetched)
+          const successful = yield* scrapes.get(row.id)
+          yield* TestClock.adjust("1 second")
+          yield* runner.fail(row.id, "unknown", "after commit")
+          expect(yield* scrapes.get(row.id)).toEqual(successful)
+          const next = yield* scrapes.trigger({ parent: target.parent })
+          yield* runner.fail(next.id, "timeout", "first failure")
+          const failed = yield* scrapes.get(next.id)
+          yield* TestClock.adjust("1 second")
+          yield* runner.fail(next.id, "unknown", "later failure")
+          expect(yield* scrapes.get(next.id)).toEqual(failed)
+        }),
+    )
+    it.effect(
+      "rejected finish preserves TransitionRejected if object cleanup fails",
+      () =>
+        Effect.gen(function* () {
+          const { row, runner } = yield* setup
+          const outcome = yield* runner.fetch(
+            row.id,
+            yield* runner.claim(row.id),
+          )
+          yield* runner.fail(row.id, "timeout", "swept")
+          yield* (yield* R2BucketTest).failNextDelete
+          expect(
+            yield* Effect.flip(runner.finish(row.id, outcome)),
+          ).toBeInstanceOf(TransitionRejected)
+        }),
+    )
+    it.effect(
+      "happy path stores objects, advances the parent and atomically creates one pinned Extraction; steps replay",
+      () =>
+        Effect.gen(function* () {
+          const { row, runner, scrapes, target } = yield* setup
+          const claimed = yield* runner.claim(row.id)
+          const firstStartedAt = (yield* scrapes.get(row.id)).startedAt
+          yield* TestClock.adjust("1 second")
+          expect(yield* runner.claim(row.id)).toEqual(claimed)
+          expect((yield* scrapes.get(row.id)).startedAt).toEqual(firstStartedAt)
+          const outcome = yield* runner.fetch(row.id, claimed)
+          expect(
+            Schema.is(FetchOutcome)(JSON.parse(JSON.stringify(outcome))),
+          ).toBe(true)
+          const result = yield* runner.finish(row.id, outcome)
+          expect(result.extractionId).not.toBeNull()
+          expect(yield* runner.finish(row.id, outcome)).toEqual(result)
+          expect((yield* scrapes.get(row.id)).status).toBe("success")
+          const db = yield* Db
+          const rows = yield* query(db.select().from(extractions))
+          expect(rows).toHaveLength(1)
+          expect(rows[0]).toMatchObject({
+            status: "pending",
+            model: "@cf/zai-org/glm-4.7-flash",
+            promptSnapshot: "Extract listing",
+            attempt: 1,
+          })
+          const parentRows = yield* query(
+            db
+              .select()
+              .from(listings)
+              .where(eq(listings.id, target.parent.listingId)),
+          )
+          expect(parentRows[0]?.lastScrapedAt).toEqual(
+            DateTime.toDateUtc(yield* DateTime.now),
+          )
+          const objects = yield* (yield* R2BucketTest).inspect
+          expect(objects.get(`html/${row.id}.html`)?.contentType).toBe(
+            "text/html",
+          )
+          expect(objects.get(`raw/${row.id}.json`)?.contentType).toBe(
+            "application/json",
+          )
+          const initial = Option.getOrThrow(
+            yield* ExtractionsRepo.findInitial(row.id),
+          )
+          yield* runner.startExtraction(initial.id, row.id)
+          yield* runner.startExtraction(initial.id, row.id)
+          const calls = yield* (yield* ExecutionsTest).calls
+          expect(
+            calls.filter((call) => call.kind === "extraction")[0]?.instances,
+          ).toEqual([
+            {
+              id: initial.id,
+              traceparent: `00-${row.id.replaceAll("-", "")}-${row.rootSpanId}-01`,
+            },
+          ])
+          yield* query(
+            db
+              .update(extractions)
+              .set({
+                status: "success",
+                updatedAt: DateTime.toDateUtc(yield* DateTime.now),
+              })
+              .where(eq(extractions.id, initial.id)),
+          )
+          expect(yield* runner.finish(row.id, outcome)).toEqual(result)
+        }),
+    )
+    it.effect("a late finish cannot resurrect a failed Scrape", () =>
+      Effect.gen(function* () {
+        const { row, runner, scrapes } = yield* setup
+        const claimed = yield* runner.claim(row.id)
+        const outcome = yield* runner.fetch(row.id, claimed)
+        yield* runner.fail(row.id, "unknown", "execution failed")
+        yield* runner.fail(row.id, "unknown", "replay")
+        expect(
+          yield* Effect.flip(runner.finish(row.id, outcome)),
+        ).toBeInstanceOf(TransitionRejected)
+        expect((yield* scrapes.get(row.id)).status).toBe("failed")
+        const objects = yield* (yield* R2BucketTest).inspect
+        expect(objects.has(`html/${row.id}.html`)).toBe(false)
+        expect(objects.has(`raw/${row.id}.json`)).toBe(false)
+        expect(Option.isNone(yield* ExtractionsRepo.findInitial(row.id))).toBe(
+          true,
+        )
+      }),
+    )
+    it.effect("the provider deadline is driven by TestClock", () =>
+      Effect.gen(function* () {
+        const { row, runner, target } = yield* setup
+        yield* (yield* ScrapeProvidersTest).script(
+          target.url,
+          Effect.sleep("10 minutes").pipe(Effect.as(fetched(target.url))),
+        )
+        const claimed = yield* runner.claim(row.id)
+        const fiber = yield* runner
+          .fetch(row.id, claimed)
+          .pipe(Effect.forkChild)
+        yield* TestClock.adjust("181 seconds")
+        expect(yield* Fiber.join(fiber)).toMatchObject({
+          _tag: "failed",
+          code: "timeout",
+          attempts: 1,
+        })
+      }),
+    )
+    it.effect("inner text is capped at a UTF-8 character boundary", () =>
+      Effect.gen(function* () {
+        const { row, runner, target } = yield* setup
+        const result = fetched(target.url)
+        yield* (yield* ScrapeProvidersTest).script(
+          target.url,
+          Effect.succeed({
+            ...result,
+            envelope: { ...result.envelope, innerText: "€".repeat(102400) },
+          }),
+        )
+        const outcome = yield* runner.fetch(row.id, yield* runner.claim(row.id))
+        expect(outcome._tag).toBe("fetched")
+        if (outcome._tag !== "fetched") return
+        expect(outcome.truncated).toBe(true)
+        expect(
+          new TextEncoder().encode(outcome.envelope.innerText).length,
+        ).toBe(262143)
+        expect(outcome.envelope.innerText.includes("�")).toBe(false)
+      }),
+    )
+    it.effect("provider failures are JSON-safe and persist their code", () =>
+      Effect.gen(function* () {
+        const { row, runner, target, scrapes } = yield* setup
+        yield* (yield* ScrapeProvidersTest).script(
+          target.url,
+          Effect.fail(
+            new ScrapeProviderError({
+              code: "blocked",
+              message: "blocked",
+              retryable: false,
+              attempts: 2,
+              detail: { status: 403 },
+            }),
+          ),
+        )
+        const outcome = yield* runner.fetch(row.id, yield* runner.claim(row.id))
+        expect(outcome).toMatchObject({
+          _tag: "failed",
+          code: "blocked",
+          detail: { status: 403 },
+        })
+        expect(yield* runner.finish(row.id, outcome)).toEqual({
+          extractionId: null,
+        })
+        expect(yield* runner.finish(row.id, outcome)).toEqual({
+          extractionId: null,
+        })
+        const saved = yield* scrapes.get(row.id)
+        expect(saved.errorCode).toEqual(Option.some("blocked"))
+        expect(saved.attempts).toEqual(Option.some(2))
+      }),
+    )
+    it.effect(
+      "catch-all can fail before claim and claim uses dispatch snapshots",
+      () =>
+        Effect.gen(function* () {
+          const { row, runner, scrapes } = yield* setup
+          yield* runner.fail(row.id, "unknown", "before claim")
+          expect((yield* scrapes.get(row.id)).status).toBe("failed")
+          expect(yield* Effect.flip(runner.claim(row.id))).toBeInstanceOf(
+            TransitionRejected,
+          )
+        }),
+    )
+    it.effect(
+      "finish rolls back success if initial Extraction insertion fails",
+      () =>
+        Effect.gen(function* () {
+          const { row, runner, scrapes } = yield* setup
+          const outcome = yield* runner.fetch(
+            row.id,
+            yield* runner.claim(row.id),
+          )
+          const now = yield* DateTime.now
+          yield* ExtractionsRepo.insert({
+            scrapeId: row.id,
+            attempt: 1,
+            status: "pending",
+            model: "collision",
+            promptKind: "listing",
+            promptSnapshot: "test",
+            createdAt: now,
+            updatedAt: now,
+          })
+          yield* Effect.flip(runner.finish(row.id, outcome))
+          expect((yield* scrapes.get(row.id)).status).toBe("running")
+          const db = yield* Db
+          expect(
+            (yield* query(db.select().from(scrapeTable)))[0]?.finishedAt,
+          ).toBeNull()
+        }),
+    )
+  },
+)

@@ -99,6 +99,7 @@ CREATE TABLE "scrapes" (
 	"mode" "scrape_mode" NOT NULL,
 	"country" text,
 	"status" "scrape_status" NOT NULL,
+	"root_span_id" text NOT NULL,
 	"request_url" text NOT NULL,
 	"request_headers" jsonb,
 	"started_at" timestamp with time zone,
@@ -120,6 +121,7 @@ CREATE TABLE "scrapes" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "scrapes_exactly_one_parent" CHECK (("listing_id" IS NULL) <> ("page_id" IS NULL)),
+	CONSTRAINT "scrapes_root_span_id_hex" CHECK ("root_span_id" ~ '^[0-9a-f]{16}$'),
 	CONSTRAINT "scrapes_error_code_literal" CHECK ("error_code" IS NULL OR "error_code" IN ('timeout', 'navigation_failed', 'blocked', 'provider_error', 'invalid_url', 'parent_deleted', 'unknown'))
 );
 --> statement-breakpoint
@@ -141,6 +143,8 @@ CREATE INDEX "scrapes_status_created_at" ON "scrapes" ("status","created_at");--
 CREATE INDEX "scrapes_listing_id_status_created_at" ON "scrapes" ("listing_id","status","created_at");--> statement-breakpoint
 CREATE INDEX "scrapes_page_id_status_created_at" ON "scrapes" ("page_id","status","created_at");--> statement-breakpoint
 CREATE INDEX "scrapes_created_at" ON "scrapes" ("created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "scrapes_listing_in_flight" ON "scrapes" ("listing_id") WHERE "status" IN ('pending', 'running');--> statement-breakpoint
+CREATE UNIQUE INDEX "scrapes_page_in_flight" ON "scrapes" ("page_id") WHERE "status" IN ('pending', 'running');--> statement-breakpoint
 ALTER TABLE "listing_variants" ADD CONSTRAINT "listing_variants_listing_id_listings_id_fkey" FOREIGN KEY ("listing_id") REFERENCES "listings"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "listing_variants" ADD CONSTRAINT "listing_variants_variant_id_variants_id_fkey" FOREIGN KEY ("variant_id") REFERENCES "variants"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "listings" ADD CONSTRAINT "listings_product_id_products_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE CASCADE;--> statement-breakpoint

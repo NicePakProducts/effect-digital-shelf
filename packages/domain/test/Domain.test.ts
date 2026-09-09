@@ -109,6 +109,7 @@ describe("Scrape", () => {
     mode: "basic",
     country: null,
     status: "pending",
+    rootSpanId: "0123456789abcdef",
     requestUrl: "https://chemistwarehouse.com.au/bath-wash",
     requestHeaders: null,
     startedAt: null,
