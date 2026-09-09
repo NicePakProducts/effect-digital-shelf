@@ -63,8 +63,8 @@ const seed = (db: PGlite) =>
     INSERT INTO listings (id, product_id, retailer_id, url, cadence) VALUES ('${l1}', '${p1}', '${r1}', 'https://chemistwarehouse.com.au/bath-wash', 'monthly');
     INSERT INTO listing_variants (listing_id, variant_id) VALUES ('${l1}', '${v1}');
     INSERT INTO pages (id, brand_id, retailer_id, url, cadence) VALUES ('${pg1}', '${b1}', '${r1}', 'https://chemistwarehouse.com.au/gaia', 'weekly');
-    INSERT INTO scrapes (id, listing_id, mode, status, request_url) VALUES ('${s1}', '${l1}', 'basic', 'success', 'https://chemistwarehouse.com.au/bath-wash');
-    INSERT INTO scrapes (id, page_id, mode, status, request_url) VALUES ('${s2}', '${pg1}', 'advance', 'pending', 'https://chemistwarehouse.com.au/gaia');
+    INSERT INTO scrapes (id, listing_id, mode, status, root_span_id, request_url) VALUES ('${s1}', '${l1}', 'basic', 'success', '0123456789abcdef', 'https://chemistwarehouse.com.au/bath-wash');
+    INSERT INTO scrapes (id, page_id, mode, status, root_span_id, request_url) VALUES ('${s2}', '${pg1}', 'advance', 'pending', 'fedcba9876543210', 'https://chemistwarehouse.com.au/gaia');
     INSERT INTO extractions (id, scrape_id, attempt, status, prompt_kind, prompt_snapshot, model, extracted_json)
       VALUES ('${e1}', '${s1}', 1, 'success', 'listing', 'listing prompt', 'glm-4.7-flash', '{"price": 9.99}');
   `)
@@ -82,7 +82,7 @@ describe("Postgres migrations", () => {
     await seed(db)
     const insert = (values: string) =>
       db.exec(
-        `INSERT INTO scrapes (id, listing_id, page_id, mode, status, request_url) VALUES ('${id(99)}', ${values}, 'basic', 'pending', 'u')`,
+        `INSERT INTO scrapes (id, listing_id, page_id, mode, status, root_span_id, request_url) VALUES ('${id(99)}', ${values}, 'basic', 'pending', '0000000000000001', 'u')`,
       )
     await expect(insert(`'${l1}', '${pg1}'`)).rejects.toThrow(
       /check constraint/,
@@ -113,6 +113,34 @@ describe("Postgres migrations", () => {
       `INSERT INTO listings (id, product_id, retailer_id, url, cadence) VALUES ('${id(13)}', '${p1}', '${r1}', 'https://chemistwarehouse.com.au/bath-wash', 'monthly')`,
     )
     expect(await count(db, "listings")).toBe(2)
+  })
+
+  it("lets a Parent hold at most one Scrape in pending or running", async () => {
+    const db = await open()
+    await seed(db)
+    const insert = (n: number, parent: string, status: string) =>
+      db.exec(
+        `INSERT INTO scrapes (id, ${parent}, mode, status, root_span_id, request_url) VALUES ('${id(n)}', '${parent === "listing_id" ? l1 : pg1}', 'basic', '${status}', '000000000000000${n % 10}', 'u')`,
+      )
+    // The Page already has a pending Scrape; the Listing's is terminal.
+    await expect(insert(20, "page_id", "pending")).rejects.toThrow(/unique/)
+    await expect(insert(21, "page_id", "running")).rejects.toThrow(/unique/)
+    await insert(22, "listing_id", "running")
+    await expect(insert(23, "listing_id", "pending")).rejects.toThrow(/unique/)
+    // Terminal rows never count.
+    await insert(24, "page_id", "failed")
+    await insert(25, "listing_id", "success")
+    expect(await count(db, "scrapes")).toBe(5)
+  })
+
+  it("requires a hex root span id on every Scrape", async () => {
+    const db = await open()
+    await seed(db)
+    await expect(
+      db.exec(
+        `UPDATE scrapes SET root_span_id = 'not-hex-at-all' WHERE id = '${s1}'`,
+      ),
+    ).rejects.toThrow(/check constraint/)
   })
 
   it("rejects values outside the state unions and invalid JSON", async () => {
