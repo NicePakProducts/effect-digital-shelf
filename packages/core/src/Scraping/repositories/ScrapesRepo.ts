@@ -9,7 +9,7 @@ import type { ScrapeStatus } from "@digital-shelf/domain/Scraping/Vocabulary"
 import { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
 import { Timestamp, nullable } from "@digital-shelf/domain/Shared/Refine"
 import { scrapes } from "@digital-shelf/domain/Sql/Scraping"
-import { and, asc, eq, inArray, lt, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
@@ -231,3 +231,26 @@ export const expiredBacklog = Effect.fn("ScrapesRepo.expiredBacklog")(
     return yield* Rows.decodeOne(Backlog)(rows)
   },
 )
+
+export const mostRecentSuccessful = Effect.fn(
+  "ScrapesRepo.mostRecentSuccessful",
+)(function* (parent: ScrapeParent) {
+  const db = yield* Db
+  return yield* one(
+    yield* query(
+      db
+        .select()
+        .from(scrapes)
+        .where(
+          and(
+            parent._tag === "Listing"
+              ? eq(scrapes.listingId, parent.listingId)
+              : eq(scrapes.pageId, parent.pageId),
+            eq(scrapes.status, "success"),
+          ),
+        )
+        .orderBy(desc(scrapes.createdAt), desc(scrapes.id))
+        .limit(1),
+    ),
+  )
+})

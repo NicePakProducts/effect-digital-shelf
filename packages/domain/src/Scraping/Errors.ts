@@ -35,3 +35,8 @@ export class ExtractionInFlight extends Schema.TaggedError<ExtractionInFlight>()
   "ExtractionInFlight",
   { scrapeId: ScrapeId, promptKind: PromptKind, extractionId: ExtractionId },
 ) {}
+
+export class NoSuccessfulScrape extends Schema.TaggedError<NoSuccessfulScrape>()(
+  "NoSuccessfulScrape",
+  { parent: ScrapeParent },
+) {}

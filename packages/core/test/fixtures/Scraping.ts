@@ -1,3 +1,8 @@
+import { LanguageModelTest } from "../layers/LanguageModel.ts"
+import * as ExtractionsRepo from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
+import { htmlKey } from "@digital-shelf/core/Scraping/R2Keys"
+import { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
+import type { ExtractionStatus } from "@digital-shelf/domain/Scraping/Vocabulary"
 import type { Cadence } from "@digital-shelf/domain/Catalog/Cadence"
 import type {
   ScrapeMode,
@@ -35,6 +40,7 @@ import { ScrapeProvidersTest } from "../layers/ScrapeProviders.ts"
 import { R2BucketTest } from "../layers/R2Bucket.ts"
 
 export const reset = Effect.gen(function* () {
+  yield* (yield* LanguageModelTest).reset
   yield* DbTest.reset
   yield* (yield* ExecutionsTest).reset
   yield* (yield* ScrapeProvidersTest).reset
@@ -82,6 +88,7 @@ export const seed = Effect.fn("fixture.seed")(function* (
     }),
   )
   const listing = Effect.gen(function* () {
+    const now = DateTime.toDateUtc(yield* DateTime.now)
     const listingId = Schema.decodeUnknownSync(ListingId)(crypto.randomUUID())
     const url = `https://${retailerId}.example.com/${listingId}`
     yield* query(
@@ -176,4 +183,63 @@ export const cadenceFixture = Effect.gen(function* () {
     inFlight,
     paused,
   }
+})
+
+export const successfulScrape = Effect.fn("fixture.successfulScrape")(
+  function* (
+    parent: ScrapeParent,
+    options: { age?: Duration.Input; html?: string } = {},
+  ) {
+    const now = yield* DateTime.now
+    const at = DateTime.subtractDuration(now, options.age ?? "0 seconds")
+    const id = Schema.decodeUnknownSync(ScrapeId)(crypto.randomUUID())
+    const key = htmlKey(id)
+    const row = yield* ScrapesRepo.insert({
+      id,
+      ...parentColumns(parent),
+      status: "success",
+      requestUrl: "https://example.com/snapshot",
+      mode: "basic",
+      rootSpanId: "0123456789abcdef",
+      htmlR2Key: Option.some(key),
+      finishedAt: Option.some(at),
+      createdAt: at,
+      updatedAt: at,
+    })
+    yield* (yield* R2BucketTest).service.put(
+      key,
+      options.html ?? "<p>Hello</p>",
+      "text/html",
+    )
+    return row
+  },
+)
+export const extraction = Effect.fn("fixture.extraction")(function* (
+  scrapeId: ScrapeId,
+  attempt: number,
+  status: ExtractionStatus,
+  options: { prompt?: string; model?: string; age?: Duration.Input } = {},
+) {
+  const at = DateTime.subtractDuration(
+    yield* DateTime.now,
+    options.age ?? "0 seconds",
+  )
+  const scrape = yield* ScrapesRepo.get(scrapeId)
+  return yield* ExtractionsRepo.insert({
+    scrapeId,
+    attempt,
+    status,
+    promptKind: Option.isSome(scrape.listingId) ? "listing" : "page",
+    promptSnapshot: options.prompt ?? "Extract listing",
+    model: options.model ?? "@cf/zai-org/glm-4.7-flash",
+    createdAt: at,
+    updatedAt: at,
+    startedAt: status === "pending" ? Option.none() : Option.some(at),
+    finishedAt:
+      status === "success" || status === "failed"
+        ? Option.some(at)
+        : Option.none(),
+    extractedJson:
+      status === "success" ? Option.some({ attempt }) : Option.none(),
+  })
 })

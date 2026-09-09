@@ -1,3 +1,4 @@
+import { extractionModel } from "../Providers/LanguageModel.ts"
 import { parent, parentKind } from "@digital-shelf/domain/Scraping/Scrape"
 import { ScrapeEnvelope } from "@digital-shelf/domain/Scraping/ScrapeEnvelope"
 import {
@@ -89,10 +90,7 @@ const make = Effect.gen(function* () {
     Config.withDefault(262144),
     Effect.orDie,
   )
-  const model = yield* Config.string("EXTRACTION_MODEL").pipe(
-    Config.withDefault("@cf/zai-org/glm-4.7-flash"),
-    Effect.orDie,
-  )
+  const model = yield* extractionModel.pipe(Effect.orDie)
 
   const claim = Effect.fn("ScrapeRunner.claim")(function* (id: ScrapeId) {
     const now = yield* DateTime.now

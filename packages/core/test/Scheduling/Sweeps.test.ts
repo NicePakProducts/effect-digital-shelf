@@ -1,3 +1,5 @@
+import * as ExtractionsRepo from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
+import { successfulScrape, extraction } from "../fixtures/Scraping.ts"
 import { expect, it } from "@effect/vitest"
 import { Sweeps } from "@digital-shelf/core/Scheduling/Sweeps"
 import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
@@ -64,6 +66,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           examined: 4,
           failed: 4,
           alreadyTerminal: 0,
+          extractionsExamined: 0,
+          extractionsFailed: 0,
+          extractionsAlreadyTerminal: 0,
         })
         const scrapes = yield* Scrapes
         for (const row of [recent])
@@ -161,6 +166,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           examined: 3,
           failed: 3,
           alreadyTerminal: 0,
+          extractionsExamined: 0,
+          extractionsFailed: 0,
+          extractionsAlreadyTerminal: 0,
         })
         for (const row of rows)
           expect((yield* ScrapesRepo.get(row.id)).status).toBe("failed")
@@ -168,6 +176,56 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           Option.some("running"),
         )
         expect((yield* (yield* R2BucketTest).inspect).size).toBe(1)
+      }),
+  )
+  it.effect(
+    "one stuck sweep covers Scrapes and Extractions without deleting Extraction HTML",
+    () =>
+      Effect.gen(function* () {
+        yield* reset
+        const catalog = yield* seed()
+        const scrape = yield* successfulScrape((yield* catalog.listing).parent)
+        const overdue = yield* extraction(scrape.id, 1, "running", {
+          age: "6 minutes",
+        })
+        const recent = yield* extraction(
+          (yield* successfulScrape((yield* catalog.listing).parent)).id,
+          1,
+          "running",
+          { age: "4 minutes" },
+        )
+        yield* history(
+          (yield* catalog.listing).parent,
+          "running",
+          "7 minutes",
+          "6 minutes",
+        )
+        const report = yield* (yield* Sweeps).stuck(yield* DateTime.now)
+        expect(report).toEqual({
+          examined: 1,
+          failed: 1,
+          alreadyTerminal: 0,
+          extractionsExamined: 1,
+          extractionsFailed: 1,
+          extractionsAlreadyTerminal: 0,
+        })
+        expect(yield* ExtractionsRepo.get(overdue.id)).toMatchObject({
+          status: "failed",
+          errorCode: Option.some("llm_timeout"),
+          errorMessage: Option.some("Extraction exceeded the stuck bound"),
+        })
+        expect((yield* ExtractionsRepo.get(recent.id)).status).toBe("running")
+        expect(
+          yield* (yield* ExecutionsTest).service.status(
+            "extraction",
+            overdue.id,
+          ),
+        ).toEqual(Option.some("terminated"))
+        expect(
+          (yield* (yield* R2BucketTest).inspect).has(
+            Option.getOrThrow(scrape.htmlR2Key),
+          ),
+        ).toBe(true)
       }),
   )
 })

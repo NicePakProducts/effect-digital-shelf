@@ -1,3 +1,4 @@
+import * as LanguageModelTest from "./LanguageModel.ts"
 import * as Layers from "@digital-shelf/core/Layers"
 import * as Layer from "effect/Layer"
 import * as DbTest from "./Db.ts"
@@ -11,6 +12,7 @@ export const layerTest = Layer.mergeAll(
   Layers.Api,
   Layers.Cron,
   Layers.ScrapeWorkflow,
+  Layers.ExtractionWorkflow,
 ).pipe(
   Layer.provideMerge(
     Layer.mergeAll(
@@ -18,6 +20,7 @@ export const layerTest = Layer.mergeAll(
       ExecutionsTest.layerTest,
       R2BucketTest.layerTest,
       ScrapeProvidersTest.layerTest,
+      LanguageModelTest.layerTest,
     ),
   ),
 )
