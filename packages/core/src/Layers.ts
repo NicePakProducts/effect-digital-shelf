@@ -1,3 +1,5 @@
+import { Auth } from "./Auth/Auth.ts"
+import { EmailSender } from "./Auth/EmailSender.ts"
 import { Extractions } from "./Scraping/Extractions.ts"
 import { ExtractionRunner } from "./Scraping/ExtractionRunner.ts"
 import * as Layer from "effect/Layer"
@@ -19,7 +21,12 @@ export const Catalog: Layer.Layer<Brands, never, Db> = Layer.mergeAll(
   Brands.layer,
 )
 
-export const Api = Layer.mergeAll(Catalog, Scrapes.layer, Extractions.layer)
+export const Api = Layer.mergeAll(
+  Catalog,
+  Scrapes.layer,
+  Extractions.layer,
+  Auth.layer,
+)
 export const Cron = CronService.layer.pipe(
   Layer.provideMerge(
     Layer.mergeAll(Sweeps.layer, Scrapes.layer, Extractions.layer),
@@ -29,3 +36,5 @@ export const ScrapeWorkflow = ScrapeRunner.layer
 
 export const ExtractionWorkflow = ExtractionRunner.layer
 export { layer as LanguageModelLive } from "./Providers/LanguageModel.ts"
+
+export const EmailSenderLive = EmailSender.layerPostmark

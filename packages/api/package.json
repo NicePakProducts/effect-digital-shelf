@@ -13,6 +13,7 @@
     "test": "vp test --run"
   },
   "dependencies": {
+    "@digital-shelf/core": "workspace:*",
     "@digital-shelf/domain": "workspace:*",
     "effect": "catalog:"
   },

@@ -9,6 +9,7 @@ import * as PgDrizzle from "drizzle-orm/effect-pglite"
 import { drizzle } from "drizzle-orm/pglite"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import type { SqlError } from "effect/unstable/sql/SqlError"
 
 /**
@@ -26,11 +27,11 @@ const boot = Effect.promise(async () => {
   return pglite
 })
 
-export const layerTest: Layer.Layer<Db, SqlError> = Layer.effect(
-  Db,
-  PgDrizzle.makeWithDefaults(),
-).pipe(
-  Layer.provide(
+export const layerTest: Layer.Layer<
+  Db | PgliteClient.PgliteClient | SqlClient.SqlClient,
+  SqlError
+> = Layer.effect(Db, PgDrizzle.makeWithDefaults()).pipe(
+  Layer.provideMerge(
     PgliteClient.layerFrom(
       Effect.flatMap(boot, (liveClient) =>
         PgliteClient.fromClient({ liveClient }),
@@ -43,5 +44,16 @@ export const reset: Effect.Effect<void, SqlError, Db> = Effect.gen(
   function* () {
     const db = yield* Db
     yield* query(db.execute(sql`TRUNCATE brands, retailers CASCADE`))
+  },
+)
+
+export const resetAuth: Effect.Effect<void, SqlError, Db> = Effect.gen(
+  function* () {
+    const db = yield* Db
+    yield* query(
+      db.execute(
+        sql`TRUNCATE "user", "session", "verification", "account" CASCADE`,
+      ),
+    )
   },
 )
