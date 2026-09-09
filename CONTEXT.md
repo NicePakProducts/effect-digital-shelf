@@ -255,8 +255,12 @@ An authenticated member of the single shared pool. Every User has full read and 
 _Avoid_: Account, member, owner, tenant
 
 **Authentication gate**:
-The boundary between an unauthenticated caller (denied) and a User (full access). Server-side work such as Cron, Sweeps and Executions runs inside the gate without a User.
-_Avoid_: Authorisation, permissions, roles
+The boundary between an unauthenticated caller (denied) and a User (full access). Only an email address at an allowlisted domain can become a User; the first sign-in creates them. Server-side work such as Cron, Sweeps and Executions runs inside the gate without a User.
+_Avoid_: Authorisation, permissions, roles, tenancy
+
+**Allowlisted domain**:
+An email domain whose addresses may sign in. The complete list of who can enter the app; there is no per-person invitation or approval.
+_Avoid_: Whitelist, tenant, organisation
 
 ## Invariants
 
