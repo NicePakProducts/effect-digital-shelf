@@ -49,8 +49,12 @@ _Avoid_: Link, href, location
 ### Scraping
 
 **Scrape**:
-One attempt to fetch a Parent's URL and store the result. Each Scrape is one attempt with no retries; a failed Scrape is followed by a new Scrape, never re-run.
+One attempt to fetch a Parent's URL and store the result. A failed Scrape is followed by a new Scrape, never re-run.
 _Avoid_: Run, fetch, crawl, job
+
+**Fetch attempt**:
+One call a Scrape provider makes to fetch a URL on behalf of a Scrape. A Scrape makes one Fetch attempt unless the provider is configured to retry retryable failures; every Fetch attempt spends from the same Scrape deadline.
+_Avoid_: Retry, Attempt (the Extraction ordinal)
 
 **Scrape mode**:
 How a Scrape is fetched: `basic` (headless browser, no proxy, no geo-targeting) or `advance` (third-party scraping service with a country). Always renders JavaScript in either mode. Each Retailer carries a default; a manual trigger may override it; the Scrape records the mode actually used.
@@ -262,6 +266,7 @@ _Avoid_: Authorisation, permissions, roles
 - A Page is unique per `(Brand, Retailer)`. A Listing is not: `(Product, Retailer)` may hold many Listings, even sharing a URL.
 - A Retailer's domain is unique globally.
 - Brand names and Product names are not unique.
+- A Scrape is one unit of work with one outcome, however many Fetch attempts its provider made.
 - Fetch success and Extraction success are independent states; neither implies the other.
 - Last scraped at advances only on fetch success.
 - Latest successful Extraction only ever moves forward to a newer `success`.
