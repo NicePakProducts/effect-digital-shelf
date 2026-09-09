@@ -1,3 +1,10 @@
+import type { ScrapeUpdate } from "@digital-shelf/domain/Scraping/Scrape"
+import type { ScrapeStatus } from "@digital-shelf/domain/Scraping/Vocabulary"
+import type { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as ScrapesRepo from "./repositories/ScrapesRepo.ts"
+
 import type { LifecycleStatuses } from "@digital-shelf/domain/Scraping/Vocabulary"
 import * as Option from "effect/Option"
 
@@ -46,3 +53,43 @@ export const classifyMissedTransition = (
   Option.isSome(observed) && observed.value === target
     ? "already_applied"
     : "rejected"
+
+export class TransitionRejected extends Data.TaggedError("TransitionRejected")<{
+  readonly id: ScrapeId
+  readonly from: ScrapeStatus
+  readonly to: ScrapeStatus
+  readonly observed: ScrapeStatus | null
+}> {}
+
+export const transition = Effect.fn("Scrape.transition")(function* (
+  id: ScrapeId,
+  from: ScrapeStatus,
+  to: ScrapeStatus,
+  patch: ScrapeUpdate,
+) {
+  const changed = yield* ScrapesRepo.transition(id, from, to, patch)
+  const observed = Option.isSome(changed)
+    ? changed
+    : yield* ScrapesRepo.find(id)
+  const result: TransitionResult = Option.isSome(changed)
+    ? "applied"
+    : classifyMissedTransition(
+        to,
+        Option.map(observed, (row) => row.status),
+      )
+  yield* Effect.annotateCurrentSpan({
+    "shelf.transition": result,
+    "shelf.transition.from": from,
+    "shelf.transition.to": to,
+  })
+  if (result === "rejected" || Option.isNone(observed))
+    return yield* Effect.fail(
+      new TransitionRejected({
+        id,
+        from,
+        to,
+        observed: Option.getOrNull(Option.map(observed, (row) => row.status)),
+      }),
+    )
+  return { row: observed.value, result }
+})

@@ -51,3 +51,20 @@ export const findPending = Effect.fn("ExtractionsRepo.findPending")(function* (
     ),
   )
 })
+
+/** Attempt one remains the replay result even after Extraction progresses. */
+export const findInitial = Effect.fn("ExtractionsRepo.findInitial")(function* (
+  scrapeId: ScrapeId,
+) {
+  const db = yield* Db
+  return yield* one(
+    yield* query(
+      db
+        .select()
+        .from(extractions)
+        .where(
+          and(eq(extractions.scrapeId, scrapeId), eq(extractions.attempt, 1)),
+        ),
+    ),
+  )
+})

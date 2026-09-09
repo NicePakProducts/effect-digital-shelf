@@ -22,7 +22,7 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import { cadenceInterval } from "../../Scheduling/CadenceDue.ts"
+import { cadenceInterval } from "../../Sql/Cadence.ts"
 import { Db } from "../../Sql/Db.ts"
 import { query } from "../../Sql/Errors.ts"
 import * as Rows from "../../Sql/Rows.ts"
@@ -224,8 +224,8 @@ const idOf = (target: ScrapeTarget): string =>
   Option.getOrElse(target.listingId, () => Option.getOrThrow(target.pageId))
 
 /**
- * Every Parent under a bulk scope that is not effectively paused and not in
- * flight, cadence ignored. A Product scope has no Pages.
+ * Every Parent under a bulk scope that is not effectively paused, cadence ignored.
+ * In-flight candidates reach the insert so bulk can report them as skipped. A Product scope has no Pages.
  */
 export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
   function* (scope: BulkScrape) {
@@ -244,7 +244,6 @@ export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
           and(
             listingScope,
             sql`NOT (${brands.paused} OR ${products.paused} OR ${retailers.paused})`,
-            listingNotInFlight,
           ),
         )
         .orderBy(asc(listings.createdAt), asc(listings.id)),
@@ -260,7 +259,6 @@ export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
                     ? eq(brands.id, scope.brandId)
                     : eq(retailers.id, scope.retailerId),
                   sql`NOT (${brands.paused} OR ${retailers.paused} OR ${pages.paused})`,
-                  pageNotInFlight,
                 ),
               )
               .orderBy(asc(pages.createdAt), asc(pages.id)),
@@ -309,14 +307,14 @@ export const markScraped = Effect.fn("ParentsRepo.markScraped")(function* (
     yield* query(
       db
         .update(listings)
-        .set({ lastScrapedAt })
+        .set({ lastScrapedAt, updatedAt: lastScrapedAt })
         .where(eq(listings.id, parent.listingId)),
     )
   } else {
     yield* query(
       db
         .update(pages)
-        .set({ lastScrapedAt })
+        .set({ lastScrapedAt, updatedAt: lastScrapedAt })
         .where(eq(pages.id, parent.pageId)),
     )
   }

@@ -79,6 +79,16 @@ export const findInFlight = Effect.fn("ScrapesRepo.findInFlight")(function* (
   )
 })
 
+/** Manual dispatch uses the partial unique indexes as its refusal. */
+export const insert = Effect.fn("ScrapesRepo.insert")(function* (
+  scrape: ScrapeInsert,
+) {
+  const db = yield* Db
+  return yield* Rows.decodeOne(Scrape)(
+    yield* query(db.insert(scrapes).values(toRow(scrape)).returning()),
+  )
+})
+
 /**
  * Insert a `pending` Scrape unless its Parent is in flight, in which case
  * the partial unique index turns the insert into a no-op and this returns

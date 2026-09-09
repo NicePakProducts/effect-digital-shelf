@@ -1,3 +1,4 @@
+import { cadenceInterval } from "../Sql/Cadence.ts"
 import type { Cadence } from "@digital-shelf/domain/Catalog/Cadence"
 import type { ScrapeStatus } from "@digital-shelf/domain/Scraping/Vocabulary"
 import * as DateTime from "effect/DateTime"
@@ -13,12 +14,7 @@ import * as Option from "effect/Option"
  * deterministic. The SQL selection in ParentsRepo mirrors this function and
  * the PGlite tests hold the two together.
  */
-export const cadenceInterval: Record<Cadence, Duration.Duration> = {
-  daily: Duration.days(1),
-  weekly: Duration.days(7),
-  fortnightly: Duration.days(14),
-  monthly: Duration.days(30),
-}
+export { cadenceInterval } from "../Sql/Cadence.ts"
 
 export interface LatestScrape {
   readonly createdAt: DateTime.Utc
