@@ -92,6 +92,10 @@ _Avoid_: Last run, last checked
 A Scrape that has sat in `running` past a wall-clock bound. Swept to `failed` with error code `timeout`; its Execution is stopped and its stored objects removed as far as possible. Terminal states are final: an outcome the Execution produces after the sweep is discarded.
 _Avoid_: Hung, zombie, orphan (see Orphan Execution)
 
+**Stuck Extraction**:
+An Extraction that has sat in `running` past the same wall-clock bound as a Stuck Scrape. Swept to `failed` with error code `llm_timeout`; its Execution is stopped. Nothing else to clean up: an Extraction stores nothing outside its own row.
+_Avoid_: Hung, zombie
+
 ### Execution and dispatch
 
 **Execution**:
@@ -107,12 +111,16 @@ Pair a row with an Execution and start it. `dispatch(parent)` creates a fresh Sc
 _Avoid_: Trigger, enqueue, launch, kick off
 
 **Dispatch outcome**:
-The result of a Dispatch, as a value rather than an exception: `created`, `in-flight-skip` (the Parent already has an active Scrape), `already-active` (the Execution exists and is active), `recovered-failed` (the Execution exists and is terminal; the row was reconciled to `failed`).
+The result of a Dispatch, as a value rather than an exception: `created`, `in-flight-skip` (the Parent already has an active Scrape, or the Scrape an active Extraction), `already-active` (the Execution exists and is active), `recovered-failed` (the Execution exists and is terminal; the row was reconciled to `failed`).
 _Avoid_: Dispatch error, dispatch result
 
 **In-flight Parent**:
 A Parent that already has a Scrape in `pending` or `running`. Dispatch refuses to create a second Scrape for it; this refusal, not runtime de-duplication, is what makes concurrent triggers safe.
 _Avoid_: Busy, locked
+
+**In-flight Scrape**:
+A Scrape that already has an Extraction in `pending` or `running`. Re-extract refuses to create a second Extraction for it, by the same refusal that guards an In-flight Parent.
+_Avoid_: Busy, locked, extracting
 
 **Orphan Execution**:
 An Execution that exists for a row still in `pending`. Reconcile resolves it.
@@ -131,11 +139,11 @@ A user-initiated "Scrape now" or "Extract now" on one Parent or one Scrape. Bypa
 _Avoid_: On-demand, ad hoc, click
 
 **Bulk trigger**:
-"Scrape all" on a Brand, Product, or Retailer, or "Re-extract all" on a Retailer for one Parent kind. Creates every eligible row in `pending` at once and starts the first batch; Cron drains the rest. Respects effective pause. There is no bulk-job entity.
+"Scrape all" on a Brand, Product, or Retailer, or "Re-extract all" on a Retailer for one Parent kind. Creates every eligible row in `pending` at once and starts the first batch; Cron drains the rest. Bulk scrape respects effective pause; bulk re-extract ignores it, since it fetches nothing. There is no bulk-job entity.
 _Avoid_: Batch job, campaign, mass scrape
 
 **Sweep**:
-A scheduled housekeeping pass: the stuck sweep fails Stuck Scrapes, the retention sweep removes expired Scrapes.
+A scheduled housekeeping pass: the stuck sweep fails Stuck Scrapes and Stuck Extractions, the retention sweep removes expired Scrapes.
 _Avoid_: GC, cleanup, cron (see Cron)
 
 ### Scheduling and pause
@@ -153,7 +161,7 @@ How long a Parent whose most recent Scrape failed waits before it is cadence-due
 _Avoid_: Backoff, retry cadence
 
 **Pause**:
-A toggle that stops scheduled scraping. Container-level on Brand, Product and Retailer; row-level on Page. Listings have no toggle of their own.
+A toggle that stops scheduled scraping. Extraction is never paused. Container-level on Brand, Product and Retailer; row-level on Page. Listings have no toggle of their own.
 _Avoid_: Disable, deactivate, archive, mute
 
 **Effective pause**:
@@ -175,8 +183,8 @@ An Extraction reached `success`: the model produced parseable JSON. Independent 
 _Avoid_: Extracted, done
 
 **Extraction error code**:
-Why an Extraction failed: `provider_error` · `json_mode_unmet` · `invalid_json` · `llm_timeout` · `context_overflow` · `unknown`.
-_Avoid_: Extract failure, LLM error
+Why an Extraction failed: `provider_error` · `json_mode_unmet` (the model returned no content or was cut off) · `invalid_json` (content that is not a JSON object after one repair pass) · `llm_timeout` (the deadline, or a Stuck Extraction) · `context_overflow` (the input was too large for the model, or over the input cap; never truncated) · `unknown`.
+_Avoid_: Extract failure, LLM error, schema mismatch
 
 **Attempt**:
 The 1-based ordinal of an Extraction within its Scrape.
@@ -187,11 +195,11 @@ The Extraction every successful Scrape automatically spawns, attempt 1.
 _Avoid_: Auto-extract, first pass
 
 **Re-extract**:
-A new Extraction against an existing Scrape's stored HTML, without re-fetching, using the Retailer's _current_ prompt. Single (one Scrape) or bulk (every eligible Scrape on a Retailer for one Parent kind).
+A new Extraction against an existing Scrape's stored HTML, without re-fetching, using the Retailer's _current_ prompt. Single (one named Scrape, or "Extract now" on a Parent, which targets the Parent's most recent successful Scrape) or bulk (on a Retailer for one Parent kind). The prompt and model are fixed when the Extraction is created, not when it runs: a bulk re-extract drained over many Cron ticks uses the prompt as it was when triggered.
 _Avoid_: Retry, re-run, re-parse
 
 **Re-extract eligibility**:
-Only a Scrape in `success` whose HTML is still within retention can be re-extracted. Scrapes with an Extraction already `pending` or `running` for that prompt kind are skipped in bulk to avoid duplicate attempts.
+Only a Scrape in `success` whose HTML is still stored and which is not an In-flight Scrape can be re-extracted. Bulk re-extract considers only each Parent's most recent successful Scrape, and skips a Scrape whose Latest successful Extraction already used the current prompt and model; a single re-extract never skips.
 _Avoid_: Extractable
 
 **Extraction prompt**:
@@ -211,7 +219,7 @@ The model's input: a deterministic transformation of the stored HTML, computed a
 _Avoid_: Cleaned HTML, stripped HTML, DOM
 
 **Extracted JSON**:
-The clean structured output of a successful Extraction, stored on the Extraction itself. Small, structured, and read directly by downstream surfaces without normalising into a second schema.
+The clean structured output of a successful Extraction, always a JSON object, stored on the Extraction itself. Small, structured, and read directly by downstream surfaces without normalising into a second schema.
 _Avoid_: Result, output, data blob
 
 **Extraction model**:
@@ -231,7 +239,7 @@ A Scrape's most recent Extraction in `success`. A failed Re-extract never displa
 _Avoid_: Latest extraction (ambiguous), good extraction
 
 **Latest extracted data**:
-The Extracted JSON of the latest successful Extraction of a Parent's most recent successful Scrape, as exposed to downstream analysis. Failed Extractions are never returned as clean data. Downstream surfaces return Listings as the canonical shape so multiple Listings for one `(Product, Retailer)` stay visible.
+The Extracted JSON of the Latest successful Extraction of a Parent's most recent Scrape that has one, as exposed to downstream analysis, with that Scrape's fetch time as its provenance. A newer Scrape whose Extractions all failed does not hide the last good data. Failed Extractions are never returned as clean data. Downstream surfaces return Listings as the canonical shape so multiple Listings for one `(Product, Retailer)` stay visible.
 _Avoid_: Current data, live data, catalog data
 
 **Combined status**:
@@ -276,11 +284,12 @@ _Avoid_: Whitelist, tenant, organisation
 - Brand names and Product names are not unique.
 - A Scrape is one unit of work with one outcome, however many Fetch attempts its provider made.
 - A Parent has at most one Scrape in `pending` or `running` at any moment; this, not cadence, is the hard guarantee. Overlapping Crons may rarely produce one extra Scrape within a cadence.
-- A Scrape in `success` or `failed` never changes status again.
+- A Scrape has at most one Extraction in `pending` or `running` at any moment, and its Attempts are never reused.
+- A Scrape in `success` or `failed` never changes status again; the same holds for an Extraction.
 - Fetch success and Extraction success are independent states; neither implies the other.
 - Last scraped at advances only on fetch success.
 - Latest successful Extraction only ever moves forward to a newer `success`.
-- Manual triggers bypass pause; Cron and bulk triggers respect effective pause.
+- Manual triggers bypass pause; Cron and bulk scrape respect effective pause; re-extraction never consults it.
 - Deletion is always hard and always cascades.
 
 ## Open questions
