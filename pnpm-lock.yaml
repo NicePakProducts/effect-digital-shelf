@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@effect/ai-openai-compat':
+      specifier: 4.0.0-rc.112
+      version: 4.0.0-rc.112
     '@effect/sql-pglite':
       specifier: 4.0.0-rc.112
       version: 4.0.0-rc.112
@@ -30,6 +33,9 @@ catalogs:
     effect:
       specifier: 4.0.0-rc.112
       version: 4.0.0-rc.112
+    jsonrepair:
+      specifier: 3.15.0
+      version: 3.15.0
     typescript:
       specifier: 7.0.2
       version: 7.0.2
@@ -99,12 +105,18 @@ importers:
       '@digital-shelf/domain':
         specifier: workspace:*
         version: link:../domain
+      '@effect/ai-openai-compat':
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112(effect@4.0.0-rc.112)
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5-ab785fc(@effect/sql-pglite@4.0.0-rc.112(effect@4.0.0-rc.112))(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
+      jsonrepair:
+        specifier: 'catalog:'
+        version: 3.15.0
     devDependencies:
       '@effect/sql-pglite':
         specifier: 'catalog:'
@@ -203,6 +215,11 @@ packages:
 
   '@drizzle-team/brocli@0.12.1':
     resolution: {integrity: sha512-yHwomvolVafvUXhy5TdiJVkuNCxXn+bKOs2aWiWEQh/5YaV97Oa/abJz3dmx7lxgIUsUlS1Jl4mEfvJPo3YsVw==}
+
+  '@effect/ai-openai-compat@4.0.0-rc.112':
+    resolution: {integrity: sha512-bfNYHgfjhzKhDwaw2na75JshGACrawSXWqqzTncBtBHpUIhZ+VHF2I5AdgCmfh6fnAuvhxcuJnzrixGOkG9YZw==}
+    peerDependencies:
+      effect: ^4.0.0-rc.112
 
   '@effect/sql-pglite@4.0.0-rc.112':
     resolution: {integrity: sha512-WExt8bbV/Q9J4z0ECkXyqBToljYfGzskv1TO1GwYU93zAfhaCk6hcj/O7ZVdET5TZqnMFu31gtvX6wpvT8L2yw==}
@@ -1404,6 +1421,10 @@ packages:
   jsbi@4.3.2:
     resolution: {integrity: sha512-9fqMSQbhJykSeii05nxKl4m6Eqn2P6rOlYiS+C5Dr/HPIU/7yZxu5qzbs40tgaFORiw2Amd0mirjxatXYMkIew==}
 
+  jsonrepair@3.15.0:
+    resolution: {integrity: sha512-wy8OTjwsJwQRnQJkKnMJJ9vcytRdBPAgIF/Hy6+s1dAj42BHMKiyL8JzEieIl3JY7idt8eyHwBWTO8mh/+mtwA==}
+    hasBin: true
+
   lightningcss-android-arm64@1.33.0:
     resolution: {integrity: sha512-gEpRTalKdosp4Bb8qWtc2iOgE5SeIHlpS1up9bFq2wAyYhl1UdTObYiHe98zEM9SQvSoqQZ1IQD0JNpg3Ml5pg==}
     engines: {node: '>= 12.0.0'}
@@ -1713,6 +1734,10 @@ snapshots:
   '@blazediff/core@1.9.1': {}
 
   '@drizzle-team/brocli@0.12.1': {}
+
+  '@effect/ai-openai-compat@4.0.0-rc.112(effect@4.0.0-rc.112)':
+    dependencies:
+      effect: 4.0.0-rc.112
 
   '@effect/sql-pglite@4.0.0-rc.112(effect@4.0.0-rc.112)':
     dependencies:
@@ -2377,6 +2402,8 @@ snapshots:
   js-tokens@4.0.0: {}
 
   jsbi@4.3.2: {}
+
+  jsonrepair@3.15.0: {}
 
   lightningcss-android-arm64@1.33.0:
     optional: true

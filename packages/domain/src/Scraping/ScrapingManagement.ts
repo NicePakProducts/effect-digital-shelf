@@ -17,9 +17,10 @@ export const TriggerScrape = Schema.Struct({
 export type TriggerScrape = typeof TriggerScrape.Type
 
 /** Re-extract one Scrape with the Retailer's current prompt. */
-export const TriggerExtraction = Schema.Struct({
-  scrapeId: ScrapeId,
-})
+export const TriggerExtraction = Schema.Union([
+  Schema.TaggedStruct("Scrape", { scrapeId: ScrapeId }),
+  Schema.TaggedStruct("Parent", { parent: ScrapeParent }),
+])
 export type TriggerExtraction = typeof TriggerExtraction.Type
 
 /** "Scrape all" on a container. */

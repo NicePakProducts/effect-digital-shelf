@@ -1,3 +1,4 @@
+import { Extractions } from "../Scraping/Extractions.ts"
 import * as Cause from "effect/Cause"
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
@@ -29,6 +30,11 @@ export interface TickReport {
 }
 
 const make = Effect.gen(function* () {
+  const extractions = yield* Extractions
+  const extractionCap = yield* Config.int("EXTRACTION_DRAIN_CAP").pipe(
+    Config.withDefault(100),
+    Effect.orDie,
+  )
   const scrapes = yield* Scrapes
   const sweeps = yield* Sweeps
   const cap = yield* Config.int("CRON_START_CAP").pipe(
@@ -64,10 +70,7 @@ const make = Effect.gen(function* () {
       phases.push(
         yield* phase(
           "extractionDrain",
-          Effect.as(Effect.logInfo("extraction drain not landed (#31)"), {
-            started: 0,
-            skipped: 0,
-          }),
+          extractions.drainPending(extractionCap),
         ),
       )
       const drain = yield* phase("scrapeDrain", scrapes.drainPending(cap))

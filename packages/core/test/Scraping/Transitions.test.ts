@@ -1,3 +1,12 @@
+import { transitionExtraction } from "@digital-shelf/core/Scraping/Transitions"
+import * as Effect from "effect/Effect"
+import * as CoreTest from "../layers/Core.ts"
+import {
+  reset,
+  seed,
+  successfulScrape,
+  extraction,
+} from "../fixtures/Scraping.ts"
 import { expect, it } from "@effect/vitest"
 import {
   canTransition,
@@ -34,3 +43,41 @@ it("transitions are terminal and missed writes distinguish replay from rejection
     ),
   ).toBe("00-00000000000040008000000000000001-0123456789abcdef-01")
 })
+
+it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
+  "Extraction transitions",
+  (it) => {
+    it.effect(
+      "conditional writes classify apply, replay and rejected late outcomes",
+      () =>
+        Effect.gen(function* () {
+          yield* reset
+          const row = yield* extraction(
+            (yield* successfulScrape((yield* (yield* seed()).listing).parent))
+              .id,
+            1,
+            "pending",
+          )
+          expect(
+            (yield* transitionExtraction(row.id, "pending", "running", {}))
+              .result,
+          ).toBe("applied")
+          expect(
+            (yield* transitionExtraction(row.id, "pending", "running", {}))
+              .result,
+          ).toBe("already_applied")
+          yield* transitionExtraction(row.id, "running", "failed", {})
+          expect(
+            yield* Effect.flip(
+              transitionExtraction(row.id, "running", "success", {}),
+            ),
+          ).toMatchObject({
+            _tag: "TransitionRejected",
+            kind: "extraction",
+            id: row.id,
+            observed: "failed",
+          })
+        }),
+    )
+  },
+)

@@ -1,3 +1,4 @@
+import { successfulScrape, extraction } from "../fixtures/Scraping.ts"
 import * as ScrapesRepo from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
 import * as Option from "effect/Option"
 import * as ConfigProvider from "effect/ConfigProvider"
@@ -116,6 +117,65 @@ it.layer(
             .flatMap((call) => call.instances),
         ).toHaveLength(50)
         expect(yield* ScrapesRepo.listPending(100)).toHaveLength(60)
+      }),
+  )
+})
+
+it.layer(
+  CoreTest.layerTest.pipe(
+    Layer.provide(
+      ConfigProvider.layer(
+        ConfigProvider.fromUnknown({
+          CRON_START_CAP: 1,
+          EXTRACTION_DRAIN_CAP: 3,
+        }),
+      ),
+    ),
+  ),
+  { timeout: "60 seconds" },
+)("Extraction drain budget", (it) => {
+  it.effect("extractions have an independent cap and drain second", () =>
+    Effect.gen(function* () {
+      yield* reset
+      const catalog = yield* seed()
+      for (let i = 0; i < 4; i++)
+        yield* extraction(
+          (yield* successfulScrape((yield* catalog.listing).parent)).id,
+          1,
+          "pending",
+        )
+      yield* history((yield* catalog.listing).parent, "pending", "1 hour")
+      const report = yield* (yield* Cron).tick()
+      expect(report.phases[1]).toMatchObject({
+        phase: "extractionDrain",
+        outcome: "ok",
+        counts: { started: 3 },
+      })
+      expect(report.phases[2]).toMatchObject({ counts: { started: 1 } })
+    }),
+  )
+  it.effect(
+    "a failed Extraction batch reports failure and later phases still run",
+    () =>
+      Effect.gen(function* () {
+        yield* reset
+        const catalog = yield* seed()
+        yield* extraction(
+          (yield* successfulScrape((yield* catalog.listing).parent)).id,
+          1,
+          "pending",
+        )
+        yield* history((yield* catalog.listing).parent, "pending", "1 hour")
+        yield* (yield* ExecutionsTest).failNext
+        const report = yield* (yield* Cron).tick()
+        expect(report.phases[1]).toMatchObject({
+          phase: "extractionDrain",
+          outcome: "failed",
+        })
+        expect(
+          report.phases.slice(2).every((phase) => phase.outcome === "ok"),
+        ).toBe(true)
+        expect(report.phases[2]).toMatchObject({ counts: { started: 1 } })
       }),
   )
 })

@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "a52aaccb-d234-45c7-a797-9ed7bc4bbeae",
+  "id": "23056fec-d22f-492a-9183-68ea2ec175e4",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
@@ -1584,6 +1584,27 @@
       "method": "btree",
       "concurrently": false,
       "name": "extractions_prompt_kind_status",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "extractions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "scrape_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"status\" IN ('pending', 'running')",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "extractions_scrape_in_flight",
       "entityType": "indexes",
       "schema": "public",
       "table": "extractions"

@@ -1,3 +1,4 @@
+import * as ExtractionsRepo from "../Scraping/repositories/ExtractionsRepo.ts"
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
 import * as DateTime from "effect/DateTime"
@@ -6,7 +7,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { keysOf } from "../Scraping/R2Keys.ts"
-import { transition } from "../Scraping/Transitions.ts"
+import { transition, transitionExtraction } from "../Scraping/Transitions.ts"
 import * as ScrapesRepo from "../Scraping/repositories/ScrapesRepo.ts"
 import { Db } from "../Sql/Db.ts"
 import { R2Bucket } from "../Storage/R2Bucket.ts"
@@ -70,7 +71,56 @@ const make = Effect.gen(function* () {
         ),
       )
     }
-    return { examined: rows.length, failed, alreadyTerminal }
+    const extractionRows = yield* ExtractionsRepo.listStuck(
+      DateTime.subtractDuration(now, bound),
+    )
+    let extractionsFailed = 0,
+      extractionsAlreadyTerminal = 0
+    for (const row of extractionRows) {
+      yield* Effect.gen(function* () {
+        const result = yield* transitionExtraction(
+          row.id,
+          "running",
+          "failed",
+          {
+            finishedAt: Option.some(now),
+            updatedAt: now,
+            errorCode: Option.some("llm_timeout"),
+            errorMessage: Option.some("Extraction exceeded the stuck bound"),
+          },
+        ).pipe(
+          Effect.catchTag("TransitionRejected", () => Effect.succeed(null)),
+        )
+        if (result?.result !== "applied") {
+          extractionsAlreadyTerminal++
+          return
+        }
+        extractionsFailed++
+        yield* executions
+          .terminate("extraction", row.id)
+          .pipe(
+            Effect.catchTag("ExecutionsError", (error) =>
+              Effect.logError("Stuck Extraction termination failed", error),
+            ),
+          )
+      }).pipe(
+        Effect.catchCause((cause) =>
+          Effect.logError(
+            "Stuck Extraction sweep failed for row",
+            row.id,
+            cause,
+          ),
+        ),
+      )
+    }
+    return {
+      examined: rows.length,
+      failed,
+      alreadyTerminal,
+      extractionsExamined: extractionRows.length,
+      extractionsFailed,
+      extractionsAlreadyTerminal,
+    }
   }, withDb)
   const retention = Effect.fn("Sweeps.retention")(function* (
     now: DateTime.Utc,

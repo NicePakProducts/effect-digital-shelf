@@ -133,6 +133,29 @@ describe("Postgres migrations", () => {
     expect(await count(db, "scrapes")).toBe(5)
   })
 
+  it("lets a Scrape hold at most one Extraction in pending or running", async () => {
+    const db = await open()
+    await seed(db)
+    await db.exec(`DELETE FROM extractions WHERE scrape_id = '${s1}'`)
+    const insert = (attempt: number, status: string) =>
+      db.exec(
+        `INSERT INTO extractions (id, scrape_id, attempt, status, prompt_kind, prompt_snapshot, model) VALUES ('${id(30 + attempt)}', '${s1}', ${attempt}, '${status}', 'listing', 'p', 'm')`,
+      )
+    await insert(1, "pending")
+    await expect(insert(2, "pending")).rejects.toThrow(
+      /extractions_scrape_in_flight/,
+    )
+    await expect(insert(2, "running")).rejects.toThrow(
+      /extractions_scrape_in_flight/,
+    )
+    await insert(2, "failed")
+    await db.exec(
+      `UPDATE extractions SET status = 'failed' WHERE scrape_id = '${s1}' AND attempt = 1`,
+    )
+    await insert(3, "pending")
+    expect(await count(db, "extractions")).toBe(3)
+  })
+
   it("requires a hex root span id on every Scrape", async () => {
     const db = await open()
     await seed(db)

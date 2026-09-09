@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@digital-shelf/domain": "workspace:*",
+    "@effect/ai-openai-compat": "catalog:",
     "drizzle-orm": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "jsonrepair": "catalog:"
   },
   "devDependencies": {
     "@effect/sql-pglite": "catalog:",

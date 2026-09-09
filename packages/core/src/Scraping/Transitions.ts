@@ -1,5 +1,11 @@
+import type { ExtractionUpdate } from "@digital-shelf/domain/Scraping/Extraction"
+import type { ExtractionId } from "@digital-shelf/domain/Shared/Ids"
+import * as ExtractionsRepo from "./repositories/ExtractionsRepo.ts"
 import type { ScrapeUpdate } from "@digital-shelf/domain/Scraping/Scrape"
-import type { ScrapeStatus } from "@digital-shelf/domain/Scraping/Vocabulary"
+import type {
+  ScrapeStatus,
+  ExtractionStatus,
+} from "@digital-shelf/domain/Scraping/Vocabulary"
 import type { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
 import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
@@ -55,10 +61,11 @@ export const classifyMissedTransition = (
     : "rejected"
 
 export class TransitionRejected extends Data.TaggedError("TransitionRejected")<{
-  readonly id: ScrapeId
-  readonly from: ScrapeStatus
-  readonly to: ScrapeStatus
-  readonly observed: ScrapeStatus | null
+  readonly kind: "scrape" | "extraction"
+  readonly id: string
+  readonly from: LifecycleStatus
+  readonly to: LifecycleStatus
+  readonly observed: LifecycleStatus | null
 }> {}
 
 export const transition = Effect.fn("Scrape.transition")(function* (
@@ -85,6 +92,7 @@ export const transition = Effect.fn("Scrape.transition")(function* (
   if (result === "rejected" || Option.isNone(observed))
     return yield* Effect.fail(
       new TransitionRejected({
+        kind: "scrape",
         id,
         from,
         to,
@@ -93,3 +101,37 @@ export const transition = Effect.fn("Scrape.transition")(function* (
     )
   return { row: observed.value, result }
 })
+
+export const transitionExtraction = Effect.fn("Extraction.transition")(
+  function* (
+    id: ExtractionId,
+    from: ExtractionStatus,
+    to: ExtractionStatus,
+    patch: ExtractionUpdate,
+  ) {
+    const changed = yield* ExtractionsRepo.transition(id, from, to, patch)
+    const observed = Option.isSome(changed)
+      ? changed
+      : yield* ExtractionsRepo.find(id)
+    const result: TransitionResult = Option.isSome(changed)
+      ? "applied"
+      : classifyMissedTransition(
+          to,
+          Option.map(observed, (row) => row.status),
+        )
+    yield* Effect.annotateCurrentSpan({
+      "shelf.transition": result,
+      "shelf.transition.from": from,
+      "shelf.transition.to": to,
+    })
+    if (result === "rejected" || Option.isNone(observed))
+      return yield* new TransitionRejected({
+        kind: "extraction",
+        id,
+        from,
+        to,
+        observed: Option.getOrNull(Option.map(observed, (row) => row.status)),
+      })
+    return { row: observed.value, result }
+  },
+)
