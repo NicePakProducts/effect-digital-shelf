@@ -27,6 +27,8 @@ catalog:
   better-auth: 1.7.3
   "@better-auth/drizzle-adapter": 1.7.3
   "@better-auth/mcp": 1.7.3
+  # JSON repair pass for Extraction output (map ticket "Extraction lifecycle")
+  jsonrepair: 3.15.0
 
 overrides:
   vite: "catalog:"
