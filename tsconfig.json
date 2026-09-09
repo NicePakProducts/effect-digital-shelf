@@ -19,6 +19,7 @@
       "@digital-shelf/api": ["./packages/api/src/index.ts"],
       "@digital-shelf/api/*": ["./packages/api/src/*"],
       "@digital-shelf/core": ["./packages/core/src/index.ts"],
+      "@digital-shelf/core/test/*": ["./packages/core/test/*"],
       "@digital-shelf/core/*": ["./packages/core/src/*"],
       "@digital-shelf/domain": ["./packages/domain/src/index.ts"],
       "@digital-shelf/domain/*": ["./packages/domain/src/*"],

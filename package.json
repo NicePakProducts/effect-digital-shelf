@@ -10,8 +10,10 @@
     "prepare": "effect-tsgo patch"
   },
   "devDependencies": {
+    "@effect/sql-pglite": "catalog:",
     "@effect/tsgo": "catalog:",
     "@effect/vitest": "catalog:",
+    "@electric-sql/pglite": "catalog:",
     "@types/node": "catalog:",
     "effect": "catalog:",
     "typescript": "catalog:",
