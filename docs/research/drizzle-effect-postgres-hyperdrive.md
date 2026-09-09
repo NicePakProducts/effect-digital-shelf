@@ -724,3 +724,42 @@ rows on the caching-disabled config.
 - `verify-full` from Hyperdrive to PlanetScale (which CA to upload: the docs
   say `sslrootcert=system`, i.e. a public CA; expected to work with Hyperdrive's
   `verify-full` once that CA is uploaded, not tested).
+
+## (j) Deployed smoke: ran 2026-09-09
+
+**Setup.** The user created the PlanetScale Postgres `digital-shelf` through the
+Cloudflare-linked flow in (g). It arrives as a Hyperdrive config
+(`dba7756cd8844f54b6a5fc2fe8bfbed0`, name `digital-shelf`) whose `wrangler
+hyperdrive get` output carries `integration_name: "planetScale"`,
+`integration_organization_name` and `integration_database_name` beside the
+usual origin (`aws-ap-southeast-2-1.pg.psdb.cloud`, port **5432**, user
+`pscale_api_….<branch>`, database `postgres`), `origin_connection_limit: 15`,
+`mtls: {}` and **`caching.disabled: false`**. So the linked flow provisions the
+database and the Hyperdrive config in one step, but it leaves caching on; the
+infra ticket must turn it off (`PATCH` via Alchemy `caching: { disabled: true }`
+or `wrangler hyperdrive update --caching-disabled`).
+
+**Run.** The Worker in (i) was deployed unchanged except for the binding id
+(`wrangler deploy`, wrangler 4.130.0, `compatibility_date` 2026-09-01,
+`nodejs_compat`), hit from the edge, then given a `/drop` route to remove
+`smoke_items`, and deleted. The origin reported `PostgreSQL 18.6 (Debian
+18.6-1.pgdg12+2) on aarch64`.
+
+| Probe | Result |
+| --- | --- |
+| Drizzle `transaction` commit | row 1 present |
+| Drizzle `transaction` failing with `Effect.fail` | row 2 absent, exit failure `Error: boom` |
+| `SqlClient.withTransaction` outer commit, nested savepoint failing on `1/0` | row 3 present, row 4 absent |
+| Duplicate primary key through Drizzle | `EffectDrizzleQueryError` wrapping `SqlError` with `reason._tag === "UniqueViolation"`, `constraint: "smoke_items_pkey"`, Postgres code `23505` |
+| `SET application_name` then `SHOW` on the next statement | `Cloudflare Hyperdrive`: session state is not preserved between statements outside a transaction, as (b) predicted |
+| Statement after a failed insert on the same request | succeeds; the connection is not poisoned |
+| Full probe latency from the edge | 464 ms cold, 371 ms warm, 47 ms for the short probes |
+
+The first request to a freshly deployed route returned a Cloudflare edge `404`
+(`error code: 1042`) once and then served normally; treat it as propagation, not
+a Worker fault.
+
+**Conclusion.** The RC stack `drizzle-orm/effect-postgres` → `@effect/sql-pg`
+→ `pg` 8.23.0 runs on deployed Workers through Hyperdrive to PlanetScale with
+transactions, savepoints and error classification intact. The outstanding item
+in (i) is closed; the remaining unverified items are those still listed below.
