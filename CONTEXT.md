@@ -141,7 +141,7 @@ _Avoid_: GC, cleanup, cron (see Cron)
 ### Scheduling and pause
 
 **Cadence**:
-How often a Parent is scraped: `Daily | Weekly | Fortnightly | Monthly`, default `Monthly`. Set per Listing and per Page.
+How often a Parent is scraped: `daily | weekly | fortnightly | monthly`, default `monthly`. Set per Listing and per Page.
 _Avoid_: Frequency, schedule, interval
 
 **Cadence-due**:
@@ -282,5 +282,4 @@ _Avoid_: Whitelist, tenant, organisation
 Known drifts carried over from the previous app, to resolve in their own tickets rather than silently here.
 
 - **Retention window**: the glossary and the sweep said 90 days; the earliest rebuild notes said 120 days. Pick one and note whether the per-tick sweep cap belongs in the domain at all.
-- **Extraction error code `context_overflow`**: the code classified it (a page too large for the model's context) but the glossary never listed it. Listed above as canonical; confirm the full set, and drop the storage-specific `schema_mismatch` the old code also emitted.
 - **URL invariants**: host-must-match-Retailer and tracker-param normalisation were deferred in the old app; not yet part of this glossary.

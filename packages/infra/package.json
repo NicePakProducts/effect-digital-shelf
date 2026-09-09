@@ -15,11 +15,13 @@
   },
   "dependencies": {
     "@digital-shelf/core": "workspace:*",
+    "@digital-shelf/domain": "workspace:*",
     "drizzle-orm": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
+    "@electric-sql/pglite": "catalog:",
     "drizzle-kit": "catalog:",
     "typescript": "catalog:",
     "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",

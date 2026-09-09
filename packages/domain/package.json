@@ -13,6 +13,7 @@
     "test": "vp test --run"
   },
   "dependencies": {
+    "drizzle-orm": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {

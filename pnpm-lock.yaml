@@ -12,6 +12,9 @@ catalogs:
     '@effect/vitest':
       specifier: 4.0.0-rc.112
       version: 4.0.0-rc.112
+    '@electric-sql/pglite':
+      specifier: 0.5.8
+      version: 0.5.8
     '@types/node':
       specifier: 26.5.0
       version: 26.5.0
@@ -32,7 +35,6 @@ catalogs:
       version: 0.3.1
 
 overrides:
-  '@effect/sql-d1': 4.0.0-rc.112
   vite: npm:@voidzero-dev/vite-plus-core@0.3.1
 
 importers:
@@ -90,7 +92,7 @@ importers:
         version: link:../domain
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(effect@4.0.0-rc.112)
+        version: 1.0.0-rc.5-ab785fc(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -110,6 +112,9 @@ importers:
 
   packages/domain:
     dependencies:
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 1.0.0-rc.5-ab785fc(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -132,9 +137,12 @@ importers:
       '@digital-shelf/core':
         specifier: workspace:*
         version: link:../core
+      '@digital-shelf/domain':
+        specifier: workspace:*
+        version: link:../domain
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(effect@4.0.0-rc.112)
+        version: 1.0.0-rc.5-ab785fc(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -142,6 +150,9 @@ importers:
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(vitest@4.1.11)
+      '@electric-sql/pglite':
+        specifier: 'catalog:'
+        version: 0.5.8
       drizzle-kit:
         specifier: 'catalog:'
         version: 1.0.0-rc.5-ab785fc
@@ -219,6 +230,9 @@ packages:
     peerDependencies:
       effect: ^4.0.0-rc.112
       vitest: '>=4.1.0 <5.0.0'
+
+  '@electric-sql/pglite@0.5.8':
+    resolution: {integrity: sha512-n9tsbUOhwx2epK1V0ZG9Ar4SHWUju04dhmzZXiSBXwBoleOvIfals33NAaWgagQVAL4Rbvx/Ptsu3P+pA09f6Q==}
 
   '@esbuild/aix-ppc64@0.25.12':
     resolution: {integrity: sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA==}
@@ -1174,7 +1188,7 @@ packages:
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
-      '@effect/sql-d1': 4.0.0-rc.112
+      '@effect/sql-d1': '>=4.0.0-beta.105 || >=4.0.0'
       '@effect/sql-libsql': '>=4.0.0-beta.105 || >=4.0.0'
       '@effect/sql-mysql2': '>=4.0.0-beta.105 || >=4.0.0'
       '@effect/sql-pg': '>=4.0.0-beta.105 || >=4.0.0'
@@ -1712,6 +1726,8 @@ snapshots:
     dependencies:
       effect: 4.0.0-rc.112
       vitest: 4.1.11(@types/node@26.5.0)(@vitest/browser-preview@4.1.11)(@voidzero-dev/vite-plus-core@0.3.1(@types/node@26.5.0)(jiti@2.7.0)(typescript@7.0.2))
+
+  '@electric-sql/pglite@0.5.8': {}
 
   '@esbuild/aix-ppc64@0.25.12':
     optional: true
@@ -2265,8 +2281,9 @@ snapshots:
       get-tsconfig: 4.14.3
       jiti: 2.7.0
 
-  drizzle-orm@1.0.0-rc.5-ab785fc(effect@4.0.0-rc.112):
+  drizzle-orm@1.0.0-rc.5-ab785fc(@electric-sql/pglite@0.5.8)(effect@4.0.0-rc.112):
     optionalDependencies:
+      '@electric-sql/pglite': 0.5.8
       effect: 4.0.0-rc.112
 
   effect@4.0.0-rc.112:
