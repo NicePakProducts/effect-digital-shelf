@@ -3,21 +3,24 @@ import {
   check,
   index,
   integer,
-  sqliteTable,
+  jsonb,
+  pgTable,
   text,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core"
-import { listings, pages, ScrapeMode } from "./Catalog.ts"
+  uuid,
+} from "drizzle-orm/pg-core"
 import {
-  id,
-  json,
-  jsonCheck,
-  literals,
-  literalsCheck,
-  nullableLiteralsCheck,
-  timestamp,
-  timestamps,
-} from "./Columns.ts"
+  ExtractionErrorCodes,
+  ScrapeErrorCodes,
+} from "../Scraping/Vocabulary.ts"
+import { listings, pages } from "./Catalog.ts"
+import { at, id, nullableLiteralsCheck, timestamps } from "./Columns.ts"
+import {
+  extractionStatusEnum,
+  promptKindEnum,
+  scrapeModeEnum,
+  scrapeStatusEnum,
+} from "./Enums.ts"
 
 /**
  * Scrape and Extraction rows. The row is the source of truth for an
@@ -35,44 +38,24 @@ import {
  * was written.
  */
 
-export const Status = ["pending", "running", "success", "failed"] as const
-export const PromptKind = ["listing", "page"] as const
-export const ScrapeErrorCode = [
-  "timeout",
-  "navigation_failed",
-  "blocked",
-  "provider_error",
-  "invalid_url",
-  "parent_deleted",
-  "unknown",
-] as const
-export const ExtractionErrorCode = [
-  "provider_error",
-  "json_mode_unmet",
-  "invalid_json",
-  "llm_timeout",
-  "context_overflow",
-  "unknown",
-] as const
-
-export const scrapes = sqliteTable(
+export const scrapes = pgTable(
   "scrapes",
   {
     id: id(),
-    listingId: text("listing_id").references(() => listings.id, {
+    listingId: uuid("listing_id").references(() => listings.id, {
       onDelete: "cascade",
     }),
-    pageId: text("page_id").references(() => pages.id, { onDelete: "cascade" }),
+    pageId: uuid("page_id").references(() => pages.id, { onDelete: "cascade" }),
     // Snapshot of the Retailer defaults or the manual override at dispatch.
-    mode: literals("mode", ScrapeMode).notNull(),
+    mode: scrapeModeEnum("mode").notNull(),
     country: text("country"),
-    status: literals("status", Status).notNull(),
+    status: scrapeStatusEnum("status").notNull(),
     // The URL actually fetched; a later Parent URL change rewrites nothing.
     requestUrl: text("request_url").notNull(),
-    requestHeaders: json("request_headers"),
-    startedAt: timestamp("started_at"),
-    finishedAt: timestamp("finished_at"),
-    errorCode: literals("error_code", ScrapeErrorCode),
+    requestHeaders: jsonb("request_headers"),
+    startedAt: at("started_at"),
+    finishedAt: at("finished_at"),
+    errorCode: text("error_code"),
     errorMessage: text("error_message"),
     htmlR2Key: text("html_r2_key"),
     rawR2Key: text("raw_r2_key"),
@@ -80,11 +63,11 @@ export const scrapes = sqliteTable(
     // mode cannot fill stay NULL.
     finalUrl: text("final_url"),
     statusCode: integer("status_code"),
-    responseHeaders: json("response_headers"),
-    cookies: json("cookies"),
+    responseHeaders: jsonb("response_headers"),
+    cookies: jsonb("cookies"),
     innerText: text("inner_text"),
     userAgent: text("user_agent"),
-    ipInfo: json("ip_info"),
+    ipInfo: jsonb("ip_info"),
     type: text("type"),
     session: text("session"),
     attempts: integer("attempts"),
@@ -107,40 +90,34 @@ export const scrapes = sqliteTable(
       t.createdAt,
     ),
     index("scrapes_created_at").on(t.createdAt),
-    literalsCheck("scrapes", t.mode, ScrapeMode),
-    literalsCheck("scrapes", t.status, Status),
-    nullableLiteralsCheck("scrapes", t.errorCode, ScrapeErrorCode),
-    jsonCheck("scrapes", t.requestHeaders),
-    jsonCheck("scrapes", t.responseHeaders),
-    jsonCheck("scrapes", t.cookies),
-    jsonCheck("scrapes", t.ipInfo),
+    nullableLiteralsCheck("scrapes", t.errorCode, ScrapeErrorCodes),
   ],
 )
 
-export const extractions = sqliteTable(
+export const extractions = pgTable(
   "extractions",
   {
     id: id(),
-    scrapeId: text("scrape_id")
+    scrapeId: uuid("scrape_id")
       .notNull()
       .references(() => scrapes.id, { onDelete: "cascade" }),
     // 1-based ordinal within the Scrape; the unique index makes assignment
     // race-safe without a counter column.
     attempt: integer("attempt").notNull(),
-    status: literals("status", Status).notNull(),
-    promptKind: literals("prompt_kind", PromptKind).notNull(),
+    status: extractionStatusEnum("status").notNull(),
+    promptKind: promptKindEnum("prompt_kind").notNull(),
     // The literal prompt text this Extraction ran with.
     promptSnapshot: text("prompt_snapshot").notNull(),
     // The model identifier actually used, so usage stays attributable.
     model: text("model").notNull(),
-    startedAt: timestamp("started_at"),
-    finishedAt: timestamp("finished_at"),
+    startedAt: at("started_at"),
+    finishedAt: at("finished_at"),
     // Extracted JSON lives on the row (ADR 0007 of the previous app).
-    extractedJson: json("extracted_json"),
+    extractedJson: jsonb("extracted_json"),
     promptTokens: integer("prompt_tokens"),
     completionTokens: integer("completion_tokens"),
     totalTokens: integer("total_tokens"),
-    errorCode: literals("error_code", ExtractionErrorCode),
+    errorCode: text("error_code"),
     errorMessage: text("error_message"),
     ...timestamps(),
   },
@@ -154,9 +131,6 @@ export const extractions = sqliteTable(
     index("extractions_status_created_at").on(t.status, t.createdAt),
     index("extractions_prompt_kind_status").on(t.promptKind, t.status),
     check("extractions_attempt_positive", sql`${t.attempt} >= 1`),
-    literalsCheck("extractions", t.status, Status),
-    literalsCheck("extractions", t.promptKind, PromptKind),
-    nullableLiteralsCheck("extractions", t.errorCode, ExtractionErrorCode),
-    jsonCheck("extractions", t.extractedJson),
+    nullableLiteralsCheck("extractions", t.errorCode, ExtractionErrorCodes),
   ],
 )

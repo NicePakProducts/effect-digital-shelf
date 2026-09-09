@@ -7,7 +7,7 @@ A scrape management system for a digital shelf, built on Effect v4 and Cloudflar
 - `packages/domain`: schemas, ids, states and error codes shared by every package.
 - `packages/core`: business logic: repositories, catalog and lifecycle features, scheduling, providers.
 - `packages/api`: typed Effect HttpApi contracts and transport errors.
-- `packages/infra`: Alchemy resources, the D1 layer, migrations and bindings.
+- `packages/infra`: Alchemy resources, the Postgres layer (PlanetScale via Hyperdrive), migrations and bindings.
 - `.repos/`: read-only reference snapshots (slopcop for layout and toolchain, the Effect RC source). Read `.repos/README.md` before using them.
 
 ## Boundaries
@@ -15,7 +15,7 @@ A scrape management system for a digital shelf, built on Effect v4 and Cloudflar
 - Put types and schemas shared across packages in `packages/domain`.
 - Put HTTP contracts and transport errors in `packages/api`; put behaviour in `packages/core`.
 - Keep deployment resources and platform adapters in `packages/infra`.
-- Depend inward: `core` and `api` on `domain`; `domain` on nothing but Effect.
+- Depend inward: `core` and `api` on `domain`; `domain` on nothing but Effect and Drizzle's schema builders. Drizzle tables live only in `packages/domain/src/Sql/`; entity schemas are derived from them (ADR 0002).
 
 ## Conventions
 

@@ -9,7 +9,9 @@ catalog:
   effect: 4.0.0-rc.112
   "@effect/ai-openai-compat": 4.0.0-rc.112
   "@effect/platform-node": 4.0.0-rc.112
-  "@effect/sql-d1": 4.0.0-rc.112
+  "@effect/sql-pg": 4.0.0-rc.112
+  "@effect/sql-pglite": 4.0.0-rc.112
+  "@electric-sql/pglite": 0.5.8
   "@effect/vitest": 4.0.0-rc.112
   # Toolchain
   "@effect/tsgo": 0.43.0
@@ -18,7 +20,7 @@ catalog:
   vite: npm:@voidzero-dev/vite-plus-core@0.3.1
   vite-plus: 0.3.1
   vitest: 4.1.11
-  # Platform pins settled by the research tickets (#3, #4, #5)
+  # Platform pins settled by the research tickets (#3, #4, #5); Postgres per #9
   alchemy: 2.0.0-beta.67
   drizzle-kit: 1.0.0-rc.5-ab785fc
   drizzle-orm: 1.0.0-rc.5-ab785fc
@@ -27,7 +29,6 @@ catalog:
   "@better-auth/mcp": 1.7.3
 
 overrides:
-  "@effect/sql-d1": "catalog:"
   vite: "catalog:"
 
 peerDependencyRules:
