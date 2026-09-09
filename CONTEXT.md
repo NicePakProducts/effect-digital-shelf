@@ -65,7 +65,7 @@ The geography an `advance` Scrape is fetched from. A Retailer default (`Australi
 _Avoid_: Region, locale, geo
 
 **Scrape envelope**:
-The normalised result of a Scrape shared by both modes: final URL, status code, response headers, cookies, inner text, user agent, IP info, timing. Gaps one mode cannot fill are empty, not errors.
+The normalised result of a Scrape shared by both modes: final URL, status code, response headers, cookies, inner text (bounded in size), user agent, IP info, timing. Gaps one mode cannot fill are empty, not errors.
 _Avoid_: Response, result, payload
 
 **Scrape provider**:
@@ -77,7 +77,7 @@ The lifecycle of a Scrape: `pending → running → success | failed`. There is 
 _Avoid_: State, phase, outcome
 
 **Scrape error code**:
-Why a Scrape failed: `timeout` · `navigation_failed` · `blocked` · `provider_error` · `invalid_url` · `parent_deleted` · `unknown`. A non-2xx response from the target is _not_ a failure; it is a successful Scrape whose status code is product-level information.
+Why a Scrape failed: `timeout` · `navigation_failed` · `blocked` · `provider_error` · `invalid_url` · `parent_deleted` · `unknown`. A non-2xx response from the target is _not_ a failure; it is a successful Scrape whose status code is product-level information. `parent_deleted` is only ever recorded on the Execution, never on a Scrape: a deleted Parent takes its Scrapes with it.
 _Avoid_: Failure reason, error type
 
 **Fetch success**:
@@ -85,11 +85,11 @@ A Scrape reached `success`: the HTML was captured and stored. Independent of whe
 _Avoid_: Scrape success (ambiguous with the combined pill), done
 
 **Last scraped at**:
-The moment a Parent's most recent Scrape reached `success`. Advances only on fetch success, so a failing Parent retries on its cadence, not on every tick.
+The moment a Parent's most recent Scrape reached `success`. Advances only on fetch success; it reports, it does not schedule (see Cadence-due).
 _Avoid_: Last run, last checked
 
 **Stuck Scrape**:
-A Scrape that has sat in `running` past a wall-clock bound. Swept to `failed` with error code `timeout`.
+A Scrape that has sat in `running` past a wall-clock bound. Swept to `failed` with error code `timeout`; its Execution is stopped and its stored objects removed as far as possible. Terminal states are final: an outcome the Execution produces after the sweep is discarded.
 _Avoid_: Hung, zombie, orphan (see Orphan Execution)
 
 ### Execution and dispatch
@@ -99,7 +99,7 @@ The durable unit of work that carries out one Scrape or one Extraction. The row 
 _Avoid_: Run, workflow instance, job
 
 **Execution status**:
-Either **active** (`queued`, `running`, `waiting`, `paused`, `waitingForPause`) or **terminal** (`complete`, `errored`, `terminated`). Distinct from Scrape status and Extraction status.
+Either **active** (`queued`, `running`, `waiting`, `paused`, `waitingForPause`), **terminal** (`complete`, `errored`, `terminated`) or **unresolved** (`unknown`, or the status could not be read). Distinct from Scrape status and Extraction status.
 _Avoid_: Scrape status
 
 **Dispatch**:
@@ -119,7 +119,7 @@ An Execution that exists for a row still in `pending`. Reconcile resolves it.
 _Avoid_: Stuck Scrape, zombie
 
 **Reconcile**:
-On finding an Orphan Execution, consult its status: active means leave the row for the Execution to finish; terminal means mark the row `failed` with error code `unknown` so the next tick can re-evaluate the Parent.
+On finding an Orphan Execution, consult its status: only a confirmed terminal status marks the row `failed` with error code `unknown` so the next tick can re-evaluate the Parent; active or unresolved leaves the row for a later tick.
 _Avoid_: Repair, heal, sync
 
 **Cron**:
@@ -145,8 +145,12 @@ How often a Parent is scraped: `daily | weekly | fortnightly | monthly`, default
 _Avoid_: Frequency, schedule, interval
 
 **Cadence-due**:
-A Parent whose last scraped at plus its cadence has passed, or which has never been scraped successfully.
+A Parent whose most recent Scrape, whatever its outcome, is older than its cadence, or which has never been scraped. After a failed Scrape the wait is the shorter of the cadence and the Failure retry interval.
 _Avoid_: Overdue, ready, scheduled
+
+**Failure retry interval**:
+How long a Parent whose most recent Scrape failed waits before it is cadence-due again, so a transient Retailer outage does not cost a whole cadence. One global setting, never shorter than a Cron tick.
+_Avoid_: Backoff, retry cadence
 
 **Pause**:
 A toggle that stops scheduled scraping. Container-level on Brand, Product and Retailer; row-level on Page. Listings have no toggle of their own.
@@ -271,6 +275,8 @@ _Avoid_: Whitelist, tenant, organisation
 - A Retailer's domain is unique globally.
 - Brand names and Product names are not unique.
 - A Scrape is one unit of work with one outcome, however many Fetch attempts its provider made.
+- A Parent has at most one Scrape in `pending` or `running` at any moment; this, not cadence, is the hard guarantee. Overlapping Crons may rarely produce one extra Scrape within a cadence.
+- A Scrape in `success` or `failed` never changes status again.
 - Fetch success and Extraction success are independent states; neither implies the other.
 - Last scraped at advances only on fetch success.
 - Latest successful Extraction only ever moves forward to a newer `success`.
@@ -281,5 +287,5 @@ _Avoid_: Whitelist, tenant, organisation
 
 Known drifts carried over from the previous app, to resolve in their own tickets rather than silently here.
 
-- **Retention window**: the glossary and the sweep said 90 days; the earliest rebuild notes said 120 days. Pick one and note whether the per-tick sweep cap belongs in the domain at all.
+- **Retention window**: the glossary and the sweep said 90 days; the earliest rebuild notes said 120 days. Pick one, never shorter than the longest cadence (the sweep would otherwise remove the Scrape that anchors Cadence-due), and note whether the per-tick sweep cap belongs in the domain at all.
 - **URL invariants**: host-must-match-Retailer and tracker-param normalisation were deferred in the old app; not yet part of this glossary.
