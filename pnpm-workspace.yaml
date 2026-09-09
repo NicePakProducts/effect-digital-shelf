@@ -1,0 +1,62 @@
+packages:
+  - apps/*
+  - packages/*
+
+catalogMode: prefer
+
+catalog:
+  # Effect v4 RC line: every @effect/* package rides the same rc build.
+  effect: 4.0.0-rc.112
+  "@effect/ai-openai-compat": 4.0.0-rc.112
+  "@effect/platform-node": 4.0.0-rc.112
+  "@effect/sql-d1": 4.0.0-rc.112
+  "@effect/vitest": 4.0.0-rc.112
+  # Toolchain
+  "@effect/tsgo": 0.43.0
+  "@types/node": 26.5.0
+  typescript: 7.0.2
+  vite: npm:@voidzero-dev/vite-plus-core@0.3.1
+  vite-plus: 0.3.1
+  vitest: 4.1.11
+  # Platform pins settled by the research tickets (#3, #4, #5)
+  alchemy: 2.0.0-beta.67
+  drizzle-kit: 1.0.0-rc.5-ab785fc
+  drizzle-orm: 1.0.0-rc.5-ab785fc
+  better-auth: 1.7.3
+  "@better-auth/drizzle-adapter": 1.7.3
+  "@better-auth/mcp": 1.7.3
+
+overrides:
+  "@effect/sql-d1": "catalog:"
+  vite: "catalog:"
+
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: "*"
+
+allowBuilds:
+  msgpackr-extract: false
+  esbuild: true
+  workerd: true
+
+minimumReleaseAgeExclude:
+  - "@effect/tsgo-darwin-arm64@0.43.0"
+  - "@effect/tsgo-darwin-x64@0.43.0"
+  - "@effect/tsgo-linux-arm64@0.43.0"
+  - "@effect/tsgo-linux-arm@0.43.0"
+  - "@effect/tsgo-linux-x64@0.43.0"
+  - "@effect/tsgo-win32-arm64@0.43.0"
+  - "@effect/tsgo-win32-x64@0.43.0"
+  - "@effect/tsgo@0.43.0"
+  - "@voidzero-dev/vite-plus-core@0.3.1"
+  - "@voidzero-dev/vite-plus-darwin-arm64@0.3.1"
+  - "@voidzero-dev/vite-plus-darwin-x64@0.3.1"
+  - "@voidzero-dev/vite-plus-linux-arm64-gnu@0.3.1"
+  - "@voidzero-dev/vite-plus-linux-arm64-musl@0.3.1"
+  - "@voidzero-dev/vite-plus-linux-x64-gnu@0.3.1"
+  - "@voidzero-dev/vite-plus-linux-x64-musl@0.3.1"
+  - "@voidzero-dev/vite-plus-win32-arm64-msvc@0.3.1"
+  - "@voidzero-dev/vite-plus-win32-x64-msvc@0.3.1"
+  - vite-plus@0.3.1
