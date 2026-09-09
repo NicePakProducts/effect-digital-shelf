@@ -43,8 +43,16 @@ The set of Variants a Listing covers, chosen by the user when creating or editin
 _Avoid_: Variant mapping, detected variants
 
 **URL**:
-The current pointer on a Listing or Page. Changing it does not create a new row and rewrites no history: every Scrape keeps the URL it actually fetched, and the next Scrape uses the new one. URLs are not unique, and the user owns correctness.
+The current pointer on a Listing or Page, kept as a Normalised URL. Its host is the Retailer's domain or a subdomain of it. Changing it does not create a new row and rewrites no history: every Scrape keeps the URL it actually fetched, and the next Scrape uses the new one. URLs are not unique, and beyond the host rule the user owns correctness.
 _Avoid_: Link, href, location
+
+**Normalised URL**:
+The form a URL takes before it is stored: surrounding whitespace removed, scheme and host lower-cased, Tracker parameters removed. Path, fragment, port and every other query parameter stay exactly as pasted; nothing retailer-specific is rewritten, and normalising an already Normalised URL changes nothing. The stored URL is the only URL; the paste is not kept.
+_Avoid_: Cleaned URL, canonical URL, raw URL
+
+**Tracker parameter**:
+A query parameter that identifies a campaign, click or visitor rather than the page: `utm_*`, `gclid`, `dclid`, `wbraid`, `gbraid`, `yclid`, `fbclid`, `igshid`, `ttclid`, `twclid`, `msclkid`, `mc_cid`, `mc_eid`, `mkt_tok`, `_hsenc`, `_hsmi`, `_ga`, `vero_id`, `ref_`. The list is fixed and deliberately narrow: a parameter that may select content (a bare `ref`, Amazon's `th`) is never a Tracker parameter, and a tracker carried in the path is left alone.
+_Avoid_: UTM, analytics parameter, junk parameter
 
 ### Scraping
 
@@ -281,6 +289,7 @@ _Avoid_: Whitelist, tenant, organisation
 - A Variant belongs to one Product and its name is unique within that Product.
 - A Page is unique per `(Brand, Retailer)`. A Listing is not: `(Product, Retailer)` may hold many Listings, even sharing a URL.
 - A Retailer's domain is unique globally.
+- A Listing or Page URL's host is its Retailer's domain or a subdomain of it, whenever the URL is set or changed and whenever the Retailer's domain changes; a violating write is refused, never flagged.
 - Brand names and Product names are not unique.
 - A Scrape is one unit of work with one outcome, however many Fetch attempts its provider made.
 - A Parent has at most one Scrape in `pending` or `running` at any moment; this, not cadence, is the hard guarantee. Overlapping Crons may rarely produce one extra Scrape within a cadence.
@@ -297,4 +306,3 @@ _Avoid_: Whitelist, tenant, organisation
 Known drifts carried over from the previous app, to resolve in their own tickets rather than silently here.
 
 - **Retention window**: the glossary and the sweep said 90 days; the earliest rebuild notes said 120 days. Pick one, never shorter than the longest cadence (the sweep would otherwise remove the Scrape that anchors Cadence-due), and note whether the per-tick sweep cap belongs in the domain at all.
-- **URL invariants**: host-must-match-Retailer and tracker-param normalisation were deferred in the old app; not yet part of this glossary.
