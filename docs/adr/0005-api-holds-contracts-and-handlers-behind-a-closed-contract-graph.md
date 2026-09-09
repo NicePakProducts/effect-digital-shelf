@@ -15,5 +15,5 @@ We chose this over a fifth `server` package because the contract and the handler
 
 - Any client, the dashboard or an MCP wrapper, imports contract modules only, through the package's subpath exports, and never `Api.ts`, a `*Handlers.ts` module or `Auth/CurrentUserMiddleware.ts`. A client package carries its own boundaries test asserting exactly that; nothing from core can reach a browser bundle by accident.
 - api's `package.json` depends on core, so a client's install graph includes core's dependencies (domain, Effect, Drizzle today) without bundling them.
-- Cron and Workflow adapters are not request handling; they live in infra as platform adapters that translate one platform event into one core call and hold no rules.
+- Cron and Workflow adapters are not request handling and hold no rules. _Amended by ADR 0006_: they are composition in `apps/server`, not infra; infra keeps only the binding-to-port adapters.
 - If a client ever needs to install or build without core, the execution modules move to a `server` package as a mechanical extraction; the contract graph is already closed, so nothing else changes.
