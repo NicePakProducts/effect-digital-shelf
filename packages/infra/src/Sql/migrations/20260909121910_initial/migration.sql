@@ -139,6 +139,7 @@ CREATE UNIQUE INDEX "extractions_scrape_id_attempt" ON "extractions" ("scrape_id
 CREATE INDEX "extractions_scrape_id_status_attempt" ON "extractions" ("scrape_id","status","attempt");--> statement-breakpoint
 CREATE INDEX "extractions_status_created_at" ON "extractions" ("status","created_at");--> statement-breakpoint
 CREATE INDEX "extractions_prompt_kind_status" ON "extractions" ("prompt_kind","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "extractions_scrape_in_flight" ON "extractions" ("scrape_id") WHERE "status" IN ('pending', 'running');--> statement-breakpoint
 CREATE INDEX "scrapes_status_created_at" ON "scrapes" ("status","created_at");--> statement-breakpoint
 CREATE INDEX "scrapes_listing_id_status_created_at" ON "scrapes" ("listing_id","status","created_at");--> statement-breakpoint
 CREATE INDEX "scrapes_page_id_status_created_at" ON "scrapes" ("page_id","status","created_at");--> statement-breakpoint

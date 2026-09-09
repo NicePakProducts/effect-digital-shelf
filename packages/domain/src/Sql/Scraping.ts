@@ -152,6 +152,12 @@ export const extractions = pgTable(
     ),
     index("extractions_status_created_at").on(t.status, t.createdAt),
     index("extractions_prompt_kind_status").on(t.promptKind, t.status),
+    // At most one Extraction in flight per Scrape (map ticket "Extraction
+    // lifecycle"): a second re-extract is refused by this index, and the
+    // `(scrape_id, attempt)` index above backstops attempt allocation.
+    uniqueIndex("extractions_scrape_in_flight")
+      .on(t.scrapeId)
+      .where(inFlight(t)),
     check("extractions_attempt_positive", sql`${t.attempt} >= 1`),
     nullableLiteralsCheck("extractions", t.errorCode, ExtractionErrorCodes),
   ],
