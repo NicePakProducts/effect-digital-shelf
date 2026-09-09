@@ -139,7 +139,7 @@ On finding an Orphan Execution, consult its status: only a confirmed terminal st
 _Avoid_: Repair, heal, sync
 
 **Cron**:
-The scheduled pickup that walks cadence-due Parents and pending rows every tick, with a per-tick cap on each. The safety net behind every other trigger: any `pending` row will eventually be picked up.
+The scheduled pickup that runs both Sweeps, drains pending rows and walks cadence-due Parents every tick, with a per-tick cap on each. The safety net behind every other trigger: any `pending` row will eventually be picked up, and any expired Scrape eventually removed.
 _Avoid_: Scheduler (ambiguous), poller, sweeper (see Sweep)
 
 **Manual trigger**:
@@ -151,7 +151,7 @@ _Avoid_: On-demand, ad hoc, click
 _Avoid_: Batch job, campaign, mass scrape
 
 **Sweep**:
-A scheduled housekeeping pass: the stuck sweep fails Stuck Scrapes and Stuck Extractions, the retention sweep removes expired Scrapes.
+A housekeeping pass run by Cron: the stuck sweep fails Stuck Scrapes and Stuck Extractions, the retention sweep removes Scrapes past Retention, oldest first, a bounded number per tick.
 _Avoid_: GC, cleanup, cron (see Cron)
 
 ### Scheduling and pause
@@ -265,7 +265,7 @@ What a delete will remove, named before it happens (e.g. _"12 Products, 47 Varia
 _Avoid_: Delete preview, blast radius
 
 **Retention**:
-The window after which a Scrape, its stored HTML and all its Extractions are removed by the retention sweep, anchored to the Scrape's creation. The product answers "what is on the retailer now", not a longitudinal archive.
+The 90-day window after which a terminal Scrape, its stored HTML and all its Extractions are removed by the retention sweep, anchored to the Scrape's creation. Roughly one quarter of operational data: the product answers "what is on the retailer now", not a longitudinal archive, so nothing is exempt, not a paused Parent's last Scrape nor a Parent's only success; Last scraped at survives on the Parent. An Extraction shares its Scrape's window; re-extracting never extends it. The window exceeds the longest Cadence, so a Parent scraped on cadence always keeps the Scrape that anchors Cadence-due; one whose anchor expires is simply never-scraped again. In-flight Scrapes belong to the stuck sweep, never to retention.
 _Avoid_: TTL, expiry, archive period, GC
 
 ### Identity and access
@@ -300,9 +300,3 @@ _Avoid_: Whitelist, tenant, organisation
 - Latest successful Extraction only ever moves forward to a newer `success`.
 - Manual triggers bypass pause; Cron and bulk scrape respect effective pause; re-extraction never consults it.
 - Deletion is always hard and always cascades.
-
-## Open questions
-
-Known drifts carried over from the previous app, to resolve in their own tickets rather than silently here.
-
-- **Retention window**: the glossary and the sweep said 90 days; the earliest rebuild notes said 120 days. Pick one, never shorter than the longest cadence (the sweep would otherwise remove the Scrape that anchors Cadence-due), and note whether the per-tick sweep cap belongs in the domain at all.
