@@ -14,8 +14,10 @@
     "test": "vp test --run"
   },
   "dependencies": {
+    "@better-auth/mcp": "catalog:",
     "@digital-shelf/domain": "workspace:*",
     "@effect/ai-openai-compat": "catalog:",
+    "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "jsonrepair": "catalog:"
