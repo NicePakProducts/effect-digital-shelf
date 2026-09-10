@@ -51,6 +51,15 @@ export const Cron = CronService.layer.pipe(
 )
 export const ScrapeWorkflow = ScrapeRunner.layer
 
+/**
+ * The live providers, left beside the Workflow layer rather than inside it:
+ * `apps/server` resolves the Browser binding and the platform `HttpClient`
+ * per invocation and provides them there (#22, ADR 0006), while tests run
+ * the same Workflow layer over the scripted fake.
+ */
+export { layer as ScrapeProvidersLive } from "./Providers/ScrapeProviders.ts"
+export { BrowserRendering } from "./Providers/BrowserRendering.ts"
+
 export const ExtractionWorkflow = ExtractionRunner.layer
 export { layer as LanguageModelLive } from "./Providers/LanguageModel.ts"
 
