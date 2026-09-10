@@ -23,7 +23,7 @@ A scrape management system for a digital shelf, built on Effect v4 and Cloudflar
 
 - Use Effect for schemas, services, errors, configuration and side effects.
 - Use Vite Plus (`vp`) for checking, testing and builds; tests use `@effect/vitest`.
-- Drive Drizzle Kit through the `db:*` scripts in `packages/infra/package.json` (`pnpm db:generate`, and `db:migrate` once it lands), and commit only what they generate: `migration.sql` and `snapshot.json` are never written or edited by hand. Until the first production deploy, a schema change deletes `packages/infra/src/Sql/migrations` and regenerates the initial migration.
+- Drive Drizzle Kit through the `db:*` scripts in `packages/infra/package.json` (`pnpm db:generate --name <change>` and `pnpm db:migrate` over the direct `DATABASE_URL`), and commit only what they generate: `migration.sql` and `snapshot.json` are never written or edited by hand. Migrations are append-only: preserve the initial migration and generate a new migration for each schema change.
 - Reach `@cloudflare/playwright` only through the dynamic `import()` in `packages/core/src/Providers/Playwright.ts`; a static import anywhere in a Worker or Workflow's init graph breaks `alchemy deploy`, which evaluates those modules in Node (#18).
 - Prefer tagged unions that make invalid states unrepresentable.
 - Make the smallest correct change and follow existing repository patterns.
