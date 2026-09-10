@@ -15,4 +15,4 @@ We chose function repositories over `Context.Service` repositories because nothi
 - A repository never imports a feature, `Sql/` knows no feature, and `src/` never imports `test/`, `infra` or `api`. The boundaries test is the source of truth for the rule set.
 - Drizzle's query failures are unwrapped into `SqlError` at the repository seam (`Sql/Errors.ts`), so features match on `reason` (`UniqueViolation` by constraint name) rather than on Drizzle's wrapper.
 - Rows are decoded explicitly through the domain schemas (`Sql/Rows.ts`); a row that fails to decode is a defect, not an error, because the table is the entity's definition (ADR 0002).
-- pnpm instances Drizzle per peer set, so the root `package.json` carries Drizzle's peer packages (`@electric-sql/pglite`, `@effect/sql-pglite`, and later `pg`/`@effect/sql-pg`) as devDependencies to keep one `drizzle-orm` instance across domain, core and infra.
+- pnpm instances Drizzle per peer set, so the root `package.json` carries Drizzle's peer packages (`@electric-sql/pglite`, `@effect/sql-pglite`, `@effect/sql-pg`, and later `pg`) as devDependencies to keep one `drizzle-orm` instance across domain, core and infra.

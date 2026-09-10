@@ -10,6 +10,7 @@
     "prepare": "effect-tsgo patch"
   },
   "devDependencies": {
+    "@effect/sql-pg": "catalog:",
     "@effect/sql-pglite": "catalog:",
     "@effect/tsgo": "catalog:",
     "@effect/vitest": "catalog:",
