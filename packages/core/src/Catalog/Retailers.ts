@@ -5,6 +5,7 @@ import {
 import {
   InvalidRetailerDomain,
   RetailerDomainTaken,
+  UrlHostMismatch,
 } from "@digital-shelf/domain/Catalog/Errors"
 import {
   type CreateRetailer,
@@ -22,7 +23,6 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { Db } from "../Sql/Db.ts"
 import { Cascade } from "./Cascade.ts"
-import { requireHostMatch } from "./HostRule.ts"
 import * as ListingsRepo from "./repositories/ListingsRepo.ts"
 import * as PagesRepo from "./repositories/PagesRepo.ts"
 import * as Repo from "./repositories/RetailersRepo.ts"
@@ -62,10 +62,14 @@ const refuseStrandedChildren = Effect.fn("Retailers.refuseStrandedChildren")(
     )
     const first = listings[0] ?? pages[0]
     if (first === undefined) return
-    yield* requireHostMatch(first.url, domain, {
-      listingIds: listings.map((row) => row.id),
-      pageIds: pages.map((row) => row.id),
-    })
+    return yield* Effect.fail(
+      new UrlHostMismatch({
+        url: first.url,
+        domain,
+        listingIds: listings.map((row) => row.id),
+        pageIds: pages.map((row) => row.id),
+      }),
+    )
   },
 )
 

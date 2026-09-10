@@ -23,6 +23,7 @@
     "jsonrepair": "catalog:"
   },
   "devDependencies": {
+    "@effect/sql-pg": "catalog:",
     "@effect/sql-pglite": "catalog:",
     "@effect/vitest": "catalog:",
     "@electric-sql/pglite": "catalog:",

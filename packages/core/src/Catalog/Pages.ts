@@ -105,9 +105,7 @@ const make = Effect.gen(function* () {
           const retailer = yield* RetailersRepo.getForShare(
             row.retailerId,
           ).pipe(Effect.catchTag("RetailerNotFound", Effect.die))
-          yield* requireHostMatch(command.url, retailer.domain, {
-            pageIds: [id],
-          })
+          yield* requireHostMatch(command.url, retailer.domain)
         }
         yield* Repo.update(id, command)
         return yield* get(id)

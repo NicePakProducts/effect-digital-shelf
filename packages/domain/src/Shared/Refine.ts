@@ -94,8 +94,8 @@ const filterQuery = (query: string): string =>
  * The Normalised URL of an absolute http(s) URL: scheme and host lower-cased,
  * Tracker parameters removed, a `?` left empty removed. Path, fragment, port
  * and every other parameter stay byte-for-byte as pasted, which is what makes
- * the function idempotent. Only `Url` calls it, on a value WHATWG parsing has
- * already accepted.
+ * the function idempotent. Only `Url` calls it, and checks the result: a
+ * value the parser rejects comes out just as unacceptable.
  */
 export const normaliseUrl = (value: string): string => {
   const match = parts.exec(value)
@@ -127,21 +127,20 @@ const Absolute = Schema.NonEmptyString.check(
   ),
 )
 
+/** Trim, then normalise: the one step both directions of `Url` take. */
+const normalise = (value: string): string => normaliseUrl(value.trim())
+
 /**
  * A Normalised URL: an absolute http(s) URL as `normaliseUrl` leaves it.
- * Decoding trims, parses, then normalises, so every command and every decoded
- * row carries the stored form and no code path can write an unnormalised one;
- * a value the parser rejects stays a schema failure. Encoding hands the
- * normalised string back unchanged, because it is the only URL kept.
+ * Decoding and encoding both trim, normalise and then parse, so every decoded
+ * row carries the stored form and every row written through the entity
+ * schemas stores it, whatever string a caller hands core; a value the parser
+ * rejects stays a schema failure either way.
  */
 export const Url = Schema.NonEmptyString.annotate({ identifier: "Url" }).pipe(
   Schema.decodeTo(Absolute, {
-    decode: SchemaGetter.trim(),
-    encode: SchemaGetter.passthrough(),
-  }),
-  Schema.decodeTo(Absolute, {
-    decode: SchemaGetter.transform(normaliseUrl),
-    encode: SchemaGetter.passthrough(),
+    decode: SchemaGetter.transform(normalise),
+    encode: SchemaGetter.transform(normalise),
   }),
 )
 export type Url = typeof Url.Type

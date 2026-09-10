@@ -61,6 +61,14 @@ describe("Url", () => {
     }
   })
 
+  it("encodes any accepted string to the stored form, not as pasted", () => {
+    // The write path: a row schema encodes whatever string core was handed.
+    expect(encode("  HTTPS://WWW.BigW.com.au/p/2?utm_source=a&th=1  ")).toBe(
+      "https://www.bigw.com.au/p/2?th=1",
+    )
+    expect(() => encode("not a url")).toThrow()
+  })
+
   it("keeps an unparsable or non-http value a schema failure", () => {
     for (const input of [
       "Gaia Body Wash 500ml",

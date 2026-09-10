@@ -21,6 +21,23 @@ const catalog = Effect.fn("HostRuleFixture.catalog")(function* (
   return { ...base, retailerId: retailer.id, domain: retailer.domain }
 })
 
+/** Drizzle types `execute` as the rows; PGlite hands back the whole result. */
+const rowsOf = (result: unknown): ReadonlyArray<unknown> =>
+  Array.isArray(result)
+    ? result
+    : (result as { readonly rows: ReadonlyArray<unknown> }).rows
+
+/** The `url` column of a Listing as the table holds it. */
+const storedUrl = Effect.fn("HostRuleFixture.storedUrl")(function* (
+  id: string,
+) {
+  const db = yield* Db
+  const rows = rowsOf(
+    yield* query(db.execute(sql`select url from listings where id = ${id}`)),
+  ) as ReadonlyArray<{ url: string }>
+  return rows[0]?.url
+})
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
   it.effect("refuses a Listing whose URL sits off the Retailer's domain", () =>
     Effect.gen(function* () {
@@ -64,40 +81,51 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
     }),
   )
 
-  it.effect(
-    "refuses a URL change and names the Listing, leaving it stored",
-    () =>
-      Effect.gen(function* () {
-        yield* DbTest.reset
-        const c = yield* catalog("bigw.com.au")
-        const listings = yield* Listings
-        const row = yield* listings.create({
-          productId: c.productId,
-          retailerId: c.retailerId,
-          url: "https://www.bigw.com.au/p/1",
-        })
-        expect(
-          yield* Effect.flip(
-            listings.update(row.id, { url: "https://coles.com.au/p/1" }),
-          ),
-        ).toEqual(
-          new UrlHostMismatch({
-            url: "https://coles.com.au/p/1",
-            domain: "bigw.com.au",
-            listingIds: [row.id],
-            pageIds: [],
-          }),
-        )
-        expect((yield* listings.get(row.id)).url).toBe(
-          "https://www.bigw.com.au/p/1",
-        )
-        // A change that stays on the domain still goes through, normalised.
-        expect(
-          (yield* listings.update(row.id, {
-            url: "  HTTPS://WWW.BigW.com.au/p/2?utm_source=a&th=1  ",
-          })).url,
-        ).toBe("https://www.bigw.com.au/p/2?th=1")
-      }),
+  it.effect("refuses a URL change off the domain, leaving it stored", () =>
+    Effect.gen(function* () {
+      yield* DbTest.reset
+      const c = yield* catalog("bigw.com.au")
+      const listings = yield* Listings
+      const row = yield* listings.create({
+        productId: c.productId,
+        retailerId: c.retailerId,
+        url: "https://www.bigw.com.au/p/1",
+      })
+      expect(
+        yield* Effect.flip(
+          listings.update(row.id, { url: "https://coles.com.au/p/1" }),
+        ),
+      ).toEqual(
+        new UrlHostMismatch({
+          url: "https://coles.com.au/p/1",
+          domain: "bigw.com.au",
+          listingIds: [],
+          pageIds: [],
+        }),
+      )
+      expect((yield* listings.get(row.id)).url).toBe(
+        "https://www.bigw.com.au/p/1",
+      )
+    }),
+  )
+
+  it.effect("stores the normalised bytes of a URL handed to core as is", () =>
+    Effect.gen(function* () {
+      yield* DbTest.reset
+      const c = yield* catalog("bigw.com.au")
+      const listings = yield* Listings
+      const row = yield* listings.create({
+        productId: c.productId,
+        retailerId: c.retailerId,
+        url: "  HTTPS://WWW.BigW.com.au/p/1?utm_source=a&th=1  ",
+      })
+      yield* listings.update(row.id, {
+        url: "  HTTPS://WWW.BigW.com.au/p/2?utm_source=a&th=1  ",
+      })
+      // The column itself, not the entity schema's reading of it: that
+      // reading normalises too and would hide raw bytes on disk.
+      expect(yield* storedUrl(row.id)).toBe("https://www.bigw.com.au/p/2?th=1")
+    }),
   )
 
   it.effect("refuses a Page on create and on a URL change", () =>
@@ -135,7 +163,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
           url: "https://bigw.com.au.evil.com/x",
           domain: "bigw.com.au",
           listingIds: [],
-          pageIds: [row.id],
+          pageIds: [],
         }),
       )
       expect((yield* pages.get(row.id)).url).toBe(
@@ -190,12 +218,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
 
   /**
    * The lock itself. PGlite runs one PostgreSQL backend behind a semaphore of
-   * one (`@effect/sql-pglite`), so two transactions never overlap here and no
-   * test in this package can watch a child write block on a domain change:
-   * that contract needs a real PostgreSQL with two connections. What is
-   * provable in process is that the reads request real row locks of
-   * PostgreSQL, which `pg_locks` reports while the transaction holds them, and
-   * that the rule holds whichever way the two writes are ordered.
+   * one (`@effect/sql-pglite`), so two transactions never overlap here and
+   * nothing in this file can watch one write block on the other: that proof
+   * is HostRule.postgres.test.ts, over a real PostgreSQL with two
+   * connections. What is provable in process is that the reads request real
+   * row locks, which `pg_locks` reports while the transaction holds them, and
+   * that the rule holds whichever of the two writes runs first.
    */
   const locksHeld = Effect.fn("HostRuleFixture.locksHeld")(function* (
     read: Effect.Effect<unknown, never, Db>,
@@ -214,11 +242,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
         )
       }),
     )
-    // Drizzle types `execute` as the rows; PGlite hands back the whole result.
-    const rows = Array.isArray(result)
-      ? result
-      : (result as { readonly rows: ReadonlyArray<unknown> }).rows
-    return (rows as ReadonlyArray<{ mode: string }>).map((row) => row.mode)
+    return (rowsOf(result) as ReadonlyArray<{ mode: string }>).map(
+      (row) => row.mode,
+    )
   })
 
   it.effect("reads the Retailer under a row lock, not as a plain select", () =>
@@ -243,7 +269,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
   )
 
   it.effect(
-    "serialises a child write against a domain change, whichever commits first",
+    "holds the rule whichever of a child write and a domain change runs first",
     () =>
       Effect.gen(function* () {
         yield* DbTest.reset
@@ -274,7 +300,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
         )
 
         // Domain change first: the child write then reads the new domain and
-        // is refused, so neither order can leave a stranded URL stored.
+        // is refused.
         const second = yield* catalog("c.example.com")
         yield* retailers.update(second.retailerId, { domain: "d.example.com" })
         expect(

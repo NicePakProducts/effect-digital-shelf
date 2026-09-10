@@ -85,9 +85,7 @@ const make = Effect.gen(function* () {
           const retailer = yield* RetailersRepo.getForShare(
             row.retailerId,
           ).pipe(Effect.catchTag("RetailerNotFound", Effect.die))
-          yield* requireHostMatch(command.url, retailer.domain, {
-            listingIds: [id],
-          })
+          yield* requireHostMatch(command.url, retailer.domain)
         }
         const { variantIds, ...patch } = command
         if (variantIds !== undefined) {
