@@ -210,8 +210,10 @@ MAIL_DOMAIN="npbrands.com.au"   # Postmark sender and the sign-in allowlist
 DB_NAME=$([[ "$STAGE" == dev ]] && echo digital-shelf-dev || echo digital-shelf)
 PROD_HYPERDRIVE_ID="dba7756cd8844f54b6a5fc2fe8bfbed0"   # recorded on #25
 GATEWAY_NAME="digital-shelf-ai-gateway-$STAGE"
-TRACES_DATASET="digital-shelf-traces-$STAGE"
-LOGS_DATASET="digital-shelf-logs-$STAGE"
+# Axiom allows three datasets on this plan, so both stages share two and the
+# stage is the OTel resource attribute deployment.environment.name (2026-09-10).
+TRACES_DATASET="digital-shelf-traces"
+LOGS_DATASET="digital-shelf-logs"
 # The Axiom organisation this project reports to (the team org "npbrands"; a
 # personal org with the same display name exists, so the id is what counts).
 AXIOM_ORG_ID="${AXIOM_ORG_ID:-npbrands-etkr}"
@@ -581,7 +583,7 @@ pause
 
 # ── 9 · Axiom ─────────────────────────────────────────────────────────────
 stage_9() {
-stage "Axiom: edge domain, the two $STAGE datasets, an ingest-only token"
+stage "Axiom: edge domain, the two shared datasets, an ingest-only token for $STAGE"
 say "Everything here targets Axiom org '$AXIOM_ORG_ID'; the org switcher (top left) must show that org, not a personal one with the same name."
 open_url "$AXIOM_APP/settings/general"
 step "Settings → General → 'Edge deployment' names the region; the base domain follows from it:"
@@ -605,7 +607,7 @@ if [[ -n "$AXIOM_CLI_DEPLOYMENT" ]] && existing=$(axiom dataset list -D "$AXIOM_
   datasets_done=1
   for ds in "$TRACES_DATASET" "$LOGS_DATASET"; do
     if grep -qx "$ds" <<<"$existing"; then say "${GREEN}✓${RESET} dataset $ds exists"
-    elif axiom dataset create -D "$AXIOM_CLI_DEPLOYMENT" --no-spinner -n "$ds" -d "Digital Shelf $STAGE ($(basename "$ds" "-$STAGE" | sed 's/digital-shelf-//'))" >/dev/null 2>&1; then say "${GREEN}✓${RESET} created dataset $ds"
+    elif axiom dataset create -D "$AXIOM_CLI_DEPLOYMENT" --no-spinner -n "$ds" -d "Digital Shelf ${ds#digital-shelf-}, all stages (deployment.environment.name tells them apart)" >/dev/null 2>&1; then say "${GREEN}✓${RESET} created dataset $ds"
     else warn "could not create $ds with the CLI"; datasets_done=0; fi
   done
 fi
@@ -614,10 +616,12 @@ if (( ! datasets_done )); then
   open_url "$AXIOM_APP/settings/datasets"
   step "Settings → Datasets and views → New dataset: name '$TRACES_DATASET', kind Events, default retention → Save."
   step "Again: name '$LOGS_DATASET', kind Events → Save."
+  note "Both stages share these two (the plan allows three datasets); any old digital-shelf-*-dev datasets can be deleted."
 fi
 pause "Both datasets in place? Press Enter."
 open_url "$AXIOM_APP/settings/api-tokens"
 step "New API token → name 'digital-shelf-$STAGE' → Basic → Dataset access: only $TRACES_DATASET and $LOGS_DATASET (ingest) → Create → copy (shown once)."
+note "One token per stage, both scoped to the same two datasets, so either can be revoked alone."
 note "If those two datasets are not offered in the picker, the browser is in another org: switch orgs and refresh."
 ask_secret AXIOM_TOKEN "Paste the Axiom token:"
 axiom_ok=0
