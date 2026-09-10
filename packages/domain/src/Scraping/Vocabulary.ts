@@ -1,3 +1,4 @@
+import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
 /**
@@ -57,3 +58,25 @@ export const ExtractionErrorCodes = [
 ] as const
 export const ExtractionErrorCode = Schema.Literals(ExtractionErrorCodes)
 export type ExtractionErrorCode = typeof ExtractionErrorCode.Type
+
+export const CombinedStatuses = [
+  "failed",
+  "pending",
+  "running",
+  "success",
+  "none",
+] as const
+export const CombinedStatus = Schema.Literals(CombinedStatuses)
+export type CombinedStatus = typeof CombinedStatus.Type
+/** The glossary's Combined status: dominant-failure reading, failed > pending > running > success > none. */
+export const combinedStatus = (
+  scrape: Option.Option<ScrapeStatus>,
+  extraction: Option.Option<ExtractionStatus>,
+): CombinedStatus => {
+  if (Option.isNone(scrape)) return "none"
+  if (Option.isNone(extraction)) return scrape.value
+  return CombinedStatuses.indexOf(scrape.value) <=
+    CombinedStatuses.indexOf(extraction.value)
+    ? scrape.value
+    : extraction.value
+}
