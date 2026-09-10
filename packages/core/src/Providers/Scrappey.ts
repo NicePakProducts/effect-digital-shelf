@@ -227,7 +227,7 @@ export const fetchOnce = (options: {
         Effect.mapError((error) =>
           providerError(
             { code: "provider_error", retryable: true },
-            error.message,
+            `Scrappey request failed: ${error.reason._tag}`,
             { reason: error.reason._tag },
           ),
         ),

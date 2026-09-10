@@ -2,6 +2,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Ref from "effect/Ref"
 import * as HttpClient from "effect/unstable/http/HttpClient"
+import * as HttpClientError from "effect/unstable/http/HttpClientError"
 import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 
@@ -22,8 +23,15 @@ export interface Fixture {
   readonly requests: Effect.Effect<ReadonlyArray<Recorded>>
 }
 
+/**
+ * `"never"` leaves the request pending; `"unreachable"` fails it the way the
+ * platform client does when the connection never opens, so the error carries
+ * the request that actually left.
+ */
 export const respondingWith = (
-  respond: (request: Recorded) => Response | Promise<Response> | "never",
+  respond: (
+    request: Recorded,
+  ) => Response | Promise<Response> | "never" | "unreachable",
 ): Effect.Effect<Fixture> =>
   Effect.gen(function* () {
     const requests = yield* Ref.make<ReadonlyArray<Recorded>>([])
@@ -45,6 +53,15 @@ export const respondingWith = (
         yield* Ref.update(requests, (all) => [...all, recorded])
         const response = respond(recorded)
         if (response === "never") return yield* Effect.never
+        if (response === "unreachable")
+          return yield* Effect.fail(
+            new HttpClientError.HttpClientError({
+              reason: new HttpClientError.TransportError({
+                request,
+                cause: new TypeError("fetch failed"),
+              }),
+            }),
+          )
         return HttpClientResponse.fromWeb(
           request,
           yield* Effect.promise(async () => response),

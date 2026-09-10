@@ -21,7 +21,7 @@ const request = {
 }
 
 const against = (
-  respond: (request: Http.Recorded) => Response | "never",
+  respond: (request: Http.Recorded) => Response | "never" | "unreachable",
   overrides: {
     readonly request?: typeof request
     readonly deadline?: Duration.Duration
@@ -137,8 +137,18 @@ describe("Scrappey provider — envelope", () => {
 })
 
 describe("Scrappey provider — classification", () => {
-  const failing = (respond: (request: Http.Recorded) => Response | "never") =>
-    Effect.flatMap(against(respond), ({ fetch }) => Effect.flip(fetch))
+  const failing = (
+    respond: (request: Http.Recorded) => Response | "never" | "unreachable",
+  ) => Effect.flatMap(against(respond), ({ fetch }) => Effect.flip(fetch))
+
+  it.effect("an unreachable Scrappey is a retryable provider error", () =>
+    Effect.gen(function* () {
+      const error = yield* failing(() => "unreachable")
+      expect(error.code).toBe("provider_error")
+      expect(error.retryable).toBe(true)
+      expect(error.detail).toEqual({ reason: "TransportError" })
+    }),
+  )
 
   it.effect("a verification code is a block, and never retried", () =>
     Effect.gen(function* () {
@@ -243,6 +253,15 @@ describe("Scrappey provider — the key and the trace stay put", () => {
       const [sent] = yield* fixture.requests
       expect(Object.keys(sent?.headers ?? {})).not.toContain("traceparent")
       expect(Object.keys(sent?.headers ?? {})).not.toContain("b3")
+    }),
+  )
+
+  it.effect("a transport failure's message carries no API key", () =>
+    Effect.gen(function* () {
+      const { fetch } = yield* against(() => "unreachable")
+      const error = yield* Effect.flip(fetch)
+      expect(error.message).not.toContain(Redacted.value(KEY))
+      expect(JSON.stringify(error.detail)).not.toContain(Redacted.value(KEY))
     }),
   )
 
