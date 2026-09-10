@@ -18,6 +18,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { Db } from "../Sql/Db.ts"
 import { Cascade } from "./Cascade.ts"
+import { requireHostMatch } from "./HostRule.ts"
 import * as Repo from "./repositories/ListingsRepo.ts"
 import * as ProductsRepo from "./repositories/ProductsRepo.ts"
 import * as RetailersRepo from "./repositories/RetailersRepo.ts"
@@ -50,8 +51,8 @@ const make = Effect.gen(function* () {
     return yield* db.transaction(() =>
       Effect.gen(function* () {
         yield* ProductsRepo.get(command.productId)
-        yield* RetailersRepo.get(command.retailerId)
-        // #38 adds the FOR SHARE Retailer lock and the URL host check here.
+        const retailer = yield* RetailersRepo.getForShare(command.retailerId)
+        yield* requireHostMatch(command.url, retailer.domain)
         yield* validateCoverage(command.productId, command.variantIds ?? [])
         const { variantIds, ...values } = command
         const row = yield* Repo.insert({
@@ -79,7 +80,15 @@ const make = Effect.gen(function* () {
     return yield* db.transaction(() =>
       Effect.gen(function* () {
         const row = yield* Repo.get(id)
-        // #38 adds the FOR SHARE Retailer lock and the URL host check here.
+        if (command.url !== undefined) {
+          // The foreign key guarantees the Retailer: its absence is a defect.
+          const retailer = yield* RetailersRepo.getForShare(
+            row.retailerId,
+          ).pipe(Effect.catchTag("RetailerNotFound", Effect.die))
+          yield* requireHostMatch(command.url, retailer.domain, {
+            listingIds: [id],
+          })
+        }
         const { variantIds, ...patch } = command
         if (variantIds !== undefined) {
           yield* validateCoverage(row.productId, variantIds)

@@ -52,6 +52,26 @@ export const find = Effect.fn("RetailersRepo.find")(function* (id: RetailerId) {
 
 export const get = (id: RetailerId) => find(id).pipe(orNotFound(id))
 
+/**
+ * The Retailer row under a lock, so the host rule cannot be checked against a
+ * domain another transaction is changing. `FOR SHARE` is the child writes'
+ * read (many Listings and Pages may be written at once); `FOR UPDATE` is the
+ * domain change's, which must exclude them while it inspects their URLs.
+ */
+const locked = (strength: "share" | "update") =>
+  Effect.fn(`RetailersRepo.get.for.${strength}`)(function* (id: RetailerId) {
+    const db = yield* Db
+    return yield* one(
+      yield* query(
+        db.select().from(retailers).where(eq(retailers.id, id)).for(strength),
+      ),
+    ).pipe(orNotFound(id))
+  })
+
+export const getForShare = locked("share")
+
+export const getForUpdate = locked("update")
+
 export const list = Effect.fn("RetailersRepo.list")(function* () {
   const db = yield* Db
   return yield* all(

@@ -26,13 +26,18 @@ export class ListingsApi extends HttpApiGroup.make("listings").add(
       Errors.ProductNotFound,
       Errors.RetailerNotFound,
       Errors.VariantNotInProduct,
+      Errors.UrlHostMismatch,
     ],
   }),
   HttpApiEndpoint.patch("update", "/listings/:id", {
     params: Wire.IdParams,
     payload: UpdateListing,
     success: Wire.ListingWire,
-    error: [Errors.ListingNotFound, Errors.VariantNotInProduct],
+    error: [
+      Errors.ListingNotFound,
+      Errors.VariantNotInProduct,
+      Errors.UrlHostMismatch,
+    ],
   }),
   HttpApiEndpoint.get("impact", "/listings/:id/impact", {
     params: Wire.IdParams,

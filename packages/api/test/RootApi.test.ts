@@ -34,7 +34,7 @@ describe("RootApi", () => {
       ["variants", [404, 409], [404, 409]],
       ["retailers", [409, 422], [404, 409, 422]],
       ["listings", [404, 422], [404, 422]],
-      ["pages", [404, 409], [404]],
+      ["pages", [404, 409, 422], [404, 422]],
     ] as const) {
       const collection = spec.paths[`/api/v1/${group}`]!
       const item = spec.paths[`/api/v1/${group}/{id}`]!
@@ -143,17 +143,32 @@ describe("RootApi", () => {
       [
         "retailers",
         ["InvalidRetailerDomain", "RetailerDomainTaken"],
-        ["RetailerNotFound", "InvalidRetailerDomain", "RetailerDomainTaken"],
+        [
+          "RetailerNotFound",
+          "InvalidRetailerDomain",
+          "RetailerDomainTaken",
+          "UrlHostMismatch",
+        ],
       ],
       [
         "listings",
-        ["ProductNotFound", "RetailerNotFound", "VariantNotInProduct"],
-        ["ListingNotFound", "VariantNotInProduct"],
+        [
+          "ProductNotFound",
+          "RetailerNotFound",
+          "VariantNotInProduct",
+          "UrlHostMismatch",
+        ],
+        ["ListingNotFound", "VariantNotInProduct", "UrlHostMismatch"],
       ],
       [
         "pages",
-        ["BrandNotFound", "RetailerNotFound", "PageAlreadyExists"],
-        ["PageNotFound"],
+        [
+          "BrandNotFound",
+          "RetailerNotFound",
+          "PageAlreadyExists",
+          "UrlHostMismatch",
+        ],
+        ["PageNotFound", "UrlHostMismatch"],
       ],
     ] as const) {
       const names = (responses: object) =>

@@ -26,13 +26,14 @@ export class PagesApi extends HttpApiGroup.make("pages").add(
       Errors.BrandNotFound,
       Errors.RetailerNotFound,
       Errors.PageAlreadyExists,
+      Errors.UrlHostMismatch,
     ],
   }),
   HttpApiEndpoint.patch("update", "/pages/:id", {
     params: Wire.IdParams,
     payload: UpdatePage,
     success: Wire.PageWire,
-    error: [Errors.PageNotFound],
+    error: [Errors.PageNotFound, Errors.UrlHostMismatch],
   }),
   HttpApiEndpoint.get("impact", "/pages/:id/impact", {
     params: Wire.IdParams,

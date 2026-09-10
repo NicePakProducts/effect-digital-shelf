@@ -38,7 +38,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       const row = yield* service.create({
         productId: c.productId,
         retailerId: c.retailerId,
-        url: "https://example.com/tie",
+        url: c.url("/tie"),
       })
       const scrape = yield* history(
         { _tag: "Listing", listingId: row.id },
@@ -72,7 +72,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         const row = yield* service.create({
           productId: c.productId,
           retailerId: c.retailerId,
-          url: "https://example.com/remove",
+          url: c.url("/remove"),
         })
         const bucket = yield* R2BucketTest
         yield* bucket.reset
@@ -112,7 +112,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         const row = yield* listings.create({
           productId: c.productId,
           retailerId: c.retailerId,
-          url: "https://example.com/item",
+          url: c.url("/item"),
           variantIds: [b.id, a.id, b.id],
         })
         expect(row.variantIds).toEqual([a.id, b.id])
@@ -137,7 +137,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         const command = {
           productId: a.productId,
           retailerId: a.retailerId,
-          url: "https://example.com/item",
+          url: a.url("/item"),
         }
         for (const variantId of [
           variant.id,
@@ -158,7 +158,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         expect(
           yield* Effect.flip(
             listings.update(row.id, {
-              url: "https://example.com/new",
+              url: a.url("/new"),
               variantIds: [variant.id],
             }),
           ),
@@ -185,7 +185,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
           listings.create({
             productId,
             retailerId: c.retailerId,
-            url: "https://example.com",
+            url: c.url(""),
           }),
         ),
       ).toEqual(new ProductNotFound({ productId }))
@@ -194,7 +194,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
           listings.create({
             productId: c.productId,
             retailerId,
-            url: "https://example.com",
+            url: c.url(""),
           }),
         ),
       ).toEqual(new RetailerNotFound({ retailerId }))
@@ -212,7 +212,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       const row = yield* listings.create({
         productId: c.productId,
         retailerId: c.retailerId,
-        url: "https://example.com/item",
+        url: c.url("/item"),
         variantIds: [variant.id],
       })
       expect(
@@ -232,7 +232,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         const row = yield* listings.create({
           productId: c.productId,
           retailerId: c.retailerId,
-          url: "https://example.com/item",
+          url: c.url("/item"),
         })
         if (container === "Brand")
           yield* (yield* Brands).update(c.brandId, { paused: true })
@@ -255,7 +255,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         const row = yield* listings.create({
           productId: c.productId,
           retailerId: c.retailerId,
-          url: "https://example.com/item",
+          url: c.url("/item"),
         })
         const parent = { _tag: "Listing", listingId: row.id } as const
         yield* history(parent, "failed", "3 hours")
@@ -281,17 +281,17 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       const first = yield* listings.create({
         productId: a.productId,
         retailerId: a.retailerId,
-        url: "https://example.com/a",
+        url: a.url("/a"),
       })
       const second = yield* listings.create({
         productId: a.productId,
         retailerId: b.retailerId,
-        url: "https://example.com/b",
+        url: b.url("/b"),
       })
       yield* listings.create({
         productId: b.productId,
         retailerId: b.retailerId,
-        url: "https://example.com/c",
+        url: b.url("/c"),
       })
       expect(
         new Set(

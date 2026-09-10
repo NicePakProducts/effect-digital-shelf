@@ -1908,11 +1908,18 @@
             }
           },
           "422": {
-            "description": "InvalidRetailerDomain",
+            "description": "InvalidRetailerDomain | UrlHostMismatch",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/InvalidRetailerDomainEncoded"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/InvalidRetailerDomainEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UrlHostMismatchEncoded"
+                    }
+                  ]
                 }
               }
             }
@@ -2174,7 +2181,7 @@
                             "format": "uuid"
                           },
                           "url": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/Url"
                           },
                           "cadence": {
                             "type": "string",
@@ -2290,7 +2297,7 @@
                       "format": "uuid"
                     },
                     "url": {
-                      "type": "string"
+                      "$ref": "#/components/schemas/Url"
                     },
                     "cadence": {
                       "type": "string",
@@ -2383,11 +2390,18 @@
             }
           },
           "422": {
-            "description": "VariantNotInProduct",
+            "description": "VariantNotInProduct | UrlHostMismatch",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VariantNotInProductEncoded"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/VariantNotInProductEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UrlHostMismatchEncoded"
+                    }
+                  ]
                 }
               }
             }
@@ -2475,7 +2489,7 @@
                       "format": "uuid"
                     },
                     "url": {
-                      "type": "string"
+                      "$ref": "#/components/schemas/Url"
                     },
                     "cadence": {
                       "type": "string",
@@ -2602,7 +2616,7 @@
                       "format": "uuid"
                     },
                     "url": {
-                      "type": "string"
+                      "$ref": "#/components/schemas/Url"
                     },
                     "cadence": {
                       "type": "string",
@@ -2688,11 +2702,18 @@
             }
           },
           "422": {
-            "description": "VariantNotInProduct",
+            "description": "VariantNotInProduct | UrlHostMismatch",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VariantNotInProductEncoded"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/VariantNotInProductEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UrlHostMismatchEncoded"
+                    }
+                  ]
                 }
               }
             }
@@ -2944,7 +2965,7 @@
                             "format": "uuid"
                           },
                           "url": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/Url"
                           },
                           "cadence": {
                             "type": "string",
@@ -3055,7 +3076,7 @@
                       "format": "uuid"
                     },
                     "url": {
-                      "type": "string"
+                      "$ref": "#/components/schemas/Url"
                     },
                     "cadence": {
                       "type": "string",
@@ -3151,6 +3172,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "UrlHostMismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UrlHostMismatchEncoded"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -3230,7 +3261,7 @@
                       "format": "uuid"
                     },
                     "url": {
-                      "type": "string"
+                      "$ref": "#/components/schemas/Url"
                     },
                     "cadence": {
                       "type": "string",
@@ -3352,7 +3383,7 @@
                       "format": "uuid"
                     },
                     "url": {
-                      "type": "string"
+                      "$ref": "#/components/schemas/Url"
                     },
                     "cadence": {
                       "type": "string",
@@ -3428,6 +3459,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PageNotFoundEncoded"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "UrlHostMismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UrlHostMismatchEncoded"
                 }
               }
             }
@@ -3753,6 +3794,43 @@
         "required": ["_tag", "domain", "retailerId"],
         "additionalProperties": false
       },
+      "UrlHostMismatchEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["UrlHostMismatch"]
+          },
+          "url": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "listingIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            }
+          },
+          "pageIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": ["_tag", "url", "domain", "listingIds", "pageIds"],
+        "additionalProperties": false
+      },
+      "Url": {
+        "type": "string",
+        "minLength": 1
+      },
       "ListingNotFoundEncoded": {
         "type": "object",
         "properties": {
@@ -3768,10 +3846,6 @@
         },
         "required": ["_tag", "listingId"],
         "additionalProperties": false
-      },
-      "Url": {
-        "type": "string",
-        "minLength": 1
       },
       "VariantNotInProductEncoded": {
         "type": "object",

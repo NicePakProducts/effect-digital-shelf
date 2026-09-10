@@ -33,3 +33,6 @@ export const InvalidRetailerDomain = Domain.InvalidRetailerDomain.pipe(
 export const VariantNotInProduct = Domain.VariantNotInProduct.pipe(
   HttpApiSchema.status(422),
 )
+export const UrlHostMismatch = Domain.UrlHostMismatch.pipe(
+  HttpApiSchema.status(422),
+)

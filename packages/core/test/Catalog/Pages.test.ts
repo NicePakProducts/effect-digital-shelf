@@ -32,7 +32,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         const row = yield* service.create({
           brandId: c.brandId,
           retailerId: c.retailerId,
-          url: "https://example.com/remove",
+          url: c.url("/remove"),
         })
         const bucket = yield* R2BucketTest
         yield* bucket.reset
@@ -69,7 +69,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         const command = {
           brandId: c.brandId,
           retailerId: c.retailerId,
-          url: "https://example.com/brand",
+          url: c.url("/brand"),
         }
         const page = yield* pages.create(command)
         expect(page.cadence).toBe("monthly")
@@ -95,7 +95,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
           const page = yield* pages.create({
             brandId: c.brandId,
             retailerId: c.retailerId,
-            url: "https://example.com/brand",
+            url: c.url("/brand"),
           })
           if (source === "Brand")
             yield* (yield* Brands).update(c.brandId, { paused: true })
@@ -120,7 +120,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         const page = yield* pages.create({
           brandId: c.brandId,
           retailerId: c.retailerId,
-          url: "https://example.com/brand",
+          url: c.url("/brand"),
         })
         expect(page.combinedStatus).toBe("none")
         yield* history({ _tag: "Page", pageId: page.id }, "running", "1 minute")
@@ -137,17 +137,17 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
       const first = yield* pages.create({
         brandId: a.brandId,
         retailerId: a.retailerId,
-        url: "https://example.com/a",
+        url: a.url("/a"),
       })
       const second = yield* pages.create({
         brandId: a.brandId,
         retailerId: b.retailerId,
-        url: "https://example.com/b",
+        url: b.url("/b"),
       })
       yield* pages.create({
         brandId: b.brandId,
         retailerId: b.retailerId,
-        url: "https://example.com/c",
+        url: b.url("/c"),
       })
       expect(
         new Set(
@@ -180,7 +180,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
           pages.create({
             brandId,
             retailerId: c.retailerId,
-            url: "https://example.com",
+            url: c.url(""),
           }),
         ),
       ).toEqual(new BrandNotFound({ brandId }))
@@ -189,7 +189,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
           pages.create({
             brandId: c.brandId,
             retailerId,
-            url: "https://example.com",
+            url: c.url(""),
           }),
         ),
       ).toEqual(new RetailerNotFound({ retailerId }))

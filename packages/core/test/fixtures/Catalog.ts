@@ -9,9 +9,14 @@ export const seed = Effect.fn("CatalogFixture.seed")(function* () {
     brandId: brand.id,
     name: "Wash",
   })
-  const retailer = yield* (yield* Retailers).create({
-    name: "Shop",
-    domain: `${crypto.randomUUID()}.example.com`,
-  })
-  return { brandId: brand.id, productId: product.id, retailerId: retailer.id }
+  const domain = `${crypto.randomUUID()}.example.com`
+  const retailer = yield* (yield* Retailers).create({ name: "Shop", domain })
+  return {
+    brandId: brand.id,
+    productId: product.id,
+    retailerId: retailer.id,
+    domain: retailer.domain,
+    /** A URL on the seeded Retailer's domain, which the host rule requires. */
+    url: (path = "") => `https://${retailer.domain}${path}`,
+  }
 })

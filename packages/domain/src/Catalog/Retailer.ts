@@ -21,6 +21,20 @@ export const RetailerDomain = Schema.String.check(
 ).pipe(Schema.brand("RetailerDomain"))
 export type RetailerDomain = typeof RetailerDomain.Type
 
+/**
+ * Whether a URL sits on a Retailer's domain: hosts are compared lower-cased
+ * and with a leading `www.` stripped from either side, and a subdomain passes
+ * only on a dot boundary, so `shop.bigw.com.au` matches `bigw.com.au` while
+ * the lookalike `evilbigw.com.au` does not. A URL the parser rejects never
+ * matches; commands carry a parsed `Url` already.
+ */
+export const hostMatches = (url: string, domain: string): boolean => {
+  if (!URL.canParse(url)) return false
+  const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "")
+  const target = domain.toLowerCase().replace(/^www\./, "")
+  return host === target || host.endsWith(`.${target}`)
+}
+
 /** A destination domain we scrape, global and shared across all Brands. */
 export const Retailer = createSelectSchema(retailers, {
   id: RetailerId,

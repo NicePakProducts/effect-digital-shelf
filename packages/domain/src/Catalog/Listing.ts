@@ -6,7 +6,7 @@ import {
 } from "drizzle-orm/effect-schema"
 import * as Schema from "effect/Schema"
 import { ListingId, ProductId, RetailerId, VariantId } from "../Shared/Ids.ts"
-import { Timestamp, nullable } from "../Shared/Refine.ts"
+import { Timestamp, Url, nullable } from "../Shared/Refine.ts"
 import { listingVariants, listings } from "../Sql/Catalog.ts"
 
 /**
@@ -17,6 +17,7 @@ export const Listing = createSelectSchema(listings, {
   id: ListingId,
   productId: ProductId,
   retailerId: RetailerId,
+  url: Url,
   lastScrapedAt: nullable(Timestamp),
   createdAt: Timestamp,
   updatedAt: Timestamp,
@@ -27,6 +28,7 @@ export const ListingInsert = createInsertSchema(listings, {
   id: Schema.optionalKey(ListingId),
   productId: ProductId,
   retailerId: RetailerId,
+  url: Url,
   lastScrapedAt: Schema.optionalKey(nullable(Timestamp)),
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
@@ -37,6 +39,7 @@ export const ListingUpdate = createUpdateSchema(listings, {
   id: Schema.optionalKey(ListingId),
   productId: Schema.optionalKey(ProductId),
   retailerId: Schema.optionalKey(RetailerId),
+  url: Schema.optionalKey(Url),
   lastScrapedAt: Schema.optionalKey(nullable(Timestamp)),
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),

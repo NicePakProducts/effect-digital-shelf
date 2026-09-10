@@ -36,18 +36,18 @@ const tree = Effect.gen(function* () {
   const l1 = yield* listings.create({
     productId: c.productId,
     retailerId: c.retailerId,
-    url: "https://example.com/one",
+    url: c.url("/one"),
     variantIds: [first.id],
   })
   const l2 = yield* listings.create({
     productId: product.id,
     retailerId: c.retailerId,
-    url: "https://example.com/two",
+    url: c.url("/two"),
   })
   const page = yield* (yield* Pages).create({
     brandId: c.brandId,
     retailerId: c.retailerId,
-    url: "https://example.com/brand",
+    url: c.url("/brand"),
   })
   const s1 = yield* history(
     { _tag: "Listing", listingId: l1.id },
