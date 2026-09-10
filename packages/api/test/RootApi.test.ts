@@ -50,48 +50,40 @@ describe("RootApi", () => {
     ] as const) {
       const collection = spec.paths[`/api/v1/${group}`]!
       const item = spec.paths[`/api/v1/${group}/{id}`]!
-      const codes = (responses: object) => Object.keys(responses).sort()
-      expect(codes(collection.get!.responses)).toEqual(["200", "401"])
-      expect(codes(collection.post!.responses)).toEqual(
+      expect(codesOf(collection.get!.responses)).toEqual(["200", "401"])
+      expect(codesOf(collection.post!.responses)).toEqual(
         ["201", "401", ...createErrors.map(String)].sort(),
       )
-      expect(codes(item.get!.responses)).toEqual(["200", "401", "404"])
-      expect(codes(item.patch!.responses)).toEqual(
+      expect(codesOf(item.get!.responses)).toEqual(["200", "401", "404"])
+      expect(codesOf(item.patch!.responses)).toEqual(
         ["200", "401", ...updateErrors.map(String)].sort(),
       )
-      expect(codes(item.delete!.responses)).toEqual(["200", "401", "404"])
+      expect(codesOf(item.delete!.responses)).toEqual(["200", "401", "404"])
       if (group !== "variants")
         expect(
-          codes(spec.paths[`/api/v1/${group}/{id}/impact`]!.get!.responses),
+          codesOf(spec.paths[`/api/v1/${group}/{id}/impact`]!.get!.responses),
         ).toEqual(["200", "401", "404"])
     }
     expect(JSON.stringify(spec)).not.toContain("SqlError")
   })
   it("answers dispatch with 202 and names its refusals", () => {
-    const codes = (responses: object) => Object.keys(responses).sort()
-    expect(codes(spec.paths["/api/v1/scrapes"]!.post!.responses)).toEqual([
+    expect(codesOf(spec.paths["/api/v1/scrapes"]!.post!.responses)).toEqual([
       "202",
       "401",
       "404",
       "409",
-    ])
-    expect(codes(spec.paths["/api/v1/scrapes/bulk"]!.post!.responses)).toEqual([
-      "202",
-      "401",
-      "404",
-    ])
-    expect(codes(spec.paths["/api/v1/extractions"]!.post!.responses)).toEqual([
-      "202",
-      "401",
-      "404",
-      "409",
-      "422",
     ])
     expect(
-      codes(spec.paths["/api/v1/extractions/bulk"]!.post!.responses),
+      codesOf(spec.paths["/api/v1/scrapes/bulk"]!.post!.responses),
+    ).toEqual(["202", "401", "404"])
+    expect(codesOf(spec.paths["/api/v1/extractions"]!.post!.responses)).toEqual(
+      ["202", "401", "404", "409", "422"],
+    )
+    expect(
+      codesOf(spec.paths["/api/v1/extractions/bulk"]!.post!.responses),
     ).toEqual(["202", "401", "404"])
     expect(
-      codes(
+      codesOf(
         spec.paths["/api/v1/products/{id}/latest-extractions"]!.get!.responses,
       ),
     ).toEqual(["200", "401", "404"])
