@@ -1,0 +1,38 @@
+{
+  "solution": {
+    "verified": true,
+    "url": "https://www.example.com/product/1",
+    "currentUrl": "https://www.example.com/product/1?ref=redirect",
+    "statusCode": 200,
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/119.0.0.0",
+    "cookies": [
+      {
+        "name": "session",
+        "value": "abc",
+        "domain": ".example.com",
+        "path": "/",
+        "httpOnly": true,
+        "secure": true
+      }
+    ],
+    "innerText": "Widget  A$9.99  In stock",
+    "response": "<html><body><h1>Widget</h1><p>A$9.99</p></body></html>",
+    "responseHeaders": {
+      "content-type": "text/html; charset=utf-8",
+      "cf-cache-status": "DYNAMIC"
+    },
+    "requestHeaders": {
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/119.0.0.0",
+      "accept-language": "en-AU"
+    },
+    "ipInfo": {
+      "ip": "203.0.113.7",
+      "country": "Australia",
+      "city": "Sydney"
+    },
+    "type": "html"
+  },
+  "timeElapsed": 4213,
+  "data": "success",
+  "session": "0f4a2c1e-7f5d-4a1e-9a5b-2d3f6c8b1a90"
+}
