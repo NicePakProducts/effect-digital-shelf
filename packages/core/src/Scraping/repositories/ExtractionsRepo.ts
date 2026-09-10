@@ -37,6 +37,7 @@ import {
 import * as Effect from "effect/Effect"
 import { Db } from "../../Sql/Db.ts"
 import { query } from "../../Sql/Errors.ts"
+import { beforeCursor, type Cursor } from "../../Sql/Keyset.ts"
 import * as Rows from "../../Sql/Rows.ts"
 
 /** Extraction queries and conditional writes; features own transactions. */
@@ -448,3 +449,40 @@ export const retailerPrompt = Effect.fn("ExtractionsRepo.retailerPrompt")(
     return Option.fromUndefinedOr(rows[0]?.prompt)
   },
 )
+
+/**
+ * One page of Extractions, newest first, over the same `(created_at, id)`
+ * keyset the Scrape list uses; one extra row answers whether more remain.
+ */
+export const list = Effect.fn("ExtractionsRepo.list")(function* (options: {
+  readonly scrapeId?: ScrapeId | undefined
+  readonly status?: ExtractionStatus | undefined
+  readonly cursor?: Cursor | undefined
+  readonly limit: number
+}) {
+  const db = yield* Db
+  const rows = yield* Rows.decodeAll(Extraction)(
+    yield* query(
+      db
+        .select()
+        .from(extractions)
+        .where(
+          and(
+            options.scrapeId === undefined
+              ? undefined
+              : eq(extractions.scrapeId, options.scrapeId),
+            options.status === undefined
+              ? undefined
+              : eq(extractions.status, options.status),
+            beforeCursor(extractions.createdAt, extractions.id, options.cursor),
+          ),
+        )
+        .orderBy(desc(extractions.createdAt), desc(extractions.id))
+        .limit(options.limit + 1),
+    ),
+  )
+  return {
+    items: rows.slice(0, options.limit),
+    hasMore: rows.length > options.limit,
+  }
+})

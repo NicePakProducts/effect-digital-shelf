@@ -2,7 +2,7 @@ import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
 import * as HttpRouter from "effect/unstable/http/HttpRouter"
 import * as TestClock from "effect/testing/TestClock"
 import { expect, it } from "@effect/vitest"
-import * as CoreTest from "@digital-shelf/core/test/layers/Core"
+import * as ApiTest from "../layers/Api.ts"
 import * as DbTest from "@digital-shelf/core/test/layers/Db"
 import { BrandId } from "@digital-shelf/domain/Shared/Ids"
 import {
@@ -14,45 +14,11 @@ import {
   PageAlreadyExists,
   UrlHostMismatch,
 } from "@digital-shelf/domain/Catalog/Errors"
-import { DateTime, Effect, FileSystem, Layer, Path, Schema } from "effect"
-import * as Etag from "effect/unstable/http/Etag"
-import * as HttpPlatform from "effect/unstable/http/HttpPlatform"
+import { DateTime, Effect, Layer, Schema } from "effect"
 import * as HttpApiTest from "effect/unstable/httpapi/HttpApiTest"
 import { RootApi } from "@digital-shelf/api/RootApi"
-import {
-  CurrentUser,
-  CurrentUserMiddleware,
-} from "@digital-shelf/api/Auth/Security"
-import * as BrandsHandlers from "@digital-shelf/api/Catalog/BrandsHandlers"
-import * as ProductsHandlers from "@digital-shelf/api/Catalog/ProductsHandlers"
-import * as VariantsHandlers from "@digital-shelf/api/Catalog/VariantsHandlers"
-import * as RetailersHandlers from "@digital-shelf/api/Catalog/RetailersHandlers"
-import * as ListingsHandlers from "@digital-shelf/api/Catalog/ListingsHandlers"
-import * as PagesHandlers from "@digital-shelf/api/Catalog/PagesHandlers"
 
-const middleware = Layer.succeed(CurrentUserMiddleware, (httpEffect) =>
-  Effect.provideService(httpEffect, CurrentUser, {
-    id: "user-1",
-    email: "user@npbrands.com.au",
-  }),
-)
-const platform = HttpPlatform.layer.pipe(
-  Layer.provideMerge(
-    Layer.mergeAll(FileSystem.layerNoop({}), Etag.layer, Path.layer),
-  ),
-)
-const layer = Layer.mergeAll(
-  BrandsHandlers.layer,
-  ProductsHandlers.layer,
-  VariantsHandlers.layer,
-  RetailersHandlers.layer,
-  ListingsHandlers.layer,
-  PagesHandlers.layer,
-).pipe(
-  Layer.provideMerge(CoreTest.layerTest),
-  Layer.provideMerge(middleware),
-  Layer.provideMerge(platform),
-)
+const layer = ApiTest.layerTest
 const client = HttpApiTest.groups(RootApi, [
   "brands",
   "products",

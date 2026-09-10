@@ -15,6 +15,8 @@ import type {
   BulkScrape,
   TriggerScrape,
 } from "@digital-shelf/domain/Scraping/ScrapingManagement"
+import type { ScrapeStatus } from "@digital-shelf/domain/Scraping/Vocabulary"
+import type { ListingId, PageId } from "@digital-shelf/domain/Shared/Ids"
 import { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
@@ -33,6 +35,8 @@ import {
 import { onUniqueViolation } from "../Sql/Errors.ts"
 import { transition } from "./Transitions.ts"
 import { Db } from "../Sql/Db.ts"
+import type { Cursor } from "../Sql/Keyset.ts"
+import { R2Bucket } from "../Storage/R2Bucket.ts"
 import { Executions, startBatchLimit } from "../Scheduling/Executions.ts"
 import * as ParentsRepo from "./repositories/ParentsRepo.ts"
 import * as ScrapesRepo from "./repositories/ScrapesRepo.ts"
@@ -56,6 +60,7 @@ const make = Effect.gen(function* () {
   const db = yield* Db
   const withDb = Effect.provideService(Db, db)
   const executions = yield* Executions
+  const bucket = yield* R2Bucket
   const retry = yield* Config.duration("FAILURE_RETRY_INTERVAL").pipe(
     Config.withDefault(Duration.days(1)),
     Effect.orDie,
@@ -189,6 +194,11 @@ const make = Effect.gen(function* () {
       ),
     )
   }, withDb)
+  /**
+   * Bulk and cadence share one transaction. Bulk respects effective pause,
+   * so a paused Parent is counted rather than dispatched; cadence selection
+   * has already excluded them.
+   */
   const insertAll = (
     targets: ReadonlyArray<ParentsRepo.ScrapeTarget>,
     trigger: "bulk" | "cadence",
@@ -197,12 +207,17 @@ const make = Effect.gen(function* () {
       Effect.gen(function* () {
         const created: Scrape[] = []
         const skipped: ScrapeParent[] = []
+        const paused: ScrapeParent[] = []
         for (const target of targets) {
+          if (target.paused) {
+            paused.push(ParentsRepo.parentOf(target))
+            continue
+          }
           const row = yield* insert(target, trigger)
           if (Option.isSome(row)) created.push(row.value)
           else skipped.push(ParentsRepo.parentOf(target))
         }
-        return { created, skipped }
+        return { created, skipped, paused }
       }),
     )
   const bulk = Effect.fn("Scrapes.bulk")(function* (scope: BulkScrape) {
@@ -222,6 +237,7 @@ const make = Effect.gen(function* () {
     return {
       created: report.created.map((row) => row.id),
       skipped: report.skipped,
+      skippedPaused: report.paused,
       started: started.started,
     }
   }, withDb)
@@ -302,7 +318,26 @@ const make = Effect.gen(function* () {
   const get = Effect.fn("Scrapes.get")(function* (id: ScrapeId) {
     return yield* ScrapesRepo.get(id)
   }, withDb)
-  return { trigger, bulk, dispatchDue, drainPending, get }
+  /** One page of Scrapes, newest first; `hasMore` says whether to keep going. */
+  const list = Effect.fn("Scrapes.list")(function* (options: {
+    readonly listingId?: ListingId | undefined
+    readonly pageId?: PageId | undefined
+    readonly status?: ScrapeStatus | undefined
+    readonly cursor?: Cursor | undefined
+    readonly limit: number
+  }) {
+    return yield* ScrapesRepo.list(options)
+  }, withDb)
+  /**
+   * The Scrape's captured HTML. `None` once retention has taken the object,
+   * whether or not the row still records the key (ADR 0001).
+   */
+  const content = Effect.fn("Scrapes.content")(function* (id: ScrapeId) {
+    const row = yield* ScrapesRepo.get(id)
+    if (Option.isNone(row.htmlR2Key)) return Option.none<string>()
+    return yield* bucket.get(row.htmlR2Key.value)
+  }, withDb)
+  return { trigger, bulk, dispatchDue, drainPending, get, list, content }
 })
 
 export class Scrapes extends Context.Service<

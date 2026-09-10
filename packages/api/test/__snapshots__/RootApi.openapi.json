@@ -3658,6 +3658,2391 @@
           }
         }
       }
+    },
+    "/api/v1/scrapes": {
+      "get": {
+        "tags": ["scrapes"],
+        "operationId": "scrapes.list",
+        "parameters": [
+          {
+            "name": "listingId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            },
+            "required": false
+          },
+          {
+            "name": "pageId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            },
+            "required": false
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["pending", "running", "success", "failed"]
+            },
+            "required": false
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            },
+            "required": false
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Limit"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                            "format": "uuid"
+                          },
+                          "listingId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                                "format": "uuid"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "pageId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                                "format": "uuid"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": ["basic", "advance"]
+                          },
+                          "country": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["pending", "running", "success", "failed"]
+                          },
+                          "rootSpanId": {
+                            "$ref": "#/components/schemas/SpanId"
+                          },
+                          "requestUrl": {
+                            "type": "string"
+                          },
+                          "requestHeaders": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "startedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finishedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "errorCode": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "timeout",
+                                  "navigation_failed",
+                                  "blocked",
+                                  "provider_error",
+                                  "invalid_url",
+                                  "parent_deleted",
+                                  "unknown"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "errorMessage": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finalUrl": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "statusCode": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "responseHeaders": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "cookies": {
+                            "anyOf": [
+                              {},
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "innerText": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "userAgent": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "ipInfo": {
+                            "anyOf": [
+                              {},
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "type": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "session": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "attempts": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "listingId",
+                          "pageId",
+                          "mode",
+                          "country",
+                          "status",
+                          "rootSpanId",
+                          "requestUrl",
+                          "requestHeaders",
+                          "startedAt",
+                          "finishedAt",
+                          "errorCode",
+                          "errorMessage",
+                          "finalUrl",
+                          "statusCode",
+                          "responseHeaders",
+                          "cookies",
+                          "innerText",
+                          "userAgent",
+                          "ipInfo",
+                          "type",
+                          "session",
+                          "attempts",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/Cursor"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["items", "nextCursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["scrapes"],
+        "operationId": "scrapes.trigger",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                      "format": "uuid"
+                    },
+                    "listingId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                          "format": "uuid"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "pageId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                          "format": "uuid"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": ["basic", "advance"]
+                    },
+                    "country": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending", "running", "success", "failed"]
+                    },
+                    "rootSpanId": {
+                      "$ref": "#/components/schemas/SpanId"
+                    },
+                    "requestUrl": {
+                      "type": "string"
+                    },
+                    "requestHeaders": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "startedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "finishedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "errorCode": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "timeout",
+                            "navigation_failed",
+                            "blocked",
+                            "provider_error",
+                            "invalid_url",
+                            "parent_deleted",
+                            "unknown"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "errorMessage": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "finalUrl": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "statusCode": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "responseHeaders": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "cookies": {
+                      "anyOf": [
+                        {},
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "innerText": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "userAgent": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "ipInfo": {
+                      "anyOf": [
+                        {},
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "type": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "session": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "attempts": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "listingId",
+                    "pageId",
+                    "mode",
+                    "country",
+                    "status",
+                    "rootSpanId",
+                    "requestUrl",
+                    "requestHeaders",
+                    "startedAt",
+                    "finishedAt",
+                    "errorCode",
+                    "errorMessage",
+                    "finalUrl",
+                    "statusCode",
+                    "responseHeaders",
+                    "cookies",
+                    "innerText",
+                    "userAgent",
+                    "ipInfo",
+                    "type",
+                    "session",
+                    "attempts",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ListingNotFound | PageNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ListingNotFoundEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PageNotFoundEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ParentInFlight",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentInFlightEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parent": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "_tag": {
+                            "type": "string",
+                            "enum": ["Listing"]
+                          },
+                          "listingId": {
+                            "type": "string",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                            "format": "uuid"
+                          }
+                        },
+                        "required": ["_tag", "listingId"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "_tag": {
+                            "type": "string",
+                            "enum": ["Page"]
+                          },
+                          "pageId": {
+                            "type": "string",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                            "format": "uuid"
+                          }
+                        },
+                        "required": ["_tag", "pageId"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["basic", "advance"]
+                  },
+                  "country": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["parent"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/scrapes/{id}": {
+      "get": {
+        "tags": ["scrapes"],
+        "operationId": "scrapes.get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                      "format": "uuid"
+                    },
+                    "listingId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                          "format": "uuid"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "pageId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                          "format": "uuid"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": ["basic", "advance"]
+                    },
+                    "country": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending", "running", "success", "failed"]
+                    },
+                    "rootSpanId": {
+                      "$ref": "#/components/schemas/SpanId"
+                    },
+                    "requestUrl": {
+                      "type": "string"
+                    },
+                    "requestHeaders": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "startedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "finishedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "errorCode": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "timeout",
+                            "navigation_failed",
+                            "blocked",
+                            "provider_error",
+                            "invalid_url",
+                            "parent_deleted",
+                            "unknown"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "errorMessage": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "finalUrl": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "statusCode": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "responseHeaders": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "cookies": {
+                      "anyOf": [
+                        {},
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "innerText": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "userAgent": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "ipInfo": {
+                      "anyOf": [
+                        {},
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "type": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "session": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "attempts": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "listingId",
+                    "pageId",
+                    "mode",
+                    "country",
+                    "status",
+                    "rootSpanId",
+                    "requestUrl",
+                    "requestHeaders",
+                    "startedAt",
+                    "finishedAt",
+                    "errorCode",
+                    "errorMessage",
+                    "finalUrl",
+                    "statusCode",
+                    "responseHeaders",
+                    "cookies",
+                    "innerText",
+                    "userAgent",
+                    "ipInfo",
+                    "type",
+                    "session",
+                    "attempts",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ScrapeNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapeNotFoundEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/scrapes/{id}/content": {
+      "get": {
+        "tags": ["scrapes"],
+        "operationId": "scrapes.content",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/plain; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ScrapeNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapeNotFoundEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/scrapes/bulk": {
+      "post": {
+        "tags": ["scrapes"],
+        "operationId": "scrapes.bulk",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "created": {
+                      "type": "integer"
+                    },
+                    "skippedInFlight": {
+                      "type": "integer"
+                    },
+                    "skippedPaused": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["created", "skippedInFlight", "skippedPaused"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "BrandNotFound | ProductNotFound | RetailerNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/BrandNotFoundEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProductNotFoundEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RetailerNotFoundEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "_tag": {
+                        "type": "string",
+                        "enum": ["Brand"]
+                      },
+                      "brandId": {
+                        "type": "string",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                        "format": "uuid"
+                      }
+                    },
+                    "required": ["_tag", "brandId"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "_tag": {
+                        "type": "string",
+                        "enum": ["Product"]
+                      },
+                      "productId": {
+                        "type": "string",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                        "format": "uuid"
+                      }
+                    },
+                    "required": ["_tag", "productId"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "_tag": {
+                        "type": "string",
+                        "enum": ["Retailer"]
+                      },
+                      "retailerId": {
+                        "type": "string",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                        "format": "uuid"
+                      }
+                    },
+                    "required": ["_tag", "retailerId"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/extractions": {
+      "get": {
+        "tags": ["extractions"],
+        "operationId": "extractions.list",
+        "parameters": [
+          {
+            "name": "scrapeId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            },
+            "required": false
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["pending", "running", "success", "failed"]
+            },
+            "required": false
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            },
+            "required": false
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Limit"
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                            "format": "uuid"
+                          },
+                          "scrapeId": {
+                            "type": "string",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                            "format": "uuid"
+                          },
+                          "attempt": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["pending", "running", "success", "failed"]
+                          },
+                          "promptKind": {
+                            "type": "string",
+                            "enum": ["listing", "page"]
+                          },
+                          "promptSnapshot": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "startedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finishedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "extractedJson": {
+                            "anyOf": [
+                              {},
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "promptTokens": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "completionTokens": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "totalTokens": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "errorCode": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "provider_error",
+                                  "json_mode_unmet",
+                                  "invalid_json",
+                                  "llm_timeout",
+                                  "context_overflow",
+                                  "unknown"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "errorMessage": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "scrapeId",
+                          "attempt",
+                          "status",
+                          "promptKind",
+                          "promptSnapshot",
+                          "model",
+                          "startedAt",
+                          "finishedAt",
+                          "extractedJson",
+                          "promptTokens",
+                          "completionTokens",
+                          "totalTokens",
+                          "errorCode",
+                          "errorMessage",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/Cursor"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["items", "nextCursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["extractions"],
+        "operationId": "extractions.trigger",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                      "format": "uuid"
+                    },
+                    "scrapeId": {
+                      "type": "string",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                      "format": "uuid"
+                    },
+                    "attempt": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending", "running", "success", "failed"]
+                    },
+                    "promptKind": {
+                      "type": "string",
+                      "enum": ["listing", "page"]
+                    },
+                    "promptSnapshot": {
+                      "type": "string"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "finishedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "extractedJson": {
+                      "anyOf": [
+                        {},
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "promptTokens": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "completionTokens": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "totalTokens": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "errorCode": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "provider_error",
+                            "json_mode_unmet",
+                            "invalid_json",
+                            "llm_timeout",
+                            "context_overflow",
+                            "unknown"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "errorMessage": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "scrapeId",
+                    "attempt",
+                    "status",
+                    "promptKind",
+                    "promptSnapshot",
+                    "model",
+                    "startedAt",
+                    "finishedAt",
+                    "extractedJson",
+                    "promptTokens",
+                    "completionTokens",
+                    "totalTokens",
+                    "errorCode",
+                    "errorMessage",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ScrapeNotFound | ListingNotFound | PageNotFound | NoSuccessfulScrape",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ScrapeNotFoundEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ListingNotFoundEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PageNotFoundEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoSuccessfulScrapeEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ExtractionInFlight",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractionInFlightEncoded"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ScrapeNotReExtractable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapeNotReExtractableEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "_tag": {
+                        "type": "string",
+                        "enum": ["Scrape"]
+                      },
+                      "scrapeId": {
+                        "type": "string",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                        "format": "uuid"
+                      }
+                    },
+                    "required": ["_tag", "scrapeId"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "_tag": {
+                        "type": "string",
+                        "enum": ["Parent"]
+                      },
+                      "parent": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "_tag": {
+                                "type": "string",
+                                "enum": ["Listing"]
+                              },
+                              "listingId": {
+                                "type": "string",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                                "format": "uuid"
+                              }
+                            },
+                            "required": ["_tag", "listingId"],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "_tag": {
+                                "type": "string",
+                                "enum": ["Page"]
+                              },
+                              "pageId": {
+                                "type": "string",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                                "format": "uuid"
+                              }
+                            },
+                            "required": ["_tag", "pageId"],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    },
+                    "required": ["_tag", "parent"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/extractions/{id}": {
+      "get": {
+        "tags": ["extractions"],
+        "operationId": "extractions.get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                      "format": "uuid"
+                    },
+                    "scrapeId": {
+                      "type": "string",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                      "format": "uuid"
+                    },
+                    "attempt": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending", "running", "success", "failed"]
+                    },
+                    "promptKind": {
+                      "type": "string",
+                      "enum": ["listing", "page"]
+                    },
+                    "promptSnapshot": {
+                      "type": "string"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "finishedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "extractedJson": {
+                      "anyOf": [
+                        {},
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "promptTokens": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "completionTokens": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "totalTokens": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "errorCode": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "provider_error",
+                            "json_mode_unmet",
+                            "invalid_json",
+                            "llm_timeout",
+                            "context_overflow",
+                            "unknown"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "errorMessage": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "scrapeId",
+                    "attempt",
+                    "status",
+                    "promptKind",
+                    "promptSnapshot",
+                    "model",
+                    "startedAt",
+                    "finishedAt",
+                    "extractedJson",
+                    "promptTokens",
+                    "completionTokens",
+                    "totalTokens",
+                    "errorCode",
+                    "errorMessage",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ExtractionNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractionNotFoundEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/extractions/bulk": {
+      "post": {
+        "tags": ["extractions"],
+        "operationId": "extractions.bulk",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "created": {
+                      "type": "integer"
+                    },
+                    "skipped": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["created", "skipped"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "RetailerNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetailerNotFoundEncoded"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "retailerId": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                    "format": "uuid"
+                  },
+                  "promptKind": {
+                    "type": "string",
+                    "enum": ["listing", "page"]
+                  }
+                },
+                "required": ["retailerId", "promptKind"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/listings/{id}/latest-extraction": {
+      "get": {
+        "tags": ["extractions"],
+        "operationId": "extractions.latestForListing",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "parent": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "_tag": {
+                              "type": "string",
+                              "enum": ["Listing"]
+                            },
+                            "listingId": {
+                              "type": "string",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                              "format": "uuid"
+                            }
+                          },
+                          "required": ["_tag", "listingId"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "_tag": {
+                              "type": "string",
+                              "enum": ["Page"]
+                            },
+                            "pageId": {
+                              "type": "string",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                              "format": "uuid"
+                            }
+                          },
+                          "required": ["_tag", "pageId"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "data": {},
+                    "provenance": {
+                      "type": "object",
+                      "properties": {
+                        "scrapeId": {
+                          "type": "string",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                          "format": "uuid"
+                        },
+                        "fetchedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "extractionId": {
+                          "type": "string",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                          "format": "uuid"
+                        },
+                        "extractedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "prompt": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "scrapeId",
+                        "fetchedAt",
+                        "extractionId",
+                        "extractedAt",
+                        "prompt",
+                        "model"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["parent", "data", "provenance"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NoExtractedData",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoExtractedDataEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pages/{id}/latest-extraction": {
+      "get": {
+        "tags": ["extractions"],
+        "operationId": "extractions.latestForPage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "parent": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "_tag": {
+                              "type": "string",
+                              "enum": ["Listing"]
+                            },
+                            "listingId": {
+                              "type": "string",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                              "format": "uuid"
+                            }
+                          },
+                          "required": ["_tag", "listingId"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "_tag": {
+                              "type": "string",
+                              "enum": ["Page"]
+                            },
+                            "pageId": {
+                              "type": "string",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                              "format": "uuid"
+                            }
+                          },
+                          "required": ["_tag", "pageId"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "data": {},
+                    "provenance": {
+                      "type": "object",
+                      "properties": {
+                        "scrapeId": {
+                          "type": "string",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                          "format": "uuid"
+                        },
+                        "fetchedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "extractionId": {
+                          "type": "string",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                          "format": "uuid"
+                        },
+                        "extractedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "prompt": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "scrapeId",
+                        "fetchedAt",
+                        "extractionId",
+                        "extractedAt",
+                        "prompt",
+                        "model"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["parent", "data", "provenance"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NoExtractedData",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoExtractedDataEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/products/{id}/latest-extractions": {
+      "get": {
+        "tags": ["extractions"],
+        "operationId": "extractions.latestForProduct",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "parent": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "_tag": {
+                                    "type": "string",
+                                    "enum": ["Listing"]
+                                  },
+                                  "listingId": {
+                                    "type": "string",
+                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                                    "format": "uuid"
+                                  }
+                                },
+                                "required": ["_tag", "listingId"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "_tag": {
+                                    "type": "string",
+                                    "enum": ["Page"]
+                                  },
+                                  "pageId": {
+                                    "type": "string",
+                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                                    "format": "uuid"
+                                  }
+                                },
+                                "required": ["_tag", "pageId"],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "data": {},
+                          "provenance": {
+                            "type": "object",
+                            "properties": {
+                              "scrapeId": {
+                                "type": "string",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                                "format": "uuid"
+                              },
+                              "fetchedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "extractionId": {
+                                "type": "string",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                                "format": "uuid"
+                              },
+                              "extractedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "model": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "scrapeId",
+                              "fetchedAt",
+                              "extractionId",
+                              "extractedAt",
+                              "prompt",
+                              "model"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["parent", "data", "provenance"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["items"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/effect_HttpApiError_UnauthorizedEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ProductNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductNotFoundEncoded"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3909,6 +6294,244 @@
         },
         "required": ["_tag", "brandId", "retailerId", "pageId"],
         "additionalProperties": false
+      },
+      "Cursor": {
+        "type": "string",
+        "pattern": "^\\d{1,13}:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        "description": "a page cursor, `<createdAtMillis>:<id>`"
+      },
+      "Limit": {
+        "type": "string",
+        "pattern": "^(100|[1-9][0-9]?)$",
+        "description": "rows per page, 1 to 100; 50 when omitted"
+      },
+      "SpanId": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{16}$",
+        "description": "a 16-character lower-case hex span id"
+      },
+      "ScrapeNotFoundEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["ScrapeNotFound"]
+          },
+          "scrapeId": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+            "format": "uuid"
+          }
+        },
+        "required": ["_tag", "scrapeId"],
+        "additionalProperties": false
+      },
+      "ParentInFlightEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["ParentInFlight"]
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["Listing"]
+                  },
+                  "listingId": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["_tag", "listingId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["Page"]
+                  },
+                  "pageId": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["_tag", "pageId"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "scrapeId": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+            "format": "uuid"
+          }
+        },
+        "required": ["_tag", "parent", "scrapeId"],
+        "additionalProperties": false
+      },
+      "ExtractionNotFoundEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["ExtractionNotFound"]
+          },
+          "extractionId": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+            "format": "uuid"
+          }
+        },
+        "required": ["_tag", "extractionId"],
+        "additionalProperties": false
+      },
+      "NoSuccessfulScrapeEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["NoSuccessfulScrape"]
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["Listing"]
+                  },
+                  "listingId": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["_tag", "listingId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["Page"]
+                  },
+                  "pageId": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["_tag", "pageId"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": ["_tag", "parent"],
+        "additionalProperties": false
+      },
+      "ExtractionInFlightEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["ExtractionInFlight"]
+          },
+          "scrapeId": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+            "format": "uuid"
+          },
+          "promptKind": {
+            "type": "string",
+            "enum": ["listing", "page"]
+          },
+          "extractionId": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+            "format": "uuid"
+          }
+        },
+        "required": ["_tag", "scrapeId", "promptKind", "extractionId"],
+        "additionalProperties": false
+      },
+      "ScrapeNotReExtractableEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["ScrapeNotReExtractable"]
+          },
+          "scrapeId": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "enum": ["not_successful", "html_expired"]
+          }
+        },
+        "required": ["_tag", "scrapeId", "reason"],
+        "additionalProperties": false
+      },
+      "NoExtractedDataEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["NoExtractedData"]
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["Listing"]
+                  },
+                  "listingId": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["_tag", "listingId"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "_tag": {
+                    "type": "string",
+                    "enum": ["Page"]
+                  },
+                  "pageId": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|[fF]{8}-[fF]{4}-[fF]{4}-[fF]{4}-[fF]{12})$",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["_tag", "pageId"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": ["_tag", "parent"],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {}
@@ -3932,6 +6555,12 @@
     },
     {
       "name": "pages"
+    },
+    {
+      "name": "scrapes"
+    },
+    {
+      "name": "extractions"
     }
   ]
 }

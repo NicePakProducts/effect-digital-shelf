@@ -6,7 +6,11 @@ import {
   type ScrapeParent,
 } from "@digital-shelf/domain/Scraping/Scrape"
 import type { ScrapeStatus } from "@digital-shelf/domain/Scraping/Vocabulary"
-import { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
+import {
+  ScrapeId,
+  type ListingId,
+  type PageId,
+} from "@digital-shelf/domain/Shared/Ids"
 import { Timestamp, nullable } from "@digital-shelf/domain/Shared/Refine"
 import { scrapes } from "@digital-shelf/domain/Sql/Scraping"
 import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm"
@@ -17,6 +21,7 @@ import * as Schema from "effect/Schema"
 import type { SqlError } from "effect/unstable/sql/SqlError"
 import { Db } from "../../Sql/Db.ts"
 import { query } from "../../Sql/Errors.ts"
+import { beforeCursor, type Cursor } from "../../Sql/Keyset.ts"
 import * as Rows from "../../Sql/Rows.ts"
 
 /**
@@ -253,4 +258,46 @@ export const mostRecentSuccessful = Effect.fn(
         .limit(1),
     ),
   )
+})
+
+/**
+ * One page of Scrapes, newest first, over the `(created_at, id)` keyset the
+ * cursor names. One extra row is read so the caller knows whether another
+ * page exists without a second query.
+ */
+export const list = Effect.fn("ScrapesRepo.list")(function* (options: {
+  readonly listingId?: ListingId | undefined
+  readonly pageId?: PageId | undefined
+  readonly status?: ScrapeStatus | undefined
+  readonly cursor?: Cursor | undefined
+  readonly limit: number
+}) {
+  const db = yield* Db
+  const rows = yield* all(
+    yield* query(
+      db
+        .select()
+        .from(scrapes)
+        .where(
+          and(
+            options.listingId === undefined
+              ? undefined
+              : eq(scrapes.listingId, options.listingId),
+            options.pageId === undefined
+              ? undefined
+              : eq(scrapes.pageId, options.pageId),
+            options.status === undefined
+              ? undefined
+              : eq(scrapes.status, options.status),
+            beforeCursor(scrapes.createdAt, scrapes.id, options.cursor),
+          ),
+        )
+        .orderBy(desc(scrapes.createdAt), desc(scrapes.id))
+        .limit(options.limit + 1),
+    ),
+  )
+  return {
+    items: rows.slice(0, options.limit),
+    hasMore: rows.length > options.limit,
+  }
 })

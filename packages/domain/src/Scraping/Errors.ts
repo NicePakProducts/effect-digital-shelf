@@ -40,3 +40,9 @@ export class NoSuccessfulScrape extends Schema.TaggedError<NoSuccessfulScrape>()
   "NoSuccessfulScrape",
   { parent: ScrapeParent },
 ) {}
+
+/** The Parent has no successful Extraction, so there is no latest data to read. */
+export class NoExtractedData extends Schema.TaggedError<NoExtractedData>()(
+  "NoExtractedData",
+  { parent: ScrapeParent },
+) {}

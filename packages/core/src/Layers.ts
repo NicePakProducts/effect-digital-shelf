@@ -14,6 +14,7 @@ import { ExtractionRunner } from "./Scraping/ExtractionRunner.ts"
 import { Extractions } from "./Scraping/Extractions.ts"
 import { ScrapeRunner } from "./Scraping/ScrapeRunner.ts"
 import { Scrapes } from "./Scraping/Scrapes.ts"
+import type { Executions } from "./Scheduling/Executions.ts"
 import type { Db } from "./Sql/Db.ts"
 import type { R2Bucket } from "./Storage/R2Bucket.ts"
 
@@ -38,12 +39,14 @@ export const Catalog: Layer.Layer<
   Pages.layer,
 ).pipe(Layer.provideMerge(Cascade.layer))
 
-export const Api = Layer.mergeAll(
-  Catalog,
-  Scrapes.layer,
-  Extractions.layer,
-  Auth.layer,
-)
+/** The scraping features the API's dispatch and read endpoints sit on. */
+export const Scraping: Layer.Layer<
+  Scrapes | Extractions,
+  never,
+  Db | R2Bucket | Executions
+> = Layer.mergeAll(Scrapes.layer, Extractions.layer)
+
+export const Api = Layer.mergeAll(Catalog, Scraping, Auth.layer)
 export const Cron = CronService.layer.pipe(
   Layer.provideMerge(
     Layer.mergeAll(Sweeps.layer, Scrapes.layer, Extractions.layer),

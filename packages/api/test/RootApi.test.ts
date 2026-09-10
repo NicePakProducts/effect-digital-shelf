@@ -4,6 +4,7 @@ import * as OpenApi from "effect/unstable/httpapi/OpenApi"
 import { RootApi } from "../src/RootApi.ts"
 
 const spec = OpenApi.fromApi(RootApi)
+const codesOf = (responses: object) => Object.keys(responses).sort()
 describe("RootApi", () => {
   it("matches the OpenAPI contract snapshot", async () => {
     // Use the repo formatter so vp check --fix cannot invalidate this JSON snapshot.
@@ -17,15 +18,26 @@ describe("RootApi", () => {
       "./__snapshots__/RootApi.openapi.json",
     )
   })
-  it("mounts only the six Catalog groups under /api/v1", () => {
+  it("mounts the six Catalog groups and the two scraping groups under /api/v1", () => {
     expect(spec.info).toMatchObject({ title: "Digital Shelf", version: "1" })
     const paths = Object.keys(spec.paths)
-    expect(paths).toHaveLength(17)
+    expect(paths).toHaveLength(27)
     expect(paths.every((path) => path.startsWith("/api/v1/"))).toBe(true)
     expect(paths.some((path) => path.startsWith("/api/v1/auth"))).toBe(false)
     expect(spec.paths["/api/v1/variants/{id}/impact"]).toBeUndefined()
-    expect(spec.paths["/api/v1/scrapes"]).toBeUndefined()
-    expect(spec.paths["/api/v1/extractions"]).toBeUndefined()
+    for (const path of [
+      "/api/v1/scrapes",
+      "/api/v1/scrapes/bulk",
+      "/api/v1/scrapes/{id}",
+      "/api/v1/scrapes/{id}/content",
+      "/api/v1/extractions",
+      "/api/v1/extractions/bulk",
+      "/api/v1/extractions/{id}",
+      "/api/v1/listings/{id}/latest-extraction",
+      "/api/v1/pages/{id}/latest-extraction",
+      "/api/v1/products/{id}/latest-extractions",
+    ])
+      expect(spec.paths[path]).toBeDefined()
   })
   it("declares the exact success and business-error statuses, plus authentication", () => {
     for (const [group, createErrors, updateErrors] of [
@@ -38,22 +50,108 @@ describe("RootApi", () => {
     ] as const) {
       const collection = spec.paths[`/api/v1/${group}`]!
       const item = spec.paths[`/api/v1/${group}/{id}`]!
-      const codes = (responses: object) => Object.keys(responses).sort()
-      expect(codes(collection.get!.responses)).toEqual(["200", "401"])
-      expect(codes(collection.post!.responses)).toEqual(
+      expect(codesOf(collection.get!.responses)).toEqual(["200", "401"])
+      expect(codesOf(collection.post!.responses)).toEqual(
         ["201", "401", ...createErrors.map(String)].sort(),
       )
-      expect(codes(item.get!.responses)).toEqual(["200", "401", "404"])
-      expect(codes(item.patch!.responses)).toEqual(
+      expect(codesOf(item.get!.responses)).toEqual(["200", "401", "404"])
+      expect(codesOf(item.patch!.responses)).toEqual(
         ["200", "401", ...updateErrors.map(String)].sort(),
       )
-      expect(codes(item.delete!.responses)).toEqual(["200", "401", "404"])
+      expect(codesOf(item.delete!.responses)).toEqual(["200", "401", "404"])
       if (group !== "variants")
         expect(
-          codes(spec.paths[`/api/v1/${group}/{id}/impact`]!.get!.responses),
+          codesOf(spec.paths[`/api/v1/${group}/{id}/impact`]!.get!.responses),
         ).toEqual(["200", "401", "404"])
     }
     expect(JSON.stringify(spec)).not.toContain("SqlError")
+  })
+  it("answers dispatch with 202 and names its refusals", () => {
+    expect(codesOf(spec.paths["/api/v1/scrapes"]!.post!.responses)).toEqual([
+      "202",
+      "401",
+      "404",
+      "409",
+    ])
+    expect(
+      codesOf(spec.paths["/api/v1/scrapes/bulk"]!.post!.responses),
+    ).toEqual(["202", "401", "404"])
+    expect(codesOf(spec.paths["/api/v1/extractions"]!.post!.responses)).toEqual(
+      ["202", "401", "404", "409", "422"],
+    )
+    expect(
+      codesOf(spec.paths["/api/v1/extractions/bulk"]!.post!.responses),
+    ).toEqual(["202", "401", "404"])
+    expect(
+      codesOf(
+        spec.paths["/api/v1/products/{id}/latest-extractions"]!.get!.responses,
+      ),
+    ).toEqual(["200", "401", "404"])
+    // DispatchOutcome is core's own vocabulary and never reaches the wire.
+    expect(JSON.stringify(spec)).not.toContain("in-flight-skip")
+    expect(JSON.stringify(spec)).not.toContain("SqlError")
+  })
+  it("keeps the R2 keys off the Scrape projection and streams content as text", () => {
+    const row = JSON.stringify(
+      spec.paths["/api/v1/scrapes/{id}"]!.get!.responses[200],
+    )
+    expect(row).not.toContain("htmlR2Key")
+    expect(row).not.toContain("rawR2Key")
+    expect(row).toContain("rootSpanId")
+    expect(
+      spec.paths["/api/v1/scrapes/{id}/content"]!.get!.responses[200],
+    ).toMatchObject({ content: { "text/plain; charset=utf-8": {} } })
+    expect(
+      JSON.stringify(spec.paths["/api/v1/scrapes/{id}/content"]!.get!),
+    ).not.toContain("text/html")
+    expect(
+      codesOf(spec.paths["/api/v1/scrapes/{id}/content"]!.get!.responses),
+    ).toEqual(["200", "401", "404"])
+  })
+  it("offers optional cursor and limit on the paginated lists", () => {
+    expect(spec.components!.schemas!["Limit"]).toMatchObject({
+      type: "string",
+      pattern: "^(100|[1-9][0-9]?)$",
+      description: "rows per page, 1 to 100; 50 when omitted",
+    })
+    expect(spec.components!.schemas!["Cursor"]).toMatchObject({
+      type: "string",
+      pattern:
+        "^\\d{1,13}:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      description: "a page cursor, `<createdAtMillis>:<id>`",
+    })
+    for (const path of ["/api/v1/scrapes", "/api/v1/extractions"]) {
+      const parameters = spec.paths[path]!.get!.parameters!
+      const named = (name: string) =>
+        parameters.find(
+          (parameter) => "name" in parameter && parameter.name === name,
+        )
+      expect(named("limit")).toEqual({
+        name: "limit",
+        in: "query",
+        schema: { $ref: "#/components/schemas/Limit" },
+        required: false,
+      })
+      expect(named("cursor")).toEqual({
+        name: "cursor",
+        in: "query",
+        schema: { $ref: "#/components/schemas/Cursor" },
+        required: false,
+      })
+      expect(JSON.stringify(spec.paths[path]!.get!.responses[200])).toContain(
+        '"required":["items","nextCursor"]',
+      )
+    }
+    expect(
+      (spec.paths["/api/v1/scrapes"]!.get!.parameters ?? []).flatMap(
+        (parameter) => ("name" in parameter ? [parameter.name] : []),
+      ),
+    ).toEqual(["listingId", "pageId", "status", "cursor", "limit"])
+    expect(
+      (spec.paths["/api/v1/extractions"]!.get!.parameters ?? []).flatMap(
+        (parameter) => ("name" in parameter ? [parameter.name] : []),
+      ),
+    ).toEqual(["scrapeId", "status", "cursor", "limit"])
   })
   it("describes every timestamp as a date-time string and nullable lastScrapedAt", () => {
     for (const group of [

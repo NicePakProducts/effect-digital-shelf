@@ -11,8 +11,15 @@ import {
   ScrapeNotFound,
   ScrapeNotReExtractable,
 } from "@digital-shelf/domain/Scraping/Errors"
-import { RetailerNotFound } from "@digital-shelf/domain/Catalog/Errors"
-import { ScrapeId, RetailerId } from "@digital-shelf/domain/Shared/Ids"
+import {
+  ProductNotFound,
+  RetailerNotFound,
+} from "@digital-shelf/domain/Catalog/Errors"
+import {
+  ProductId,
+  ScrapeId,
+  RetailerId,
+} from "@digital-shelf/domain/Shared/Ids"
 import { retailers } from "@digital-shelf/domain/Sql/Catalog"
 import { scrapes } from "@digital-shelf/domain/Sql/Scraping"
 import { eq } from "drizzle-orm"
@@ -344,6 +351,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         expect(
           Option.getOrThrow(yield* Repo.latestSuccessful(older.id)).id,
         ).toBe(best.id)
+        expect(
+          yield* service.latestExtractedDataForProduct(
+            (yield* seed()).productId,
+          ),
+        ).toEqual([])
+        const unknown = Schema.decodeUnknownSync(ProductId)(crypto.randomUUID())
+        expect(
+          yield* Effect.flip(service.latestExtractedDataForProduct(unknown)),
+        ).toEqual(new ProductNotFound({ productId: unknown }))
       }),
   )
   it.effect(
@@ -379,5 +395,49 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         expect(yield* service.listByScrape(older.id)).toEqual([])
         expect(yield* service.listByScrape(newest.id)).toEqual([])
       }),
+  )
+
+  it.effect("list pages newest first, filtered by Scrape and by status", () =>
+    Effect.gen(function* () {
+      yield* reset
+      const catalog = yield* seed()
+      const parent = (yield* catalog.listing).parent
+      const other = (yield* catalog.listing).parent
+      const scrape = yield* successfulScrape(parent)
+      const otherScrape = yield* successfulScrape(other)
+      const first = yield* extraction(scrape.id, 1, "success", {
+        age: "3 hours",
+      })
+      const second = yield* extraction(scrape.id, 2, "failed", {
+        age: "2 hours",
+      })
+      const third = yield* extraction(scrape.id, 3, "success", {
+        age: "1 hour",
+      })
+      const elsewhere = yield* extraction(otherScrape.id, 1, "success")
+      const service = yield* Extractions
+      const page = yield* service.list({ limit: 2 })
+      expect(page.items.map((row) => row.id)).toEqual([elsewhere.id, third.id])
+      expect(page.hasMore).toBe(true)
+      const last = page.items[1]!
+      const rest = yield* service.list({
+        limit: 2,
+        cursor: { createdAt: last.createdAt, id: last.id },
+      })
+      expect(rest.items.map((row) => row.id)).toEqual([second.id, first.id])
+      expect(rest.hasMore).toBe(false)
+      expect(
+        (yield* service.list({ limit: 50, scrapeId: scrape.id })).items.map(
+          (row) => row.id,
+        ),
+      ).toEqual([third.id, second.id, first.id])
+      expect(
+        (yield* service.list({
+          limit: 50,
+          scrapeId: scrape.id,
+          status: "success",
+        })).items.map((row) => row.id),
+      ).toEqual([third.id, first.id])
+    }),
   )
 })

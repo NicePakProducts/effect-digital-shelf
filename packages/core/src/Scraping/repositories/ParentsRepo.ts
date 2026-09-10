@@ -224,8 +224,9 @@ const idOf = (target: ScrapeTarget): string =>
   Option.getOrElse(target.listingId, () => Option.getOrThrow(target.pageId))
 
 /**
- * Every Parent under a bulk scope that is not effectively paused, cadence ignored.
- * In-flight candidates reach the insert so bulk can report them as skipped. A Product scope has no Pages.
+ * Every Parent under a bulk scope, cadence ignored, each carrying its
+ * effective pause. Paused and in-flight candidates reach the caller so bulk
+ * can report both as skipped. A Product scope has no Pages.
  */
 export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
   function* (scope: BulkScrape) {
@@ -240,12 +241,7 @@ export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
           : eq(retailers.id, scope.retailerId)
     const listingRows = yield* query(
       l.select
-        .where(
-          and(
-            listingScope,
-            sql`NOT (${brands.paused} OR ${products.paused} OR ${retailers.paused})`,
-          ),
-        )
+        .where(listingScope)
         .orderBy(asc(listings.createdAt), asc(listings.id)),
     )
     const pageRows =
@@ -254,12 +250,9 @@ export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
         : yield* query(
             p.select
               .where(
-                and(
-                  scope._tag === "Brand"
-                    ? eq(brands.id, scope.brandId)
-                    : eq(retailers.id, scope.retailerId),
-                  sql`NOT (${brands.paused} OR ${retailers.paused} OR ${pages.paused})`,
-                ),
+                scope._tag === "Brand"
+                  ? eq(brands.id, scope.brandId)
+                  : eq(retailers.id, scope.retailerId),
               )
               .orderBy(asc(pages.createdAt), asc(pages.id)),
           )
