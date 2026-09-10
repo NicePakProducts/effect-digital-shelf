@@ -232,8 +232,15 @@ export const layerWith = (options: {
   BrowserRendering | HttpClient.HttpClient
 > => Layer.effect(ScrapeProviders, make(options))
 
+/**
+ * The launcher is read when a Scrape asks for it, not while this module is
+ * evaluated: Playwright.ts imports `ScrapeProviderError` back from here, so a
+ * graph that reaches Playwright.ts first would otherwise touch
+ * `launchOnWorkerd` in its temporal dead zone under Node's loader, the one
+ * `alchemy deploy` evaluates the Worker init graph with (#18).
+ */
 export const layer: Layer.Layer<
   ScrapeProviders,
   never,
   BrowserRendering | HttpClient.HttpClient
-> = layerWith({ launch: Playwright.launchOnWorkerd })
+> = layerWith({ launch: (binding) => Playwright.launchOnWorkerd(binding) })
