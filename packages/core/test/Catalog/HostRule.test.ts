@@ -10,22 +10,7 @@ import { sql } from "drizzle-orm"
 import { Effect } from "effect"
 import * as CoreTest from "../layers/Core.ts"
 import * as DbTest from "../layers/Db.ts"
-import { seed } from "../fixtures/Catalog.ts"
-
-/** A Brand and Product to hang children off, plus a Retailer on `domain`. */
-const catalog = Effect.fn("HostRuleFixture.catalog")(function* (
-  domain: string,
-) {
-  const base = yield* seed()
-  const retailer = yield* (yield* Retailers).create({ name: "Shop", domain })
-  return { ...base, retailerId: retailer.id, domain: retailer.domain }
-})
-
-/** Drizzle types `execute` as the rows; PGlite hands back the whole result. */
-const rowsOf = (result: unknown): ReadonlyArray<unknown> =>
-  Array.isArray(result)
-    ? result
-    : (result as { readonly rows: ReadonlyArray<unknown> }).rows
+import { catalog, rowsOf } from "../fixtures/Catalog.ts"
 
 /** The `url` column of a Listing as the table holds it. */
 const storedUrl = Effect.fn("HostRuleFixture.storedUrl")(function* (

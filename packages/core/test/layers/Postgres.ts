@@ -16,14 +16,14 @@ import type { SqlError } from "effect/unstable/sql/SqlError"
 
 /**
  * A real PostgreSQL for the tests PGlite cannot host: those that need two
- * transactions to overlap on two connections. `TEST_DATABASE_URL` names a
+ * transactions to overlap on two connections. `DIGITAL_SHELF_TEST_POSTGRES_URL` names a
  * disposable database whose `public` schema this layer drops and recreates
  * from the domain tables (ADR 0002) on boot, so it must hold throwaway data
  * only: the CI workflow's service container, or a local instance started for
  * the purpose. A test file that needs it skips itself when the variable is
  * unset, and a skip is reported as one, never counted as the proof.
  */
-export const url = process.env.TEST_DATABASE_URL
+export const url = process.env.DIGITAL_SHELF_TEST_POSTGRES_URL
 
 const schema = Effect.gen(function* () {
   const db = yield* Db

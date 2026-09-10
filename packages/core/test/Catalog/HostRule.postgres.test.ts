@@ -1,12 +1,10 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Listings } from "@digital-shelf/core/Catalog/Listings"
 import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
-import * as ListingsRepo from "@digital-shelf/core/Catalog/repositories/ListingsRepo"
 import * as RetailersRepo from "@digital-shelf/core/Catalog/repositories/RetailersRepo"
 import * as Layers from "@digital-shelf/core/Layers"
 import { Db } from "@digital-shelf/core/Sql/Db"
 import { query } from "@digital-shelf/core/Sql/Errors"
-import { defaultCadence } from "@digital-shelf/domain/Catalog/Cadence"
 import { UrlHostMismatch } from "@digital-shelf/domain/Catalog/Errors"
 import { RetailerDomain } from "@digital-shelf/domain/Catalog/Retailer"
 import { sql } from "drizzle-orm"
@@ -15,14 +13,14 @@ import type { SqlError } from "effect/unstable/sql/SqlError"
 import * as DbTest from "../layers/Db.ts"
 import * as PostgresTest from "../layers/Postgres.ts"
 import * as R2BucketTest from "../layers/R2Bucket.ts"
-import { seed } from "../fixtures/Catalog.ts"
+import { catalog, rowsOf } from "../fixtures/Catalog.ts"
 
 /**
  * The lock contract of the host rule, which PGlite cannot exercise (see
  * HostRule.test.ts): a child write reads the Retailer `FOR SHARE` and a
  * domain change reads it `FOR UPDATE`, so whichever starts second waits for
  * the first's transaction and then judges the URL against what it committed.
- * Runs only when `TEST_DATABASE_URL` names a disposable PostgreSQL
+ * Runs only when `DIGITAL_SHELF_TEST_POSTGRES_URL` names a disposable PostgreSQL
  * (test/layers/Postgres.ts): `vp test --run` in this package with the
  * variable set, as CI does over its service container. Without it the block
  * is skipped, and the skip is reported as such.
@@ -35,20 +33,12 @@ const layer = Layers.Catalog.pipe(
 
 const domain = Schema.decodeUnknownSync(RetailerDomain)
 
-/** A Brand and Product to hang children off, plus a Retailer on `domain`. */
-const catalog = Effect.fn("HostRuleFixture.catalog")(function* (
-  domain: string,
-) {
-  const base = yield* seed()
-  const retailer = yield* (yield* Retailers).create({ name: "Shop", domain })
-  return { ...base, retailerId: retailer.id, domain: retailer.domain }
-})
-
 /**
  * Run `body` inside a transaction on a connection of its own and keep that
  * transaction open: `held` resolves once `body` has run, `commit` lets the
- * transaction finish. Nothing else joins it, since the reserved connection
- * travels only in the forked fiber's services.
+ * transaction finish. A service call inside `body` joins it as a savepoint,
+ * since the reserved connection travels in the forked fiber's services, so
+ * the lock it takes is the service's own and stays held until `commit`.
  */
 const holdOpen = <A, E>(body: Effect.Effect<A, E, Db>) =>
   Effect.gen(function* () {
@@ -79,12 +69,6 @@ const holdOpen = <A, E>(body: Effect.Effect<A, E, Db>) =>
       ),
     }
   })
-
-/** Drizzle types `execute` as the rows; a driver may hand back the result. */
-const rowsOf = (result: unknown): ReadonlyArray<unknown> =>
-  Array.isArray(result)
-    ? result
-    : (result as { readonly rows: ReadonlyArray<unknown> }).rows
 
 /** Whether another backend on this database is blocked on a lock. */
 const someoneWaits = Effect.gen(function* () {
@@ -162,15 +146,12 @@ describe.skipIf(PostgresTest.url === undefined)(
             yield* DbTest.reset
             const c = yield* catalog("a.example.com")
             const retailers = yield* Retailers
+            const listings = yield* Listings
             const write = yield* holdOpen(
-              Effect.gen(function* () {
-                yield* RetailersRepo.getForShare(c.retailerId)
-                return yield* ListingsRepo.insert({
-                  productId: c.productId,
-                  retailerId: c.retailerId,
-                  url: "https://a.example.com/p/1",
-                  cadence: defaultCadence,
-                })
+              listings.create({
+                productId: c.productId,
+                retailerId: c.retailerId,
+                url: "https://a.example.com/p/1",
               }),
             )
             const row = yield* write.held
@@ -192,7 +173,7 @@ describe.skipIf(PostgresTest.url === undefined)(
             expect((yield* retailers.get(c.retailerId)).domain).toBe(
               "a.example.com",
             )
-            expect((yield* (yield* Listings).get(row.id)).url).toBe(
+            expect((yield* listings.get(row.id)).url).toBe(
               "https://a.example.com/p/1",
             )
           }),
