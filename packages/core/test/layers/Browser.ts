@@ -5,6 +5,7 @@ import {
 import type {
   Browser,
   BrowserContext,
+  Cookie,
   Launch,
   Page,
   PageResponse,
@@ -22,7 +23,7 @@ export interface Script {
   readonly status?: number
   readonly responseHeaders?: Record<string, string>
   readonly requestHeaders?: Record<string, string>
-  readonly cookies?: unknown
+  readonly cookies?: ReadonlyArray<Cookie>
   readonly innerText?: string
   readonly userAgent?: unknown
   readonly html?: string

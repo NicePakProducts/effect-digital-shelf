@@ -9,6 +9,29 @@ import * as TestClock from "effect/testing/TestClock"
 import * as Browser from "../layers/Browser.ts"
 
 const request = { url: "https://example.com/", country: Option.none() }
+const cookies: ReadonlyArray<Playwright.Cookie> = [
+  {
+    name: "smoke",
+    value: "1",
+    domain: "example.com",
+    path: "/",
+    expires: 1_767_225_600,
+    httpOnly: true,
+    secure: true,
+    sameSite: "Lax",
+  },
+  {
+    name: "partitioned",
+    value: "2",
+    domain: ".example.com",
+    path: "/",
+    expires: -1,
+    httpOnly: false,
+    secure: true,
+    sameSite: "None",
+    partitionKey: "https://example.com",
+  },
+]
 const fetchOnce = (
   browser: Browser.Scripted,
   deadline = Duration.seconds(30),
@@ -29,7 +52,7 @@ describe("Playwright provider — envelope", () => {
         status: 201,
         responseHeaders: { "content-type": "text/html" },
         requestHeaders: { "user-agent": "Chrome/119" },
-        cookies: [{ name: "smoke", value: "1" }],
+        cookies,
         innerText: "Rendered text",
         userAgent: "Chrome/119 from the page",
         html: "<html><body>Rendered text</body></html>",
@@ -38,7 +61,7 @@ describe("Playwright provider — envelope", () => {
       expect(envelope.finalUrl).toBe("https://example.com/final")
       expect(envelope.statusCode).toBe(201)
       expect(envelope.responseHeaders).toEqual({ "content-type": "text/html" })
-      expect(envelope.cookies).toEqual([{ name: "smoke", value: "1" }])
+      expect(envelope.cookies).toEqual(cookies)
       expect(envelope.innerText).toBe("Rendered text")
       expect(envelope.userAgent).toBe("Chrome/119 from the page")
       expect(envelope.type).toBe("html")
@@ -70,11 +93,21 @@ describe("Playwright provider — envelope", () => {
     }),
   )
 
-  it.effect("keeps a non-JSON cookie payload out of the envelope", () =>
+  it.effect("passes the context's cookie records through unchanged", () =>
     Effect.gen(function* () {
-      const browser = Browser.scripted({ cookies: [() => "not json"] })
-      const { envelope } = yield* fetchOnce(browser)
+      // The records are Playwright's own, optional `partitionKey` included;
+      // the runner serialises the envelope as JSON, so they must survive it.
+      const { envelope } = yield* fetchOnce(Browser.scripted({ cookies }))
+      expect(envelope.cookies).toEqual(cookies)
+      expect(JSON.stringify(envelope.cookies)).toBe(JSON.stringify(cookies))
+    }),
+  )
+
+  it.effect("a context without cookies yields an empty list", () =>
+    Effect.gen(function* () {
+      const { envelope } = yield* fetchOnce(Browser.scripted({ cookies: [] }))
       expect(envelope.cookies).toEqual([])
+      expect(JSON.stringify(envelope.cookies)).toBe("[]")
     }),
   )
 })

@@ -2,7 +2,6 @@ import type { ScrapeEnvelope } from "@digital-shelf/domain/Scraping/ScrapeEnvelo
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
-import * as Schema from "effect/Schema"
 import type { BrowserBinding } from "./BrowserRendering.ts"
 import {
   ScrapeProviderError,
@@ -49,9 +48,22 @@ export interface Page {
   readonly evaluate: (expression: string) => Promise<unknown>
   readonly content: () => Promise<string>
 }
+/** The cookie record `BrowserContext.cookies` resolves, as Playwright types it. */
+export type Cookie = {
+  readonly name: string
+  readonly value: string
+  readonly domain: string
+  readonly path: string
+  /** Unix time in seconds. */
+  readonly expires: number
+  readonly httpOnly: boolean
+  readonly secure: boolean
+  readonly sameSite: "Strict" | "Lax" | "None"
+  readonly partitionKey?: string
+}
 export interface BrowserContext {
   readonly newPage: () => Promise<Page>
-  readonly cookies: () => Promise<unknown>
+  readonly cookies: () => Promise<ReadonlyArray<Cookie>>
 }
 export interface Browser {
   readonly newContext: () => Promise<BrowserContext>
@@ -74,10 +86,6 @@ export const launchOnWorkerd: Launch = async (binding) => {
   }
   return playwright.launch(binding)
 }
-
-const isJson = Schema.is(Schema.Json)
-const asJson = (value: unknown, fallback: Schema.Json): Schema.Json =>
-  isJson(value) ? value : fallback
 
 const messageOf = (cause: unknown) =>
   cause instanceof Error ? cause.message : String(cause)
@@ -179,7 +187,7 @@ export const fetchOnce = (options: {
       finalUrl: page.url(),
       statusCode,
       responseHeaders,
-      cookies: asJson(cookies, []),
+      cookies,
       innerText,
       userAgent: typeof userAgent === "string" ? userAgent : "",
       ipInfo: Option.none(),
