@@ -205,7 +205,8 @@ ENV_FILE=".env.$STAGE"
 SIBLING_ENV=".env.$OTHER_STAGE"
 
 ACCOUNT_ID="3056ba6cc5916b47fece5b044c6a8434"          # NP Brands
-ZONE="npbrands.com.au"
+HOST_ZONE="npbrands.au"          # Worker hostnames, Workers Routes and DNS live here
+MAIL_DOMAIN="npbrands.com.au"   # Postmark sender and the sign-in allowlist
 DB_NAME=$([[ "$STAGE" == dev ]] && echo digital-shelf-dev || echo digital-shelf)
 PROD_HYPERDRIVE_ID="dba7756cd8844f54b6a5fc2fe8bfbed0"   # recorded on #25
 GATEWAY_NAME="digital-shelf-ai-gateway-$STAGE"
@@ -394,7 +395,7 @@ note "    Account · Account Settings · Read"
 note "    Zone · Workers Routes · Edit"
 note "    Zone · DNS · Edit"
 note "    Zone · Zone · Read                      (Alchemy looks the zone up by name)"
-step "Account Resources: Include → NP Brands only. Zone Resources: Include → Specific zone → $ZONE."
+step "Account Resources: Include → NP Brands only. Zone Resources: Include → Specific zone → $HOST_ZONE."
 step "No client IP filter, no TTL. Continue to summary → Create Token → copy it (shown once)."
 note "If the Browser Rendering or Secrets Store rows are not offered under those names, note the name shown and tell the ticket."
 reuse_or_ask_secret CLOUDFLARE_API_TOKEN "Paste the API token:"
@@ -416,10 +417,10 @@ else
 fi
 save_secret CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
 if [[ "$STAGE" == dev ]]; then
-  SERVER_HOSTNAME="shelf-dev.apps.$ZONE"
+  SERVER_HOSTNAME="shelf-dev.apps.$HOST_ZONE"
 else
   SERVER_HOSTNAME="digital-shelf-server-prod.${WORKERS_SUBDOMAIN:-<subdomain>}.workers.dev"
-  note "prod stays on workers.dev until the cutover sets shelf.apps.$ZONE (ADR 0006)."
+  note "prod stays on workers.dev until the cutover sets shelf.apps.$HOST_ZONE (ADR 0006)."
 fi
 ask_default SERVER_HOSTNAME "Hostname for the $STAGE Worker" "$SERVER_HOSTNAME"
 save_var SERVER_HOSTNAME "$SERVER_HOSTNAME"
@@ -504,7 +505,7 @@ else
 fi
 save_secret AUTH_SECRET "$AUTH_SECRET"
 save_var AUTH_BASE_URL "https://$SERVER_HOSTNAME"
-AUTH_ALLOWED_EMAIL_DOMAINS=$(_existing AUTH_ALLOWED_EMAIL_DOMAINS || echo "$ZONE")
+AUTH_ALLOWED_EMAIL_DOMAINS=$(_existing AUTH_ALLOWED_EMAIL_DOMAINS || echo "$MAIL_DOMAIN")
 ask_default AUTH_ALLOWED_EMAIL_DOMAINS "Allowed sign-in e-mail domains, comma-separated" "$AUTH_ALLOWED_EMAIL_DOMAINS"
 save_var AUTH_ALLOWED_EMAIL_DOMAINS "$AUTH_ALLOWED_EMAIL_DOMAINS"
 pause
@@ -514,7 +515,7 @@ pause
 stage_6() {
 stage "Postmark: server token for the magic-link mail"
 open_url "https://account.postmarkapp.com/servers"
-step "Open the server that sends from $ZONE (the sender signature or domain must be verified there)."
+step "Open the server that sends from $MAIL_DOMAIN (the sender signature or domain must be verified there)."
 step "API Tokens tab → copy a Server API token (create one if the list is empty)."
 reuse_or_ask_secret POSTMARK_SERVER_TOKEN "Paste the server token:"
 while :; do
@@ -525,7 +526,7 @@ while :; do
   ask_secret POSTMARK_SERVER_TOKEN "Paste the server token:"
 done
 save_secret POSTMARK_SERVER_TOKEN "$POSTMARK_SERVER_TOKEN"
-reuse_or_ask POSTMARK_FROM "From address on $ZONE (a verified sender, e.g. shelf@$ZONE):"
+reuse_or_ask POSTMARK_FROM "From address on $MAIL_DOMAIN (a verified sender, e.g. shelf@$MAIL_DOMAIN):"
 save_var POSTMARK_FROM "$POSTMARK_FROM"
 POSTMARK_MESSAGE_STREAM=$(_existing POSTMARK_MESSAGE_STREAM || echo outbound)
 ask_default POSTMARK_MESSAGE_STREAM "Message stream" "$POSTMARK_MESSAGE_STREAM"
