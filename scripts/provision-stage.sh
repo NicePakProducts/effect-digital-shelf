@@ -194,10 +194,12 @@ finish() {
 # the service keys) are offered for reuse from the other stage's file.
 
 STAGE="${1:-}"
+START_STAGE=1
 case "$STAGE" in
   dev|prod) ;;
-  *) printf 'usage: %s <dev|prod>\n' "$0" >&2; exit 2 ;;
+  *) printf 'usage: %s <dev|prod> [--from N]\n' "$0" >&2; exit 2 ;;
 esac
+if [[ "${2:-}" == "--from" && "${3:-}" =~ ^[0-9]+$ ]]; then START_STAGE="$3"; fi
 OTHER_STAGE=$([[ "$STAGE" == dev ]] && echo prod || echo dev)
 ENV_FILE=".env.$STAGE"
 SIBLING_ENV=".env.$OTHER_STAGE"
@@ -210,10 +212,29 @@ GATEWAY_NAME="digital-shelf-ai-gateway-$STAGE"
 TRACES_DATASET="digital-shelf-traces-$STAGE"
 LOGS_DATASET="digital-shelf-logs-$STAGE"
 AXIOM_CLI_DEPLOYMENT="${AXIOM_CLI_DEPLOYMENT:-axiom}"   # `axiom auth status` alias for the npbrands org
+# The org id behind that alias (from ~/.axiom.toml), so the dashboard URLs open in the same org the CLI writes to.
+AXIOM_ORG_ID=$(awk -v dep="[deployments.$AXIOM_CLI_DEPLOYMENT]" '$0 ~ /^\s*\[deployments\./ {in_dep = ($1 == dep)} in_dep && $1 == "org_id" {gsub(/"/, "", $3); print $3; exit}' "$HOME/.axiom.toml" 2>/dev/null || true)
+AXIOM_APP="https://app.axiom.co${AXIOM_ORG_ID:+/$AXIOM_ORG_ID}"
 CF_API="https://api.cloudflare.com/client/v4"
 GH_REPO=""
 
 # ── helpers specific to this wizard (the library above stays untouched) ────
+
+# open_url, redefined: on WSL, explorer.exe opens the default browser but
+# exits non-zero, which the library reads as a failure. Same behaviour
+# elsewhere.
+open_url() {
+  local url="$1"
+  printf '  %s↗ opening%s %s\n' "$GREEN" "$RESET" "$url"
+  if command -v wslview >/dev/null 2>&1; then wslview "$url" >/dev/null 2>&1 || true
+  elif command -v powershell.exe >/dev/null 2>&1; then powershell.exe -NoProfile -Command "Start-Process '$url'" >/dev/null 2>&1 || true
+  elif command -v explorer.exe >/dev/null 2>&1; then explorer.exe "$url" >/dev/null 2>&1 || true
+  elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$url" >/dev/null 2>&1 || true
+  elif command -v open >/dev/null 2>&1; then open "$url" >/dev/null 2>&1 || true
+  else warn "couldn't open a browser; visit it manually: $url"
+  fi
+  note "(if no tab appeared, open that URL yourself)"
+}
 
 # _sibling KEY: the other stage's saved value for KEY, if any.
 _sibling() {
@@ -326,6 +347,7 @@ TOTAL_STAGES=10
 banner "Digital Shelf · provision the $STAGE stage"
 
 # ── 1 · preflight ─────────────────────────────────────────────────────────
+stage_1() {
 stage "Preflight: tools, GitHub environment, stage constants"
 missing=()
 for tool in gh curl jq psql openssl axiom; do command -v "$tool" >/dev/null 2>&1 || missing+=("$tool"); done
@@ -348,8 +370,10 @@ save_var CLOUDFLARE_ACCOUNT_ID "$ACCOUNT_ID"
 save_var AI_GATEWAY_ACCOUNT_ID "$ACCOUNT_ID"
 save_var AI_GATEWAY_ID "$GATEWAY_NAME"
 pause
+}
 
 # ── 2 · Cloudflare API token for Alchemy ──────────────────────────────────
+stage_2() {
 stage "Cloudflare: the scoped API token Alchemy deploys with"
 say "One custom token, shared by both stages, used locally and by the deploy jobs."
 open_url "https://dash.cloudflare.com/profile/api-tokens"
@@ -395,8 +419,10 @@ fi
 ask_default SERVER_HOSTNAME "Hostname for the $STAGE Worker" "$SERVER_HOSTNAME"
 save_var SERVER_HOSTNAME "$SERVER_HOSTNAME"
 pause
+}
 
 # ── 3 · the PlanetScale database and its Hyperdrive config ────────────────
+stage_3() {
 stage "PlanetScale: the $STAGE database ($DB_NAME) and its Hyperdrive config"
 if [[ "$STAGE" == dev ]]; then
   say "Create the dev database through the Cloudflare-linked flow, like 'digital-shelf' was."
@@ -425,8 +451,10 @@ while :; do
 done
 [[ -n "$HYPERDRIVE_CONFIG_ID" ]] && save_var HYPERDRIVE_CONFIG_ID "$HYPERDRIVE_CONFIG_ID"
 pause
+}
 
 # ── 4 · PlanetScale credentials → DATABASE_URL ────────────────────────────
+stage_4() {
 stage "PlanetScale: direct credentials for $DB_NAME (DATABASE_URL)"
 say "Migrations run over this string, and Alchemy adopts the Hyperdrive config with it as the origin."
 open_url "https://app.planetscale.com/"
@@ -451,8 +479,10 @@ while :; do
 done
 save_secret DATABASE_URL "$DATABASE_URL"
 pause
+}
 
 # ── 5 · Better Auth ───────────────────────────────────────────────────────
+stage_5() {
 stage "Better Auth: secret, base URL, allowed e-mail domains"
 AUTH_SECRET=$(_existing AUTH_SECRET || true)
 if [[ -z "$AUTH_SECRET" ]]; then
@@ -467,8 +497,10 @@ AUTH_ALLOWED_EMAIL_DOMAINS=$(_existing AUTH_ALLOWED_EMAIL_DOMAINS || echo "$ZONE
 ask_default AUTH_ALLOWED_EMAIL_DOMAINS "Allowed sign-in e-mail domains, comma-separated" "$AUTH_ALLOWED_EMAIL_DOMAINS"
 save_var AUTH_ALLOWED_EMAIL_DOMAINS "$AUTH_ALLOWED_EMAIL_DOMAINS"
 pause
+}
 
 # ── 6 · Postmark ──────────────────────────────────────────────────────────
+stage_6() {
 stage "Postmark: server token for the magic-link mail"
 open_url "https://account.postmarkapp.com/servers"
 step "Open the server that sends from $ZONE (the sender signature or domain must be verified there)."
@@ -488,8 +520,10 @@ POSTMARK_MESSAGE_STREAM=$(_existing POSTMARK_MESSAGE_STREAM || echo outbound)
 ask_default POSTMARK_MESSAGE_STREAM "Message stream" "$POSTMARK_MESSAGE_STREAM"
 save_var POSTMARK_MESSAGE_STREAM "$POSTMARK_MESSAGE_STREAM"
 pause
+}
 
 # ── 7 · Scrappey ──────────────────────────────────────────────────────────
+stage_7() {
 stage "Scrappey: API key"
 open_url "https://app.scrappey.com/"
 step "On the Overview page, the 'API Key' card → Copy."
@@ -503,8 +537,10 @@ while :; do
 done
 save_secret SCRAPPEY_API_KEY "$SCRAPPEY_API_KEY"
 pause
+}
 
 # ── 8 · AI Gateway token (Workers AI) ─────────────────────────────────────
+stage_8() {
 stage "AI Gateway: the Workers AI token the extraction calls carry"
 say "The Worker calls @cf models through gateway '$GATEWAY_NAME' with a Cloudflare API token."
 open_url "https://dash.cloudflare.com/profile/api-tokens"
@@ -529,13 +565,24 @@ while :; do
 done
 save_secret AI_GATEWAY_TOKEN "$AI_GATEWAY_TOKEN"
 pause
+}
 
 # ── 9 · Axiom ─────────────────────────────────────────────────────────────
+stage_9() {
 stage "Axiom: edge domain, the two $STAGE datasets, an ingest-only token"
-open_url "https://app.axiom.co/settings/general"
+if [[ -n "$AXIOM_ORG_ID" ]]; then
+  say "Everything here targets Axiom org '$AXIOM_ORG_ID' (the CLI deployment '$AXIOM_CLI_DEPLOYMENT'); the org switcher top-left must show it."
+else
+  warn "could not read the org id for CLI deployment '$AXIOM_CLI_DEPLOYMENT' from ~/.axiom.toml; make sure the browser and the CLI are in the same org"
+fi
+open_url "$AXIOM_APP/settings/general"
 step "Settings → General → 'Edge deployment': copy the base domain (e.g. us-east-1.aws.edge.axiom.co)."
-reuse_or_ask AXIOM_DOMAIN "Edge base domain:"
-AXIOM_DOMAIN="${AXIOM_DOMAIN#https://}"; AXIOM_DOMAIN="${AXIOM_DOMAIN%/}"
+while :; do
+  reuse_or_ask AXIOM_DOMAIN "Edge base domain:"
+  AXIOM_DOMAIN="${AXIOM_DOMAIN#https://}"; AXIOM_DOMAIN="${AXIOM_DOMAIN%/}"
+  [[ -n "$AXIOM_DOMAIN" ]] && break
+  warn "the domain cannot be empty"
+done
 [[ "$AXIOM_DOMAIN" == *.edge.axiom.co ]] || warn "'$AXIOM_DOMAIN' is not an *.edge.axiom.co domain; api.axiom.co is the legacy US-only ingest host"
 say "Creating datasets $TRACES_DATASET and $LOGS_DATASET with the axiom CLI (deployment '$AXIOM_CLI_DEPLOYMENT')…"
 if existing=$(axiom dataset list -D "$AXIOM_CLI_DEPLOYMENT" -f json 2>/dev/null | jq -r '.[].name'); then
@@ -545,26 +592,37 @@ if existing=$(axiom dataset list -D "$AXIOM_CLI_DEPLOYMENT" -f json 2>/dev/null 
     else warn "could not create $ds with the CLI; create it in Settings → Datasets and views, then continue"; fi
   done
 else
-  warn "axiom CLI is not logged in to the npbrands org as '$AXIOM_CLI_DEPLOYMENT' (axiom auth login); create $TRACES_DATASET and $LOGS_DATASET by hand in Settings → Datasets and views"
+  warn "axiom CLI is not logged in as '$AXIOM_CLI_DEPLOYMENT' (axiom auth login); create $TRACES_DATASET and $LOGS_DATASET by hand in Settings → Datasets and views"
 fi
 pause "Both datasets in place? Press Enter."
-open_url "https://app.axiom.co/settings/api-tokens"
+open_url "$AXIOM_APP/settings/api-tokens"
 step "New API token → name 'digital-shelf-$STAGE' → Basic → Dataset access: only $TRACES_DATASET and $LOGS_DATASET (ingest) → Create → copy (shown once)."
+note "If those two datasets are not offered in the picker, the browser is in another org: switch orgs and refresh."
 ask_secret AXIOM_TOKEN "Paste the Axiom token:"
+axiom_ok=0
 while :; do
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   out=$(curl -sS -X POST "https://$AXIOM_DOMAIN/v1/ingest/$LOGS_DATASET" -H "Authorization: Bearer $AXIOM_TOKEN" \
     -H 'Content-Type: application/json' --data "[{\"time\":\"$now\",\"data\":{\"message\":\"provision-stage smoke\",\"stage\":\"$STAGE\"}}]" || true)
-  if [[ "$(printf '%s' "$out" | jq -r '.ingested // 0' 2>/dev/null)" == "1" ]]; then say "${GREEN}✓${RESET} ingested one smoke event into $LOGS_DATASET via $AXIOM_DOMAIN"; break; fi
+  if [[ "$(printf '%s' "$out" | jq -r '.ingested // 0' 2>/dev/null)" == "1" ]]; then
+    say "${GREEN}✓${RESET} ingested one smoke event into $LOGS_DATASET via $AXIOM_DOMAIN"; axiom_ok=1; break
+  fi
   warn "ingest failed: $(printf '%s' "$out" | head -c 200)"
   confirm "Paste the token again?" || break
   ask_secret AXIOM_TOKEN "Paste the Axiom token:"
 done
-save_var AXIOM_DOMAIN "$AXIOM_DOMAIN"
-save_secret AXIOM_TOKEN "$AXIOM_TOKEN"
+if (( axiom_ok )); then
+  save_var AXIOM_DOMAIN "$AXIOM_DOMAIN"
+  save_secret AXIOM_TOKEN "$AXIOM_TOKEN"
+else
+  warn "not saving AXIOM_DOMAIN or AXIOM_TOKEN: the ingest never succeeded. Re-run with --from 9 once fixed."
+  SKIPPED+=("Axiom: AXIOM_DOMAIN and AXIOM_TOKEN for $STAGE (re-run: $0 $STAGE --from 9)")
+fi
 pause
+}
 
 # ── 10 · AI Gateway OpenTelemetry export ──────────────────────────────────
+stage_10() {
 stage "AI Gateway: OpenTelemetry export to Axiom (only once the gateway exists)"
 out=$(cf GET "/accounts/$ACCOUNT_ID/ai-gateway/gateways/$GATEWAY_NAME")
 if [[ "$(printf '%s' "$out" | jq -r '.success // false')" == "true" ]]; then
@@ -582,6 +640,19 @@ else
   say "Re-run this wizard after that deploy (every other stage keeps its saved values) to configure the export."
   SKIPPED+=("AI Gateway OTel export for $GATEWAY_NAME → https://$AXIOM_DOMAIN/v1/traces with X-Axiom-Dataset: $TRACES_DATASET (after #37)")
 fi
+}
+
+# ── run ─────────────────────────────────────────────────────────────────────
+if (( START_STAGE > 1 )); then
+  # Re-entering later: reload what earlier stages captured into this run.
+  for key in CLOUDFLARE_API_TOKEN SERVER_HOSTNAME HYPERDRIVE_CONFIG_ID AXIOM_DOMAIN; do
+    printf -v "$key" '%s' "$(_existing "$key" || true)"
+  done
+  HYPERDRIVE_HOST=""; WORKERS_SUBDOMAIN=""
+  if gh auth status >/dev/null 2>&1; then GH_REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true); fi
+  _STAGE_INDEX=$((START_STAGE - 1))
+fi
+for n in $(seq "$START_STAGE" "$TOTAL_STAGES"); do "stage_$n"; done
 
 finish
 say "Record on #36: where each secret lives ($ENV_FILE + GitHub environment '$STAGE'),"
