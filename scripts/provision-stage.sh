@@ -577,13 +577,20 @@ stage_9() {
 stage "Axiom: edge domain, the two $STAGE datasets, an ingest-only token"
 say "Everything here targets Axiom org '$AXIOM_ORG_ID'; the org switcher (top left) must show that org, not a personal one with the same name."
 open_url "$AXIOM_APP/settings/general"
-step "Settings → General → 'Edge deployment': copy the base domain (e.g. us-east-1.aws.edge.axiom.co)."
+step "Settings → General → 'Edge deployment' names the region; the base domain follows from it:"
+note "    US East 1 (AWS)      →  us-east-1.aws.edge.axiom.co"
+note "    EU Central 1 (AWS)   →  eu-central-1.aws.edge.axiom.co"
 while :; do
-  reuse_or_ask AXIOM_DOMAIN "Edge base domain:"
+  reuse_or_ask AXIOM_DOMAIN "Edge base domain (or the region name as shown):"
   AXIOM_DOMAIN="${AXIOM_DOMAIN#https://}"; AXIOM_DOMAIN="${AXIOM_DOMAIN%/}"
+  case "$(printf '%s' "$AXIOM_DOMAIN" | tr '[:upper:]' '[:lower:]')" in
+    "us east 1 (aws)"|"us-east-1"|"us east 1") AXIOM_DOMAIN="us-east-1.aws.edge.axiom.co" ;;
+    "eu central 1 (aws)"|"eu-central-1"|"eu central 1") AXIOM_DOMAIN="eu-central-1.aws.edge.axiom.co" ;;
+  esac
   [[ -n "$AXIOM_DOMAIN" ]] && break
   warn "the domain cannot be empty"
 done
+say "using edge domain $AXIOM_DOMAIN"
 [[ "$AXIOM_DOMAIN" == *.edge.axiom.co ]] || warn "'$AXIOM_DOMAIN' is not an *.edge.axiom.co domain; api.axiom.co is the legacy US-only ingest host"
 datasets_done=0
 if [[ -n "$AXIOM_CLI_DEPLOYMENT" ]] && existing=$(axiom dataset list -D "$AXIOM_CLI_DEPLOYMENT" -f json 2>/dev/null | jq -r '.[].name'); then
