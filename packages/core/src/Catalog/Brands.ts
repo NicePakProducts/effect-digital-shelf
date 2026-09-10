@@ -3,6 +3,7 @@ import type {
   CreateBrand,
   UpdateBrand,
 } from "@digital-shelf/domain/Catalog/BrandManagement"
+import type { CascadeImpact } from "@digital-shelf/domain/Catalog/CascadeImpact"
 import type { BrandNotFound } from "@digital-shelf/domain/Catalog/Errors"
 import type { BrandId } from "@digital-shelf/domain/Shared/Ids"
 import * as Context from "effect/Context"
@@ -10,12 +11,13 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { SqlError } from "effect/unstable/sql/SqlError"
 import { Db } from "../Sql/Db.ts"
+import { Cascade } from "./Cascade.ts"
 import * as BrandsRepo from "./repositories/BrandsRepo.ts"
 
 /**
  * Brand commands and reads as the api calls them. Commands take the domain's
  * command structs and return the entity; the wire shape is the api's
- * projection. `remove` delegates to Catalog/Cascade once it exists, so the
+ * projection. `remove` delegates to Catalog/Cascade, so the
  * Scrape ids the database cascade drops are collected before the delete.
  */
 export class Brands extends Context.Service<
@@ -28,7 +30,10 @@ export class Brands extends Context.Service<
     ) => Effect.Effect<Brand, BrandNotFound | SqlError>
     readonly remove: (
       id: BrandId,
-    ) => Effect.Effect<Brand, BrandNotFound | SqlError>
+    ) => Effect.Effect<CascadeImpact, BrandNotFound | SqlError>
+    readonly impact: (
+      id: BrandId,
+    ) => Effect.Effect<CascadeImpact, BrandNotFound | SqlError>
     readonly get: (
       id: BrandId,
     ) => Effect.Effect<Brand, BrandNotFound | SqlError>
@@ -36,6 +41,7 @@ export class Brands extends Context.Service<
   }
 >()("@digital-shelf/core/Catalog/Brands", {
   make: Effect.gen(function* () {
+    const cascade = yield* Cascade
     const db = yield* Db
     const withDb = Effect.provideService(Db, db)
 
@@ -54,7 +60,15 @@ export class Brands extends Context.Service<
     }, withDb)
 
     const remove = Effect.fn("Brands.remove")(function* (id: BrandId) {
-      return yield* BrandsRepo.remove(id)
+      return (yield* cascade.remove(
+        { _tag: "Brand", id },
+        BrandsRepo.remove(id),
+      )).impact
+    }, withDb)
+
+    const impact = Effect.fn("Brands.impact")(function* (id: BrandId) {
+      yield* BrandsRepo.get(id)
+      return yield* cascade.impact({ _tag: "Brand", id })
     }, withDb)
 
     const get = Effect.fn("Brands.get")(function* (id: BrandId) {
@@ -63,9 +77,8 @@ export class Brands extends Context.Service<
 
     const list = BrandsRepo.list().pipe(withDb, Effect.withSpan("Brands.list"))
 
-    return { create, update, remove, get, list }
+    return { create, update, remove, impact, get, list }
   }),
 }) {
-  // Only `Db` underneath, which the app root supplies; no `layerNoDeps` yet.
   static readonly layer = Layer.effect(this, this.make)
 }

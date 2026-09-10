@@ -1,3 +1,4 @@
+import { CombinedStatus } from "../Scraping/Vocabulary.ts"
 import {
   createInsertSchema,
   createSelectSchema,
@@ -48,3 +49,12 @@ export const ListingVariant = createSelectSchema(listingVariants, {
   variantId: VariantId,
 })
 export type ListingVariant = typeof ListingVariant.Type
+
+/** A Listing as the api reads it, with its derived pause and status readings. */
+export const ListingWithStatus = Schema.Struct({
+  ...Listing.fields,
+  variantIds: Schema.Array(VariantId),
+  effectivePaused: Schema.Boolean,
+  combinedStatus: CombinedStatus,
+})
+export type ListingWithStatus = typeof ListingWithStatus.Type

@@ -1,3 +1,4 @@
+import { CombinedStatus } from "../Scraping/Vocabulary.ts"
 import {
   createInsertSchema,
   createSelectSchema,
@@ -38,3 +39,12 @@ export const PageUpdate = createUpdateSchema(pages, {
   updatedAt: Schema.optionalKey(Timestamp),
 })
 export type PageUpdate = typeof PageUpdate.Type
+
+/** A Page as the api reads it, with its derived pause and status readings. */
+export const PageWithStatus = Schema.Struct({
+  ...Page.fields,
+
+  effectivePaused: Schema.Boolean,
+  combinedStatus: CombinedStatus,
+})
+export type PageWithStatus = typeof PageWithStatus.Type

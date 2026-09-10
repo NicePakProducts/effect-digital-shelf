@@ -30,3 +30,11 @@ export const UpdateRetailer = Schema.Struct({
   pageExtractPrompt: Schema.optionalKey(Schema.NonEmptyString),
 })
 export type UpdateRetailer = typeof UpdateRetailer.Type
+
+/** Seeded on Retailer creation when omitted (Extraction prompt); freely edited afterwards, never versioned. */
+export const defaultScrapeMode: ScrapeMode = "basic"
+export const defaultScrapeCountry = "Australia"
+export const defaultListingExtractPrompt =
+  "Extract this retailer product listing as JSON: name, brand, price, currency, availability, promotions, rating, review count, images and the variants offered."
+export const defaultPageExtractPrompt =
+  "Extract this retailer brand page as JSON: page title, products listed (name, price, currency, availability), promotions and banners."

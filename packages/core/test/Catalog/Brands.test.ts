@@ -1,3 +1,4 @@
+import { emptyImpact } from "@digital-shelf/domain/Catalog/CascadeImpact"
 import { expect, it } from "@effect/vitest"
 import { Brands } from "@digital-shelf/core/Catalog/Brands"
 import * as BrandsRepo from "@digital-shelf/core/Catalog/repositories/BrandsRepo"
@@ -37,7 +38,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
       expect(paused.paused).toBe(true)
       expect(yield* brands.update(created.id, {})).toEqual(paused)
       const removed = yield* brands.remove(created.id)
-      expect(removed.id).toBe(created.id)
+      expect(removed).toEqual(emptyImpact)
       expect(yield* brands.list).toEqual([])
       expect(yield* Effect.flip(brands.get(created.id))).toBeInstanceOf(
         BrandNotFound,
