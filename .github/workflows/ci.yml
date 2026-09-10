@@ -1,0 +1,81 @@
+# Checks and tests for every workspace package on pull requests.
+#
+# This workflow verifies only: it never deploys, never runs the Alchemy or
+# real-cloud smoke scripts, and never touches a project database. The
+# deployment half of "Land infra resources and adapters, apps/server and the
+# deploy path" (#37) stays with that ticket.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Read-only: the job checks out the tree and runs the workspace commands.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: check and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # A disposable PostgreSQL, created fresh for this job and destroyed with
+    # the runner. Test-only data, local-only credentials that reach nothing
+    # else, never a dev or production database. It exists because PGlite runs
+    # one connection in-process and so cannot overlap two transactions: the
+    # Retailer-row lock regression in "Land the URL invariants" (#38) needs a
+    # real server to prove one concurrent write waits on another.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: shelf_test
+          POSTGRES_PASSWORD: shelf_test
+          POSTGRES_DB: shelf_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shelf_test -d shelf_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      # The one connection variable test code reads: a full DSN for the
+      # service above. A test that needs a real server may skip itself when
+      # this is unset, which keeps `vp test --run` green on a machine without
+      # Postgres -- but a skip is never the concurrency proof, so CI always
+      # supplies it and the probe below fails the job if the service is not
+      # really there.
+      DIGITAL_SHELF_TEST_POSTGRES_URL: postgres://shelf_test:shelf_test@127.0.0.1:5432/shelf_test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # pnpm's version comes from the root package.json `packageManager`
+      # field, and Node's from its `engines.node` range: one pinned
+      # toolchain, declared once.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Prove the disposable Postgres overlaps transactions
+        run: .github/scripts/postgres-lock-probe.sh
+
+      - name: Check every package
+        run: pnpm --recursive run check
+
+      - name: Test every package
+        run: pnpm --recursive run test
