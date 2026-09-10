@@ -7,16 +7,23 @@
     "check": "vp check",
     "check:types": "tsc -b tsconfig.json",
     "test": "vp test --run",
-    "prepare": "effect-tsgo patch"
+    "prepare": "effect-tsgo patch",
+    "dev": "alchemy dev --stage dev",
+    "deploy": "alchemy deploy",
+    "db:migrate": "pnpm --filter @digital-shelf/infra db:migrate"
   },
   "devDependencies": {
+    "@effect/platform-node": "catalog:",
     "@effect/sql-pg": "catalog:",
     "@effect/sql-pglite": "catalog:",
     "@effect/tsgo": "catalog:",
     "@effect/vitest": "catalog:",
     "@electric-sql/pglite": "catalog:",
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "alchemy": "catalog:",
     "effect": "catalog:",
+    "pg": "catalog:",
     "typescript": "catalog:",
     "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
     "vite-plus": "catalog:"

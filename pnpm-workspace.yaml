@@ -11,6 +11,9 @@ catalog:
   "@effect/platform-node": 4.0.0-rc.112
   "@effect/sql-pg": 4.0.0-rc.112
   "@effect/sql-pglite": 4.0.0-rc.112
+  # node-postgres, the wire driver under @effect/sql-pg on Workers (#25)
+  pg: 8.23.0
+  "@types/pg": 8.23.1
   "@electric-sql/pglite": 0.5.8
   "@effect/vitest": 4.0.0-rc.112
   # Toolchain
@@ -21,7 +24,7 @@ catalog:
   vite-plus: 0.3.1
   vitest: 4.1.11
   # Platform pins settled by the research tickets (#3, #4, #5); Postgres per #9
-  alchemy: 2.0.0-beta.67
+  alchemy: 2.0.0-beta.76
   drizzle-kit: 1.0.0-rc.5-ab785fc
   drizzle-orm: 1.0.0-rc.5-ab785fc
   better-auth: 1.7.3

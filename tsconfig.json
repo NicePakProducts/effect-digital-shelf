@@ -4,7 +4,9 @@
   "references": [{ "path": "tsconfig.packages.json" }],
   "include": [
     "**/vitest.*.ts", // All vitest config files across all packages
-    "./packages/*/test/**/*.ts"
+    "./packages/*/test/**/*.ts",
+    "./apps/*/test/**/*.ts",
+    "./alchemy.run.ts"
   ],
   "compilerOptions": {
     "rootDir": ".",
@@ -23,7 +25,9 @@
       "@digital-shelf/core/*": ["./packages/core/src/*"],
       "@digital-shelf/domain": ["./packages/domain/src/index.ts"],
       "@digital-shelf/domain/*": ["./packages/domain/src/*"],
-      "@digital-shelf/infra/*": ["./packages/infra/src/*"]
+      "@digital-shelf/infra": ["./packages/infra/src/index.ts"],
+      "@digital-shelf/infra/*": ["./packages/infra/src/*"],
+      "@digital-shelf/server/*": ["./apps/server/src/*"]
     },
     "plugins": [
       {
