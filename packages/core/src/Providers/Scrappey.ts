@@ -36,9 +36,6 @@ const Solution = Schema.Struct({
   responseHeaders: Schema.optionalKey(
     Schema.Record(Schema.String, Schema.String),
   ),
-  requestHeaders: Schema.optionalKey(
-    Schema.Record(Schema.String, Schema.String),
-  ),
   cookies: Schema.optionalKey(Schema.Json),
   innerText: Schema.optionalKey(Schema.String),
   userAgent: Schema.optionalKey(Schema.String),

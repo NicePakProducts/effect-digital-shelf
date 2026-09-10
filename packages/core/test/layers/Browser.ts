@@ -34,6 +34,8 @@ export interface Script {
   readonly failCapture?: unknown
   /** Leaves `goto` pending forever, so the caller must time out. */
   readonly hang?: boolean
+  /** Leaves `launch` pending forever: Browser Rendering never answers. */
+  readonly hangLaunch?: boolean
 }
 
 export interface Scripted {
@@ -92,6 +94,7 @@ export const scripted = (script: Script = {}): Scripted => {
     launch: () => {
       if (script.failLaunch !== undefined)
         return Promise.reject(rejection(script.failLaunch))
+      if (script.hangLaunch === true) return new Promise<never>(() => {})
       launched += 1
       return Promise.resolve(browser)
     },

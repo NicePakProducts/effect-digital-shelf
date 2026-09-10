@@ -186,3 +186,50 @@ describe("Playwright provider — the session is always released", () => {
     }),
   )
 })
+
+describe("Playwright provider — a launch that never answers", () => {
+  it.effect("is cut off by the attempt deadline as a navigation failure", () =>
+    Effect.gen(function* () {
+      const browser = Browser.scripted({ hangLaunch: true })
+      const fiber = yield* Effect.flip(
+        fetchOnce(browser, Duration.seconds(30)),
+      ).pipe(Effect.forkChild)
+      yield* TestClock.adjust(Duration.seconds(31))
+      const error = yield* Fiber.join(fiber)
+      expect(error).toBeInstanceOf(ScrapeProviderError)
+      expect(error.code).toBe("navigation_failed")
+      expect(error.message).toBe("Fetch attempt deadline exceeded")
+      // No session was ever obtained, so there is none to close.
+      expect(browser.launched()).toBe(0)
+      expect(browser.closed()).toBe(0)
+    }),
+  )
+
+  it.effect("yields to the caller's own deadline", () =>
+    Effect.gen(function* () {
+      // The runner's Scrape deadline wraps the attempt; it must be able to
+      // fire while Browser Rendering is still acquiring.
+      const browser = Browser.scripted({ hangLaunch: true })
+      const fiber = yield* fetchOnce(browser, Duration.minutes(5)).pipe(
+        Effect.timeout(Duration.seconds(10)),
+        Effect.flip,
+        Effect.forkChild,
+      )
+      yield* TestClock.adjust(Duration.seconds(11))
+      const error = yield* Fiber.join(fiber)
+      expect(error._tag).toBe("TimeoutError")
+    }),
+  )
+
+  it.effect("lets an interrupted caller return", () =>
+    Effect.gen(function* () {
+      const browser = Browser.scripted({ hangLaunch: true })
+      const fiber = yield* fetchOnce(browser).pipe(Effect.forkChild)
+      yield* TestClock.adjust(Duration.millis(1))
+      yield* Fiber.interrupt(fiber)
+      const exit = yield* Fiber.await(fiber)
+      expect(exit._tag).toBe("Failure")
+      expect(browser.closed()).toBe(0)
+    }),
+  )
+})

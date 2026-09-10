@@ -121,9 +121,13 @@ const step = <A>(phase: Phase, run: () => Promise<A>) =>
   Effect.tryPromise({ try: run, catch: (cause) => failure(phase, cause) })
 
 /**
- * One Fetch attempt. The browser session is acquired in a scope so it is
- * released on failure and on interruption alike; a Scrape that runs out of
- * deadline must not leave a session open.
+ * One Fetch attempt. The browser session is acquired in a scope so a session
+ * this module obtained is released on failure and on interruption alike; a
+ * Scrape that runs out of deadline must not leave a session open. The launch
+ * itself stays interruptible so the attempt deadline and the runner's Scrape
+ * deadline can fire while Browser Rendering is still acquiring: a launch
+ * that resolves after that interruption is not ours to close, and Browser
+ * Rendering reaps it at its own session expiry.
  */
 export const fetchOnce = (options: {
   readonly binding: BrowserBinding
@@ -139,6 +143,7 @@ export const fetchOnce = (options: {
           try: () => browser.close(),
           catch: (cause) => cause,
         }).pipe(Effect.ignore),
+      { interruptible: true },
     )
     const context = yield* step("session", () => browser.newContext())
     const page = yield* step("session", () => context.newPage())
