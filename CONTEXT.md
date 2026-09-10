@@ -47,7 +47,7 @@ The current pointer on a Listing or Page, kept as a Normalised URL. Its host is 
 _Avoid_: Link, href, location
 
 **Normalised URL**:
-The form a URL takes before it is stored: surrounding whitespace removed, scheme and host lower-cased, Tracker parameters removed. Path, fragment, port and every other query parameter stay exactly as pasted; nothing retailer-specific is rewritten, and normalising an already Normalised URL changes nothing. The stored URL is the only URL; the paste is not kept.
+The form a URL takes before it is stored: surrounding whitespace removed, scheme and host lower-cased, Tracker parameters removed, and a `?` left with no parameters removed with them. Path, fragment, port and every other query parameter stay exactly as pasted; nothing retailer-specific is rewritten, and normalising an already Normalised URL changes nothing. The stored URL is the only URL; the paste is not kept.
 _Avoid_: Cleaned URL, canonical URL, raw URL
 
 **Tracker parameter**:
