@@ -20,7 +20,10 @@ import type {
   BulkReExtract,
   TriggerExtraction,
 } from "@digital-shelf/domain/Scraping/ScrapingManagement"
-import type { PromptKind } from "@digital-shelf/domain/Scraping/Vocabulary"
+import type {
+  ExtractionStatus,
+  PromptKind,
+} from "@digital-shelf/domain/Scraping/Vocabulary"
 import {
   ExtractionId,
   type ProductId,
@@ -36,6 +39,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { Executions, startBatchLimit } from "../Scheduling/Executions.ts"
 import { Db } from "../Sql/Db.ts"
+import type { Cursor } from "../Sql/Keyset.ts"
 import { uniqueViolation } from "../Sql/Errors.ts"
 import { requireTarget } from "./Scrapes.ts"
 import { traceparentOf, traceIdOf } from "./Trace.ts"
@@ -315,6 +319,15 @@ const make = Effect.gen(function* () {
   const get = Effect.fn("Extractions.get")(function* (id: ExtractionId) {
     return yield* ExtractionsRepo.get(id)
   }, withDb)
+  /** One page of Extractions, newest first; `hasMore` says whether to keep going. */
+  const list = Effect.fn("Extractions.list")(function* (options: {
+    readonly scrapeId?: ScrapeId | undefined
+    readonly status?: ExtractionStatus | undefined
+    readonly cursor?: Cursor | undefined
+    readonly limit: number
+  }) {
+    return yield* ExtractionsRepo.list(options)
+  }, withDb)
   const listByScrape = Effect.fn("Extractions.listByScrape")(function* (
     id: ScrapeId,
   ) {
@@ -337,6 +350,7 @@ const make = Effect.gen(function* () {
     redispatch,
     drainPending,
     get,
+    list,
     listByScrape,
     latestExtractedData,
     latestExtractedDataForProduct,

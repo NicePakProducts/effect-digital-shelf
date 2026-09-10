@@ -7,6 +7,8 @@ import { VariantsApi } from "./Catalog/VariantsApi.ts"
 import { RetailersApi } from "./Catalog/RetailersApi.ts"
 import { ListingsApi } from "./Catalog/ListingsApi.ts"
 import { PagesApi } from "./Catalog/PagesApi.ts"
+import { ScrapesApi } from "./Scraping/ScrapesApi.ts"
+import { ExtractionsApi } from "./Scraping/ExtractionsApi.ts"
 
 export class RootApi extends HttpApi.make("RootApi")
   .add(BrandsApi)
@@ -15,6 +17,8 @@ export class RootApi extends HttpApi.make("RootApi")
   .add(RetailersApi)
   .add(ListingsApi)
   .add(PagesApi)
+  .add(ScrapesApi)
+  .add(ExtractionsApi)
   .prefix("/api/v1")
   .annotate(OpenApi.Title, "Digital Shelf")
   .annotate(OpenApi.Version, "1")

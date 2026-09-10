@@ -10,7 +10,14 @@ import * as Effect from "effect/Effect"
 import * as TestClock from "effect/testing/TestClock"
 import * as CoreTest from "../layers/Core.ts"
 import { ExecutionsTest } from "../layers/Executions.ts"
-import { reset, seed, history, cadenceFixture } from "../fixtures/Scraping.ts"
+import { R2BucketTest } from "../layers/R2Bucket.ts"
+import {
+  reset,
+  seed,
+  history,
+  cadenceFixture,
+  successfulScrape,
+} from "../fixtures/Scraping.ts"
 
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
   it.effect(
@@ -226,5 +233,104 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         )
       expect(yield* ScrapesRepo.listPending(10)).toEqual([])
     }),
+  )
+
+  it.effect(
+    "bulk counts effectively paused Parents instead of dispatching them",
+    () =>
+      Effect.gen(function* () {
+        yield* reset
+        const fixture = yield* seed({ paused: true })
+        const paused = yield* fixture.listing
+        const pausedPage = yield* fixture.page
+        const service = yield* Scrapes
+        const report = yield* service.bulk({
+          _tag: "Brand",
+          brandId: fixture.brandId,
+        })
+        expect(report.created).toEqual([])
+        expect(report.skipped).toEqual([])
+        expect(report.skippedPaused).toEqual([paused.parent, pausedPage.parent])
+        expect(report.started).toBe(0)
+        expect(yield* ScrapesRepo.listPending(10)).toEqual([])
+      }),
+  )
+  it.effect("list pages newest first and breaks created-at ties by id", () =>
+    Effect.gen(function* () {
+      yield* reset
+      const fixture = yield* seed()
+      const service = yield* Scrapes
+      // One clock tick, so all three share a created_at and only id orders them.
+      const tied = yield* Effect.forEach([1, 2, 3], () =>
+        Effect.flatMap(fixture.listing, ({ parent }) =>
+          history(parent, "success", "1 hour"),
+        ),
+      )
+      expect(
+        new Set(tied.map((row) => DateTime.toEpochMillis(row.createdAt))).size,
+      ).toBe(1)
+      const expected = [...tied]
+        .sort((a, b) => (a.id < b.id ? 1 : -1))
+        .map((row) => row.id)
+      const first = yield* service.list({ limit: 2 })
+      expect(first.items.map((row) => row.id)).toEqual(expected.slice(0, 2))
+      expect(first.hasMore).toBe(true)
+      const last = first.items[1]!
+      const second = yield* service.list({
+        limit: 2,
+        cursor: { createdAt: last.createdAt, id: last.id },
+      })
+      expect(second.items.map((row) => row.id)).toEqual(expected.slice(2))
+      expect(second.hasMore).toBe(false)
+    }),
+  )
+  it.effect("list filters by Parent and by status", () =>
+    Effect.gen(function* () {
+      yield* reset
+      const fixture = yield* seed()
+      const listing = yield* fixture.listing
+      const page = yield* fixture.page
+      const service = yield* Scrapes
+      const success = yield* history(listing.parent, "success", "2 hours")
+      const failed = yield* history(listing.parent, "failed", "1 hour")
+      const pageRow = yield* history(page.parent, "success", "3 hours")
+      expect(
+        (yield* service.list({
+          limit: 50,
+          listingId: listing.parent.listingId,
+        })).items.map((row) => row.id),
+      ).toEqual([failed.id, success.id])
+      expect(
+        (yield* service.list({
+          limit: 50,
+          pageId: page.parent.pageId,
+        })).items.map((row) => row.id),
+      ).toEqual([pageRow.id])
+      expect(
+        (yield* service.list({ limit: 50, status: "failed" })).items.map(
+          (row) => row.id,
+        ),
+      ).toEqual([failed.id])
+    }),
+  )
+  it.effect(
+    "content answers the stored HTML and None once retention took it",
+    () =>
+      Effect.gen(function* () {
+        yield* reset
+        const { parent } = yield* (yield* seed()).listing
+        const service = yield* Scrapes
+        const scrape = yield* successfulScrape(parent, { html: "<p>Kept</p>" })
+        expect(yield* service.content(scrape.id)).toEqual(
+          Option.some("<p>Kept</p>"),
+        )
+        // Retention removes the object; the row keeps its key until it expires too.
+        yield* (yield* R2BucketTest).service.delete([
+          Option.getOrThrow(scrape.htmlR2Key),
+        ])
+        expect(yield* service.content(scrape.id)).toEqual(Option.none())
+        const pending = yield* service.trigger({ parent })
+        expect(yield* service.content(pending.id)).toEqual(Option.none())
+      }),
   )
 })
