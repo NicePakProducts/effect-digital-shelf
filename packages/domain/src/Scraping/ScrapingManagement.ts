@@ -6,7 +6,8 @@ import { PromptKind, ScrapeMode } from "./Vocabulary.ts"
 /**
  * Triggers. Manual triggers bypass pause and may override the Retailer's
  * scrape defaults per call; bulk triggers respect effective pause and never
- * override. There is no bulk-job entity: the outcome is the rows created.
+ * override. There is no bulk-job entity: the outcome is the rows created and
+ * the Parents skipped, in flight or paused.
  */
 
 export const TriggerScrape = Schema.Struct({
