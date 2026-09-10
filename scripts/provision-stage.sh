@@ -211,10 +211,15 @@ PROD_HYPERDRIVE_ID="dba7756cd8844f54b6a5fc2fe8bfbed0"   # recorded on #25
 GATEWAY_NAME="digital-shelf-ai-gateway-$STAGE"
 TRACES_DATASET="digital-shelf-traces-$STAGE"
 LOGS_DATASET="digital-shelf-logs-$STAGE"
-AXIOM_CLI_DEPLOYMENT="${AXIOM_CLI_DEPLOYMENT:-axiom}"   # `axiom auth status` alias for the npbrands org
-# The org id behind that alias (from ~/.axiom.toml), so the dashboard URLs open in the same org the CLI writes to.
-AXIOM_ORG_ID=$(awk -v dep="[deployments.$AXIOM_CLI_DEPLOYMENT]" '$0 ~ /^\s*\[deployments\./ {in_dep = ($1 == dep)} in_dep && $1 == "org_id" {gsub(/"/, "", $3); print $3; exit}' "$HOME/.axiom.toml" 2>/dev/null || true)
-AXIOM_APP="https://app.axiom.co${AXIOM_ORG_ID:+/$AXIOM_ORG_ID}"
+# The Axiom organisation this project reports to (the team org "npbrands"; a
+# personal org with the same display name exists, so the id is what counts).
+AXIOM_ORG_ID="${AXIOM_ORG_ID:-npbrands-etkr}"
+AXIOM_APP="https://app.axiom.co/$AXIOM_ORG_ID"
+# The axiom CLI is used for dataset creation only when one of its logins
+# (~/.axiom.toml deployments) is for that org; otherwise the dashboard does it.
+AXIOM_CLI_DEPLOYMENT=$(awk -v org="$AXIOM_ORG_ID" '
+  $0 ~ /^\s*\[deployments\./ { dep = $1; sub(/^\[deployments\./, "", dep); sub(/\]$/, "", dep) }
+  $1 == "org_id" { gsub(/"/, "", $3); if ($3 == org) { print dep; exit } }' "$HOME/.axiom.toml" 2>/dev/null || true)
 CF_API="https://api.cloudflare.com/client/v4"
 GH_REPO=""
 
@@ -570,11 +575,7 @@ pause
 # ── 9 · Axiom ─────────────────────────────────────────────────────────────
 stage_9() {
 stage "Axiom: edge domain, the two $STAGE datasets, an ingest-only token"
-if [[ -n "$AXIOM_ORG_ID" ]]; then
-  say "Everything here targets Axiom org '$AXIOM_ORG_ID' (the CLI deployment '$AXIOM_CLI_DEPLOYMENT'); the org switcher top-left must show it."
-else
-  warn "could not read the org id for CLI deployment '$AXIOM_CLI_DEPLOYMENT' from ~/.axiom.toml; make sure the browser and the CLI are in the same org"
-fi
+say "Everything here targets Axiom org '$AXIOM_ORG_ID'; the org switcher (top left) must show that org, not a personal one with the same name."
 open_url "$AXIOM_APP/settings/general"
 step "Settings → General → 'Edge deployment': copy the base domain (e.g. us-east-1.aws.edge.axiom.co)."
 while :; do
@@ -584,15 +585,21 @@ while :; do
   warn "the domain cannot be empty"
 done
 [[ "$AXIOM_DOMAIN" == *.edge.axiom.co ]] || warn "'$AXIOM_DOMAIN' is not an *.edge.axiom.co domain; api.axiom.co is the legacy US-only ingest host"
-say "Creating datasets $TRACES_DATASET and $LOGS_DATASET with the axiom CLI (deployment '$AXIOM_CLI_DEPLOYMENT')…"
-if existing=$(axiom dataset list -D "$AXIOM_CLI_DEPLOYMENT" -f json 2>/dev/null | jq -r '.[].name'); then
+datasets_done=0
+if [[ -n "$AXIOM_CLI_DEPLOYMENT" ]] && existing=$(axiom dataset list -D "$AXIOM_CLI_DEPLOYMENT" -f json 2>/dev/null | jq -r '.[].name'); then
+  say "Creating datasets with the axiom CLI login '$AXIOM_CLI_DEPLOYMENT' (org $AXIOM_ORG_ID)…"
+  datasets_done=1
   for ds in "$TRACES_DATASET" "$LOGS_DATASET"; do
     if grep -qx "$ds" <<<"$existing"; then say "${GREEN}✓${RESET} dataset $ds exists"
     elif axiom dataset create -D "$AXIOM_CLI_DEPLOYMENT" --no-spinner -n "$ds" -d "Digital Shelf $STAGE ($(basename "$ds" "-$STAGE" | sed 's/digital-shelf-//'))" >/dev/null 2>&1; then say "${GREEN}✓${RESET} created dataset $ds"
-    else warn "could not create $ds with the CLI; create it in Settings → Datasets and views, then continue"; fi
+    else warn "could not create $ds with the CLI"; datasets_done=0; fi
   done
-else
-  warn "axiom CLI is not logged in as '$AXIOM_CLI_DEPLOYMENT' (axiom auth login); create $TRACES_DATASET and $LOGS_DATASET by hand in Settings → Datasets and views"
+fi
+if (( ! datasets_done )); then
+  note "The axiom CLI has no login for org $AXIOM_ORG_ID (its logins: $(awk '$0 ~ /^\s*\[deployments\./ {d=$1; sub(/^\[deployments\./,"",d); sub(/\]$/,"",d); printf "%s ", d}' "$HOME/.axiom.toml" 2>/dev/null)), so create the datasets in the dashboard."
+  open_url "$AXIOM_APP/settings/datasets"
+  step "Settings → Datasets and views → New dataset: name '$TRACES_DATASET', kind Events, default retention → Save."
+  step "Again: name '$LOGS_DATASET', kind Events → Save."
 fi
 pause "Both datasets in place? Press Enter."
 open_url "$AXIOM_APP/settings/api-tokens"
