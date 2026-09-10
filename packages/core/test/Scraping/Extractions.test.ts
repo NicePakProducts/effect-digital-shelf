@@ -11,8 +11,15 @@ import {
   ScrapeNotFound,
   ScrapeNotReExtractable,
 } from "@digital-shelf/domain/Scraping/Errors"
-import { RetailerNotFound } from "@digital-shelf/domain/Catalog/Errors"
-import { ScrapeId, RetailerId } from "@digital-shelf/domain/Shared/Ids"
+import {
+  ProductNotFound,
+  RetailerNotFound,
+} from "@digital-shelf/domain/Catalog/Errors"
+import {
+  ProductId,
+  ScrapeId,
+  RetailerId,
+} from "@digital-shelf/domain/Shared/Ids"
 import { retailers } from "@digital-shelf/domain/Sql/Catalog"
 import { scrapes } from "@digital-shelf/domain/Sql/Scraping"
 import { eq } from "drizzle-orm"
@@ -344,6 +351,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         expect(
           Option.getOrThrow(yield* Repo.latestSuccessful(older.id)).id,
         ).toBe(best.id)
+        expect(
+          yield* service.latestExtractedDataForProduct(
+            (yield* seed()).productId,
+          ),
+        ).toEqual([])
+        const unknown = Schema.decodeUnknownSync(ProductId)(crypto.randomUUID())
+        expect(
+          yield* Effect.flip(service.latestExtractedDataForProduct(unknown)),
+        ).toEqual(new ProductNotFound({ productId: unknown }))
       }),
   )
   it.effect(

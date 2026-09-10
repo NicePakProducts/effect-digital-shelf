@@ -13,7 +13,8 @@ import * as Wire from "./ExtractionsWire.ts"
  * Re-extraction and the latest extracted data. Only a successful Scrape whose
  * HTML is still retained can be re-extracted, so a Scrape that never succeeded
  * or has passed retention is refused with `422`. The latest reads answer the
- * last good data, which survives newer failed Scrapes and Extractions.
+ * last good data, which survives newer failed Scrapes and Extractions; a
+ * Product that exists but has none answers an empty list, an unknown one `404`.
  */
 export class ExtractionsApi extends HttpApiGroup.make("extractions").add(
   HttpApiEndpoint.get("list", "/extractions", {
@@ -55,5 +56,6 @@ export class ExtractionsApi extends HttpApiGroup.make("extractions").add(
   HttpApiEndpoint.get("latestForProduct", "/products/:id/latest-extractions", {
     params: Wire.ProductIdParams,
     success: Wire.LatestExtractedDataList,
+    error: [CatalogErrors.ProductNotFound],
   }),
 ) {}

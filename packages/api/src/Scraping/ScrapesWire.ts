@@ -17,7 +17,7 @@ import { TimestampWire } from "../TimestampWire.ts"
 /**
  * A Scrape as clients see it: the whole row but the R2 keys, which name
  * objects only core may address. `GET /scrapes/:id/content` serves the stored
- * HTML instead. Options go out as `null`, timestamps as ISO strings.
+ * page instead. Options go out as `null`, timestamps as ISO strings.
  */
 export const ScrapeWire = Schema.Struct({
   id: ScrapeId,
@@ -81,9 +81,13 @@ export const ScrapeList = Schema.Struct({
   nextCursor: Schema.NullOr(Cursor),
 })
 
-/** The stored HTML, served as itself rather than wrapped in JSON. */
+/**
+ * The stored page, served as plain text rather than wrapped in JSON. It is a
+ * third party's HTML, so it is never labelled `text/html`: a browser must not
+ * render it, or run its scripts, on the API's origin with the session cookie.
+ */
 export const ScrapeContent = Schema.String.pipe(
-  HttpApiSchema.asText({ contentType: "text/html" }),
+  HttpApiSchema.asText({ contentType: "text/plain; charset=utf-8" }),
 )
 
 /** No bulk entity: the outcome is the counts (#14). */

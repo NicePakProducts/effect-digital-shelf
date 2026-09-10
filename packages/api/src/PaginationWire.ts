@@ -8,10 +8,12 @@ import * as SchemaTransformation from "effect/SchemaTransformation"
  * last row of the page before: `<createdAtMillis>:<id>`. Its shape is checked
  * here, so a malformed cursor is a decode failure (400) rather than a
  * silently empty page; the handler turns the checked string into the keyset.
+ * The millis are capped at thirteen digits, which reach the year 2286, so
+ * every cursor that decodes names an instant the clock and the database hold.
  */
 export const Cursor = Schema.String.check(
   Schema.isPattern(
-    /^\d+:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/,
+    /^\d{1,13}:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/,
     {
       identifier: "Cursor",
       description: "a page cursor, `<createdAtMillis>:<id>`",

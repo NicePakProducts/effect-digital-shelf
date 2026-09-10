@@ -1,6 +1,9 @@
 import { extractionModel } from "../Providers/LanguageModel.ts"
 import type { SqlError } from "effect/unstable/sql/SqlError"
-import { RetailerNotFound } from "@digital-shelf/domain/Catalog/Errors"
+import {
+  ProductNotFound,
+  RetailerNotFound,
+} from "@digital-shelf/domain/Catalog/Errors"
 import {
   ExtractionInFlight,
   NoSuccessfulScrape,
@@ -342,6 +345,10 @@ const make = Effect.gen(function* () {
   const latestExtractedDataForProduct = Effect.fn(
     "Extractions.latestExtractedDataForProduct",
   )(function* (id: ProductId) {
+    if (
+      !(yield* ParentsRepo.containerExists({ _tag: "Product", productId: id }))
+    )
+      return yield* new ProductNotFound({ productId: id })
     return yield* ExtractionsRepo.latestExtractedDataForProduct(id)
   }, withDb)
   return {

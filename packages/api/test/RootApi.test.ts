@@ -90,6 +90,11 @@ describe("RootApi", () => {
     expect(
       codes(spec.paths["/api/v1/extractions/bulk"]!.post!.responses),
     ).toEqual(["202", "401", "404"])
+    expect(
+      codes(
+        spec.paths["/api/v1/products/{id}/latest-extractions"]!.get!.responses,
+      ),
+    ).toEqual(["200", "401", "404"])
     // DispatchOutcome is core's own vocabulary and never reaches the wire.
     expect(JSON.stringify(spec)).not.toContain("in-flight-skip")
     expect(JSON.stringify(spec)).not.toContain("SqlError")
@@ -103,7 +108,10 @@ describe("RootApi", () => {
     expect(row).toContain("rootSpanId")
     expect(
       spec.paths["/api/v1/scrapes/{id}/content"]!.get!.responses[200],
-    ).toMatchObject({ content: { "text/html": {} } })
+    ).toMatchObject({ content: { "text/plain; charset=utf-8": {} } })
+    expect(
+      JSON.stringify(spec.paths["/api/v1/scrapes/{id}/content"]!.get!),
+    ).not.toContain("text/html")
     expect(
       codesOf(spec.paths["/api/v1/scrapes/{id}/content"]!.get!.responses),
     ).toEqual(["200", "401", "404"])
@@ -116,6 +124,8 @@ describe("RootApi", () => {
     })
     expect(spec.components!.schemas!["Cursor"]).toMatchObject({
       type: "string",
+      pattern:
+        "^\\d{1,13}:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
       description: "a page cursor, `<createdAtMillis>:<id>`",
     })
     for (const path of ["/api/v1/scrapes", "/api/v1/extractions"]) {

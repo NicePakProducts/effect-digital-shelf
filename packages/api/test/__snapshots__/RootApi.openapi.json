@@ -4702,7 +4702,7 @@
           "200": {
             "description": "Success",
             "content": {
-              "text/html": {
+              "text/plain; charset=utf-8": {
                 "schema": {
                   "type": "string"
                 }
@@ -6030,6 +6030,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "ProductNotFound",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductNotFoundEncoded"
+                }
+              }
+            }
           }
         }
       }
@@ -6287,7 +6297,7 @@
       },
       "Cursor": {
         "type": "string",
-        "pattern": "^\\d+:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        "pattern": "^\\d{1,13}:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
         "description": "a page cursor, `<createdAtMillis>:<id>`"
       },
       "Limit": {

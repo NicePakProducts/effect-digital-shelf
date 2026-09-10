@@ -144,6 +144,8 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           for (const query of [
             "cursor=not-a-cursor",
             "cursor=1757376000000:nope",
+            `cursor=99999999999999999999:${missing}`,
+            `cursor=99999999999999:${missing}`,
             "limit=0",
             "limit=101",
           ]) {
@@ -182,21 +184,31 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
       }),
     )
     it.effect(
-      "GET /scrapes/:id/content serves the stored HTML and answers 404 once retention took it",
+      "GET /scrapes/:id/content serves the stored page as plain text and answers 404 once retention took it",
       () =>
         Effect.gen(function* () {
           yield* reset
           const { parent } = yield* (yield* seed()).listing
-          const scrape = yield* successfulScrape(parent, {
-            html: "<p>Kept</p>",
-          })
+          const html = "<p>Kept</p><script>fetch('/api/v1/scrapes')</script>"
+          const scrape = yield* successfulScrape(parent, { html })
           const api = yield* client
           const [content, response] = yield* api.scrapes.content({
             params: { id: scrape.id },
             responseMode: "decoded-and-response",
           })
-          expect(content).toBe("<p>Kept</p>")
-          expect(response.headers["content-type"]).toContain("text/html")
+          expect(content).toBe(html)
+          expect(response.headers["content-type"]).toBe(
+            "text/plain; charset=utf-8",
+          )
+          expect(response.headers["content-type"]).not.toContain("text/html")
+          const raw = yield* ApiTest.rawClient
+          const served = yield* raw.get(
+            `${ApiTest.baseUrl}/scrapes/${scrape.id}/content`,
+          )
+          expect(served.headers["content-type"]).toBe(
+            "text/plain; charset=utf-8",
+          )
+          expect(yield* served.text).toBe(html)
           expect(
             (yield* api.scrapes.get({ params: { id: scrape.id } })).status,
           ).toBe("success")
@@ -392,9 +404,18 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           }
           expect(
             yield* api.extractions.latestForProduct({
-              params: { id: missingProductId },
+              params: { id: (yield* seed()).productId },
             }),
           ).toEqual({ items: [] })
+          const unknown = yield* api.extractions.latestForProduct({
+            params: { id: missingProductId },
+            responseMode: "response-only",
+          })
+          expect(unknown.status).toBe(404)
+          expect(yield* unknown.json).toEqual({
+            _tag: "ProductNotFound",
+            productId: missingProductId,
+          })
         }),
     )
   },
