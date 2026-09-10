@@ -475,10 +475,16 @@ while :; do
   say "Checking SELECT 1 over the direct connection…"
   if version=$(PGSSLROOTCERT=system PGCONNECT_TIMEOUT=15 psql "$DATABASE_URL" -Atc 'select version()' 2>/tmp/provision-psql.err); then
     say "${GREEN}✓${RESET} connected: ${version%% on *}"
-    break
+    # Migrations need DDL: prove it with a CREATE TABLE that is rolled back.
+    if PGSSLROOTCERT=system psql "$DATABASE_URL" -Atc 'begin; create table _provision_probe(x int); rollback;' >/dev/null 2>/tmp/provision-psql.err; then
+      say "${GREEN}✓${RESET} the role can run DDL (rolled-back CREATE TABLE), so pnpm db:migrate will work"
+      break
+    fi
+    warn "the role cannot run DDL: $(head -c 200 /tmp/provision-psql.err). Migrations need the default 'postgres' role or one with CREATE on the schema; create that role and paste its string."
+  else
+    warn "psql failed: $(head -c 300 /tmp/provision-psql.err)"
+    note "psql needs libpq 16+ for sslrootcert=system; on an older libpq, try again after 'brew install libpq'."
   fi
-  warn "psql failed: $(head -c 300 /tmp/provision-psql.err)"
-  note "psql needs libpq 16+ for sslrootcert=system; on an older libpq, try again after 'brew install libpq'."
   confirm "Paste the string again?" || break
   ask_secret DATABASE_URL "Paste the connection string:"
 done
