@@ -31,6 +31,17 @@ A scrape management system for a digital shelf, built on Effect v4 and Cloudflar
 
 Run `vp check` and `vp test --run` for every affected workspace package.
 
+`.github/workflows/ci.yml` runs exactly those commands for every package on
+every pull request, and nothing else: it never deploys and never touches a
+project database. It also starts a disposable PostgreSQL service, because
+PGlite runs one connection in-process and so cannot overlap two transactions.
+A test that needs a real server reads the DSN from
+`DIGITAL_SHELF_TEST_POSTGRES_URL` and may skip itself when it is unset, so a
+local run without Postgres stays green; a skipped test is never the proof, so
+CI always sets it and `.github/scripts/postgres-lock-probe.sh` fails the job
+if the service is not really there. Never point that variable at a dev or
+production database.
+
 ## Agent skills
 
 ### Issue tracker
