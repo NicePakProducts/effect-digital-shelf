@@ -77,23 +77,6 @@ describe("ScrapeProviders — the mode picks the provider", () => {
       expect(Option.isSome(envelope.ipInfo)).toBe(true)
     }),
   )
-
-  it.effect("a URL no provider could navigate never leaves core", () =>
-    Effect.gen(function* () {
-      const { service, browser, http } = yield* providers({})
-      for (const url of ["not a url", "ftp://example.com/x", ""]) {
-        const error = yield* Effect.flip(
-          service.fetch("basic", { url, country: Option.none() }),
-        )
-        expect(error.code).toBe("invalid_url")
-        expect(error.retryable).toBe(false)
-        // No Fetch attempt was made, so none is claimed.
-        expect(error.attempts).toBe(0)
-      }
-      expect(browser.launched()).toBe(0)
-      expect(yield* http.requests).toEqual([])
-    }),
-  )
 })
 
 describe("ScrapeProviders — Fetch attempts", () => {

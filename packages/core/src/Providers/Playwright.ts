@@ -22,9 +22,6 @@ import {
  * `session` is the Browser Rendering session id.
  */
 
-/** How long a launched session is kept alive after the last command. */
-const KEEP_ALIVE_MS = 30_000
-
 /**
  * The slice of Playwright this module drives, named structurally so the test
  * layer can script a browser without the library and so the one cast the
@@ -73,12 +70,9 @@ export type Launch = (binding: BrowserBinding) => Promise<Browser>
  */
 export const launchOnWorkerd: Launch = async (binding) => {
   const playwright = (await import("@cloudflare/playwright")) as unknown as {
-    readonly launch: (
-      endpoint: unknown,
-      options: { readonly keep_alive: number },
-    ) => Promise<Browser>
+    readonly launch: (endpoint: unknown) => Promise<Browser>
   }
-  return playwright.launch(binding, { keep_alive: KEEP_ALIVE_MS })
+  return playwright.launch(binding)
 }
 
 const isJson = Schema.is(Schema.Json)
@@ -172,7 +166,7 @@ export const fetchOnce = (options: {
     const cookies = yield* step("capture", () => context.cookies())
     const innerText = yield* step("capture", () => page.innerText("body"))
     // A string expression, never a function: see `Page.evaluate` above.
-    const evaluated = yield* step("capture", () =>
+    const userAgent = yield* step("capture", () =>
       page.evaluate("navigator.userAgent"),
     )
     const html = yield* step("capture", () => page.content())
@@ -182,10 +176,7 @@ export const fetchOnce = (options: {
       responseHeaders,
       cookies: asJson(cookies, []),
       innerText,
-      userAgent:
-        typeof evaluated === "string"
-          ? evaluated
-          : (requestHeaders["user-agent"] ?? ""),
+      userAgent: typeof userAgent === "string" ? userAgent : "",
       ipInfo: Option.none(),
       type: "html",
       session: Option.some(browser.sessionId()),

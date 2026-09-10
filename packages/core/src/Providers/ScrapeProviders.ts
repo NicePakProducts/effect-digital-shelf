@@ -90,18 +90,6 @@ const policy = (prefix: string) =>
   })
 
 /**
- * Only a URL a provider could actually navigate is worth an attempt; the
- * Retailer host rule is not this module's business.
- */
-const navigable = (url: string) => {
-  try {
-    return /^https?:$/.test(new URL(url).protocol)
-  } catch {
-    return false
-  }
-}
-
-/**
  * Counts the Fetch attempts a Scrape actually made and stamps the count on
  * whichever outcome it reaches, so the envelope and the error agree with the
  * row the runner writes. Each attempt gets its own span, and neither it nor
@@ -210,15 +198,6 @@ const make = (options: { readonly launch: Playwright.Launch }) =>
       mode: ScrapeMode,
       request: ScrapeRequest,
     ) {
-      if (!navigable(request.url))
-        return yield* Effect.fail(
-          new ScrapeProviderError({
-            code: "invalid_url",
-            retryable: false,
-            message: "Request URL is not an http(s) URL",
-            attempts: 0,
-          }),
-        )
       return yield* mode === "basic"
         ? attempted(
             "browser",

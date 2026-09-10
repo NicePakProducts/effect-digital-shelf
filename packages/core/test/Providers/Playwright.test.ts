@@ -57,16 +57,16 @@ describe("Playwright provider — envelope", () => {
     }),
   )
 
-  it.effect("falls back to the request's user agent header", () =>
+  it.effect("reads the user agent from the page alone", () =>
     Effect.gen(function* () {
-      // Alchemy's bundler can fold an in-page read; the headers Chrome
-      // actually sent are the second source (#18).
+      // The in-page read is the one source: the request header is not a
+      // second one (#18).
       const browser = Browser.scripted({
         userAgent: undefined,
         requestHeaders: { "user-agent": "Chrome/119" },
       })
       const { envelope } = yield* fetchOnce(browser)
-      expect(envelope.userAgent).toBe("Chrome/119")
+      expect(envelope.userAgent).toBe("")
     }),
   )
 

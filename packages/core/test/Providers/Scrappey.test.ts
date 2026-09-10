@@ -86,14 +86,35 @@ describe("Scrappey provider — envelope", () => {
       expect(envelope.ipInfo).toEqual(Option.some(success.solution.ipInfo))
       expect(envelope.session).toEqual(Option.some(success.session))
       expect(html).toBe(success.solution.response)
-      // `raw` is forensics with the HTML stripped (#13).
+      // `raw` is the whole vendor payload with the HTML stripped (#13):
+      // fields this client never reads still reach the forensic record.
       expect(JSON.stringify(envelope.raw)).not.toContain("<html>")
-      expect(envelope.raw).toEqual({
-        requestHeaders: success.solution.requestHeaders,
-        responseHeaders: success.solution.responseHeaders,
-        type: "html",
-        data: "success",
-      })
+      const { response: _html, ...solution } = success.solution
+      expect(envelope.raw).toEqual({ ...success, solution })
+    }),
+  )
+
+  it.effect("keeps vendor fields it does not model in `raw`", () =>
+    Effect.gen(function* () {
+      const { fetch } = yield* against(() =>
+        Http.json({
+          ...success,
+          solution: {
+            ...success.solution,
+            fingerprint: { vendor: "extension" },
+          },
+          creditsLeft: 41,
+        }),
+      )
+      const { envelope } = yield* fetch
+      const raw = envelope.raw as {
+        readonly creditsLeft: number
+        readonly solution: Record<string, unknown>
+      }
+      expect(raw.creditsLeft).toBe(41)
+      expect(raw.solution.fingerprint).toEqual({ vendor: "extension" })
+      expect(raw.solution.verified).toBe(true)
+      expect(raw.solution).not.toHaveProperty("response")
     }),
   )
 
@@ -102,7 +123,7 @@ describe("Scrappey provider — envelope", () => {
       const { fetch } = yield* against(() =>
         Http.json({
           data: "success",
-          solution: { response: "<html></html>" },
+          solution: { statusCode: 200, response: "<html></html>" },
         }),
       )
       const { envelope } = yield* fetch
@@ -149,6 +170,17 @@ describe("Scrappey provider — classification", () => {
       const error = yield* failing(() => Http.json(noPage))
       expect(error.code).toBe("provider_error")
       expect(error.message).toContain("without a rendered page")
+    }),
+  )
+
+  it.effect("a solution without a status code is a provider error", () =>
+    Effect.gen(function* () {
+      const error = yield* failing(() =>
+        Http.json({ data: "success", solution: { response: "<html></html>" } }),
+      )
+      expect(error.code).toBe("provider_error")
+      expect(error.retryable).toBe(false)
+      expect(error.message).toContain("without a status code")
     }),
   )
 

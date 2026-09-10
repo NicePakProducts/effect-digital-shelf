@@ -54,6 +54,19 @@ const Body = Schema.Struct({
 })
 type Body = typeof Body.Type
 const decodeBody = Schema.decodeUnknownEffect(Body)
+const decodeJson = Schema.decodeUnknownEffect(Schema.Json)
+
+const isJsonObject = (json: Schema.Json): json is Schema.JsonObject =>
+  json !== null && typeof json === "object" && !Array.isArray(json)
+
+/** The vendor payload with the HTML stripped: forensics only (#13). */
+const withoutHtml = (json: Schema.Json): Schema.Json => {
+  if (!isJsonObject(json)) return json
+  const { solution, ...rest } = json
+  if (solution === undefined || !isJsonObject(solution)) return json
+  const { response: _html, ...kept } = solution
+  return { ...rest, solution: kept }
+}
 
 /**
  * Scrappey's stable `CODE-XXXX` identifiers are the canonical key; the
@@ -170,9 +183,11 @@ const envelopeOf = (
   request: ScrapeRequest,
   body: Body,
   solution: NonNullable<Body["solution"]>,
+  statusCode: number,
+  raw: Schema.Json,
 ): ScrapeEnvelope => ({
   finalUrl: solution.currentUrl ?? solution.url ?? request.url,
-  statusCode: solution.statusCode ?? 200,
+  statusCode,
   responseHeaders: solution.responseHeaders ?? {},
   cookies: solution.cookies ?? [],
   innerText: solution.innerText ?? "",
@@ -184,17 +199,7 @@ const envelopeOf = (
   type: solution.type ?? "html",
   session:
     body.session === undefined ? Option.none() : Option.some(body.session),
-  // The vendor payload with the HTML stripped: forensics only (#13).
-  raw: {
-    ...(solution.requestHeaders === undefined
-      ? {}
-      : { requestHeaders: solution.requestHeaders }),
-    ...(solution.responseHeaders === undefined
-      ? {}
-      : { responseHeaders: solution.responseHeaders }),
-    ...(solution.type === undefined ? {} : { type: solution.type }),
-    ...(body.data === undefined ? {} : { data: body.data }),
-  },
+  raw,
   attempts: 1,
 })
 
@@ -240,7 +245,10 @@ export const fetchOnce = (options: {
       "Scrappey answered a body this client cannot read",
       null,
     )
-    const json = yield* response.json.pipe(Effect.mapError(() => unread))
+    const json = yield* response.json.pipe(
+      Effect.flatMap(decodeJson),
+      Effect.mapError(() => unread),
+    )
     const body = yield* decodeBody(json).pipe(Effect.mapError(() => unread))
     if (body.error !== undefined || body.data === "error")
       return yield* Effect.fail(
@@ -259,8 +267,22 @@ export const fetchOnce = (options: {
           null,
         ),
       )
+    if (solution.statusCode === undefined)
+      return yield* Effect.fail(
+        providerError(
+          { code: "provider_error", retryable: false },
+          "Scrappey answered without a status code",
+          null,
+        ),
+      )
     return {
-      envelope: envelopeOf(options.request, body, solution),
+      envelope: envelopeOf(
+        options.request,
+        body,
+        solution,
+        solution.statusCode,
+        withoutHtml(json),
+      ),
       html: solution.response,
     }
   }).pipe(
