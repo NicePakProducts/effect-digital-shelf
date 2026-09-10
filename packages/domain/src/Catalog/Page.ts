@@ -6,7 +6,7 @@ import {
 } from "drizzle-orm/effect-schema"
 import * as Schema from "effect/Schema"
 import { BrandId, PageId, RetailerId } from "../Shared/Ids.ts"
-import { Timestamp, nullable } from "../Shared/Refine.ts"
+import { Timestamp, Url, nullable } from "../Shared/Refine.ts"
 import { pages } from "../Sql/Catalog.ts"
 
 /** A Brand's storefront or brand page on a Retailer, unique per pair. */
@@ -14,6 +14,7 @@ export const Page = createSelectSchema(pages, {
   id: PageId,
   brandId: BrandId,
   retailerId: RetailerId,
+  url: Url,
   lastScrapedAt: nullable(Timestamp),
   createdAt: Timestamp,
   updatedAt: Timestamp,
@@ -24,6 +25,7 @@ export const PageInsert = createInsertSchema(pages, {
   id: Schema.optionalKey(PageId),
   brandId: BrandId,
   retailerId: RetailerId,
+  url: Url,
   lastScrapedAt: Schema.optionalKey(nullable(Timestamp)),
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
@@ -34,6 +36,7 @@ export const PageUpdate = createUpdateSchema(pages, {
   id: Schema.optionalKey(PageId),
   brandId: Schema.optionalKey(BrandId),
   retailerId: Schema.optionalKey(RetailerId),
+  url: Schema.optionalKey(Url),
   lastScrapedAt: Schema.optionalKey(nullable(Timestamp)),
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),

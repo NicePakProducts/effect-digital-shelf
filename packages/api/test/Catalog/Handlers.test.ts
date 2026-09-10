@@ -12,6 +12,7 @@ import {
   RetailerDomainTaken,
   VariantNotInProduct,
   PageAlreadyExists,
+  UrlHostMismatch,
 } from "@digital-shelf/domain/Catalog/Errors"
 import { DateTime, Effect, FileSystem, Layer, Path, Schema } from "effect"
 import * as Etag from "effect/unstable/http/Etag"
@@ -332,6 +333,82 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
             brandId: brand.id,
             retailerId: retailer.id,
             pageId: page.id,
+          }),
+        )
+      }),
+  )
+  it.effect(
+    "returns UrlHostMismatch as 422 on a Listing, a Page and a domain change",
+    () =>
+      Effect.gen(function* () {
+        yield* DbTest.reset
+        const api = yield* client
+        const brand = yield* api.brands.create({ payload: { name: "Gaia" } })
+        const product = yield* api.products.create({
+          payload: { brandId: brand.id, name: "Wash" },
+        })
+        const retailer = yield* api.retailers.create({
+          payload: { name: "Shop", domain: "example.com.au" },
+        })
+        const off = "https://elsewhere.com.au/item"
+        const mismatch = {
+          url: off,
+          domain: "example.com.au",
+          listingIds: [],
+          pageIds: [],
+        }
+        expect(
+          yield* Effect.flip(
+            api.listings.create({
+              payload: {
+                productId: product.id,
+                retailerId: retailer.id,
+                url: off,
+              },
+            }),
+          ),
+        ).toEqual(new UrlHostMismatch(mismatch))
+        expect(
+          yield* Effect.flip(
+            api.pages.create({
+              payload: {
+                brandId: brand.id,
+                retailerId: retailer.id,
+                url: off,
+              },
+            }),
+          ),
+        ).toEqual(new UrlHostMismatch(mismatch))
+        expect(
+          (yield* api.pages.create({
+            payload: {
+              brandId: brand.id,
+              retailerId: retailer.id,
+              url: off,
+            },
+            responseMode: "response-only",
+          })).status,
+        ).toBe(422)
+        const page = yield* api.pages.create({
+          payload: {
+            brandId: brand.id,
+            retailerId: retailer.id,
+            url: "https://www.example.com.au/brand",
+          },
+        })
+        expect(
+          yield* Effect.flip(
+            api.retailers.update({
+              params: { id: retailer.id },
+              payload: { domain: "elsewhere.com.au" },
+            }),
+          ),
+        ).toEqual(
+          new UrlHostMismatch({
+            url: "https://www.example.com.au/brand",
+            domain: "elsewhere.com.au",
+            listingIds: [],
+            pageIds: [page.id],
           }),
         )
       }),

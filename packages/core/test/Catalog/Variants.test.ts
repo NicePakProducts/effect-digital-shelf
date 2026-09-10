@@ -64,7 +64,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Variants", (it) => {
         const listing = yield* listings.create({
           productId: c.productId,
           retailerId: c.retailerId,
-          url: "https://example.com/item",
+          url: c.url("/item"),
           variantIds: [a.id, b.id],
         })
         expect(yield* variants.remove(a.id)).toEqual(emptyImpact)

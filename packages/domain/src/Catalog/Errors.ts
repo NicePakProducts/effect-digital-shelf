@@ -73,3 +73,19 @@ export class PageAlreadyExists extends Schema.TaggedError<PageAlreadyExists>()(
   "PageAlreadyExists",
   { brandId: BrandId, retailerId: RetailerId, pageId: PageId },
 ) {}
+
+/**
+ * A Listing or Page URL does not sit on its Retailer's domain. Raised on the
+ * child write that would store it and on a Retailer domain change that would
+ * invalidate children already stored; the Retailer path names the offending
+ * rows, and `url` is the first URL that would violate the domain.
+ */
+export class UrlHostMismatch extends Schema.TaggedError<UrlHostMismatch>()(
+  "UrlHostMismatch",
+  {
+    url: Schema.String,
+    domain: Schema.String,
+    listingIds: Schema.Array(ListingId),
+    pageIds: Schema.Array(PageId),
+  },
+) {}

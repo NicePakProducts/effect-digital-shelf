@@ -61,7 +61,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
       yield* (yield* Listings).create({
         productId: c.productId,
         retailerId: c.retailerId,
-        url: "https://example.com/item",
+        url: c.url("/item"),
       })
       expect(
         (yield* products.update(c.productId, { name: "Updated", paused: true }))

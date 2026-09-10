@@ -14,6 +14,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { Db } from "../Sql/Db.ts"
 import { Cascade } from "./Cascade.ts"
+import { requireHostMatch } from "./HostRule.ts"
 import * as Repo from "./repositories/PagesRepo.ts"
 import * as BrandsRepo from "./repositories/BrandsRepo.ts"
 import * as RetailersRepo from "./repositories/RetailersRepo.ts"
@@ -33,8 +34,8 @@ const make = Effect.gen(function* () {
     const insert = db.transaction(() =>
       Effect.gen(function* () {
         yield* BrandsRepo.get(command.brandId)
-        yield* RetailersRepo.get(command.retailerId)
-        // #38 adds the FOR SHARE Retailer lock and the URL host check here.
+        const retailer = yield* RetailersRepo.getForShare(command.retailerId)
+        yield* requireHostMatch(command.url, retailer.domain)
         const row = yield* Repo.insert({
           ...command,
           cadence: command.cadence ?? defaultCadence,
@@ -98,7 +99,14 @@ const make = Effect.gen(function* () {
   ) {
     return yield* db.transaction(() =>
       Effect.gen(function* () {
-        // #38 adds the FOR SHARE Retailer lock and the URL host check here.
+        if (command.url !== undefined) {
+          const row = yield* Repo.get(id)
+          // The foreign key guarantees the Retailer: its absence is a defect.
+          const retailer = yield* RetailersRepo.getForShare(
+            row.retailerId,
+          ).pipe(Effect.catchTag("RetailerNotFound", Effect.die))
+          yield* requireHostMatch(command.url, retailer.domain)
+        }
         yield* Repo.update(id, command)
         return yield* get(id)
       }),

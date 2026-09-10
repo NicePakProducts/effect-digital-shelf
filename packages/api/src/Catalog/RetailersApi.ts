@@ -29,6 +29,7 @@ export class RetailersApi extends HttpApiGroup.make("retailers").add(
       Errors.RetailerNotFound,
       Errors.InvalidRetailerDomain,
       Errors.RetailerDomainTaken,
+      Errors.UrlHostMismatch,
     ],
   }),
   HttpApiEndpoint.get("impact", "/retailers/:id/impact", {

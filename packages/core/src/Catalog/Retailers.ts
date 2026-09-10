@@ -1,7 +1,11 @@
-import { RetailerDomain } from "@digital-shelf/domain/Catalog/Retailer"
+import {
+  RetailerDomain,
+  hostMatches,
+} from "@digital-shelf/domain/Catalog/Retailer"
 import {
   InvalidRetailerDomain,
   RetailerDomainTaken,
+  UrlHostMismatch,
 } from "@digital-shelf/domain/Catalog/Errors"
 import {
   type CreateRetailer,
@@ -19,6 +23,8 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { Db } from "../Sql/Db.ts"
 import { Cascade } from "./Cascade.ts"
+import * as ListingsRepo from "./repositories/ListingsRepo.ts"
+import * as PagesRepo from "./repositories/PagesRepo.ts"
 import * as Repo from "./repositories/RetailersRepo.ts"
 
 /** Accept a pasted URL or host, and store only its canonical domain. */
@@ -41,6 +47,32 @@ const requireDomain = (input: string) =>
     onNone: () => Effect.fail(new InvalidRetailerDomain({ input })),
     onSome: Effect.succeed,
   })
+/**
+ * Every child URL that the new domain would leave stranded. The Retailer row
+ * is already locked `FOR UPDATE` when this runs, so no concurrent child write
+ * can add one behind it.
+ */
+const refuseStrandedChildren = Effect.fn("Retailers.refuseStrandedChildren")(
+  function* (id: RetailerId, domain: RetailerDomain) {
+    const listings = (yield* ListingsRepo.list({ retailerId: id })).filter(
+      (row) => !hostMatches(row.url, domain),
+    )
+    const pages = (yield* PagesRepo.list({ retailerId: id })).filter(
+      (row) => !hostMatches(row.url, domain),
+    )
+    const first = listings[0] ?? pages[0]
+    if (first === undefined) return
+    return yield* Effect.fail(
+      new UrlHostMismatch({
+        url: first.url,
+        domain,
+        listingIds: listings.map((row) => row.id),
+        pageIds: pages.map((row) => row.id),
+      }),
+    )
+  },
+)
+
 const make = Effect.gen(function* () {
   const db = yield* Db
   const withDb = Effect.provideService(Db, db)
@@ -97,13 +129,21 @@ const make = Effect.gen(function* () {
     const { domain: input, ...patch } = command
     const domain = input === undefined ? undefined : yield* requireDomain(input)
     return yield* db
-      .transaction(() => {
-        // #38 adds the FOR UPDATE lock and the child URL host check here.
-        return Repo.update(id, {
-          ...patch,
-          ...(domain === undefined ? {} : { domain }),
-        })
-      })
+      .transaction(() =>
+        Effect.gen(function* () {
+          if (domain !== undefined) {
+            // The lock excludes child writes until this transaction commits,
+            // so a Listing or Page cannot slip past the check below on the
+            // old domain and land under the new one.
+            yield* Repo.getForUpdate(id)
+            yield* refuseStrandedChildren(id, domain)
+          }
+          return yield* Repo.update(id, {
+            ...patch,
+            ...(domain === undefined ? {} : { domain }),
+          })
+        }),
+      )
       .pipe(
         Effect.catchTag("DomainTaken", () =>
           domain === undefined
