@@ -4,6 +4,8 @@
 
 We chose function repositories over `Context.Service` repositories because nothing varies across that seam: there is one Postgres, and tests run the real queries on PGlite. A service tag would be a hypothetical seam paid for on every call site. Features are services because their callers (API handlers, cron, MCP) do vary and are wired differently per Worker.
 
+_Amended by ADR 0008_: repositories are `Context.Service` classes provided by the feature that uses them. The seam exists for composition and closed method environments, not for fakes, which stay forbidden; the rules for the queries inside a repository are unchanged.
+
 ## Considered options
 
 - **Repositories as services with in-memory fakes.** Rejected: the fakes would restate the queries' semantics (ordering, uniqueness, cascade) and drift from them. PGlite runs the real thing in milliseconds.
