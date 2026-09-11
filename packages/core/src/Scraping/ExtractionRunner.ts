@@ -16,7 +16,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as LanguageModel from "effect/unstable/ai/LanguageModel"
-import { completeJson } from "../Providers/LanguageModel.ts"
+import { aiGatewayId, completeJson } from "../Providers/LanguageModel.ts"
 import { Executions } from "../Scheduling/Executions.ts"
 import { Db } from "../Sql/Db.ts"
 import { R2Bucket } from "../Storage/R2Bucket.ts"
@@ -61,6 +61,7 @@ const make = Effect.gen(function* () {
   const withDb = Effect.provideService(Db, db)
   const bucket = yield* R2Bucket
   const model = yield* LanguageModel.LanguageModel
+  const gatewayId = yield* aiGatewayId.pipe(Effect.orDie)
   yield* Executions
 
   const deadline = yield* Config.duration("EXTRACTION_DEADLINE").pipe(
@@ -143,9 +144,12 @@ const make = Effect.gen(function* () {
               Schema.Struct({
                 extractionId: Schema.String,
                 scrapeId: ScrapeId,
+                gatewayId: Schema.String,
               }),
             ),
-          )({ extractionId: id, scrapeId: target.scrapeId }).pipe(Effect.orDie),
+          )({ extractionId: id, scrapeId: target.scrapeId, gatewayId }).pipe(
+            Effect.orDie,
+          ),
         }
 
         if (Option.isSome(span) && span.value.spanId !== "noop") {

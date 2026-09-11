@@ -116,13 +116,37 @@ const make = Effect.gen(function* () {
       const skipped: string[] = []
 
       for (let i = 0; i < rows.length; i += startBatchLimit) {
+        const caller = yield* Effect.currentSpan.pipe(Effect.option)
+        const batch = rows.slice(i, i + startBatchLimit)
+
         const report = yield* executions.start(
           "extraction",
-          rows.slice(i, i + startBatchLimit).map((row) => ({
+          batch.map((row) => ({
             id: row.id,
             traceparent: traceparentOf(row.scrapeId, row.rootSpanId),
           })),
         )
+
+        for (const row of batch)
+          yield* Effect.void.pipe(
+            Effect.withSpan("Extraction.dispatch", {
+              parent: Tracer.externalSpan({
+                traceId: traceIdOf(row.scrapeId),
+                spanId: row.rootSpanId,
+              }),
+              links:
+                Option.isSome(caller) && caller.value.spanId !== "noop"
+                  ? [{ span: caller.value, attributes: {} }]
+                  : [],
+              attributes: {
+                "shelf.scrape.id": row.scrapeId,
+                "shelf.extraction.id": row.id,
+                "shelf.attempt": row.attempt,
+                "shelf.execution.kind": "extraction",
+                "shelf.dispatch.started": report.started.includes(row.id),
+              },
+            }),
+          )
 
         started += report.started.length
         skipped.push(...report.skipped)

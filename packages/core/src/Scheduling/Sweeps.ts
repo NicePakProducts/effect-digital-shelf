@@ -6,6 +6,8 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Tracer from "effect/Tracer"
+import { traceIdOf } from "../Scraping/Trace.ts"
 import { keysOf } from "../Scraping/R2Keys.ts"
 import { transition, transitionExtraction } from "../Scraping/Transitions.ts"
 import * as ScrapesRepo from "../Scraping/repositories/ScrapesRepo.ts"
@@ -78,6 +80,13 @@ const make = Effect.gen(function* () {
         Effect.catchCause((cause) =>
           Effect.logError("Stuck Scrape sweep failed for row", row.id, cause),
         ),
+        Effect.annotateSpans("shelf.scrape.id", row.id),
+        Effect.linkSpans(
+          Tracer.externalSpan({
+            traceId: traceIdOf(row.id),
+            spanId: row.rootSpanId,
+          }),
+        ),
       )
     }
 
@@ -90,34 +99,50 @@ const make = Effect.gen(function* () {
 
     for (const row of extractionRows) {
       yield* Effect.gen(function* () {
-        const result = yield* transitionExtraction(
-          row.id,
-          "running",
-          "failed",
-          {
-            finishedAt: Option.some(now),
-            updatedAt: now,
-            errorCode: Option.some("llm_timeout"),
-            errorMessage: Option.some("Extraction exceeded the stuck bound"),
-          },
-        ).pipe(
-          Effect.catchTag("TransitionRejected", () => Effect.succeed(null)),
-        )
+        const scrape = yield* ScrapesRepo.get(row.scrapeId)
 
-        if (result?.result !== "applied") {
-          extractionsAlreadyTerminal++
-
-          return
-        }
-
-        extractionsFailed++
-        yield* executions
-          .terminate("extraction", row.id)
-          .pipe(
-            Effect.catchTag("ExecutionsError", (error) =>
-              Effect.logError("Stuck Extraction termination failed", error),
-            ),
+        return yield* Effect.gen(function* () {
+          const result = yield* transitionExtraction(
+            row.id,
+            "running",
+            "failed",
+            {
+              finishedAt: Option.some(now),
+              updatedAt: now,
+              errorCode: Option.some("llm_timeout"),
+              errorMessage: Option.some("Extraction exceeded the stuck bound"),
+            },
+          ).pipe(
+            Effect.catchTag("TransitionRejected", () => Effect.succeed(null)),
           )
+
+          if (result?.result !== "applied") {
+            extractionsAlreadyTerminal++
+
+            return
+          }
+
+          extractionsFailed++
+          yield* executions
+            .terminate("extraction", row.id)
+            .pipe(
+              Effect.catchTag("ExecutionsError", (error) =>
+                Effect.logError("Stuck Extraction termination failed", error),
+              ),
+            )
+        }).pipe(
+          Effect.annotateSpans({
+            "shelf.scrape.id": row.scrapeId,
+            "shelf.extraction.id": row.id,
+            "shelf.attempt": row.attempt,
+          }),
+          Effect.linkSpans(
+            Tracer.externalSpan({
+              traceId: traceIdOf(scrape.id),
+              spanId: scrape.rootSpanId,
+            }),
+          ),
+        )
       }).pipe(
         Effect.catchCause((cause) =>
           Effect.logError(

@@ -56,20 +56,22 @@ const orNotFound =
       }),
     )
 
-export const find = Effect.fn("ScrapesRepo.find")(function* (id: ScrapeId) {
-  const db = yield* Db
+export const find = Effect.fn("ScrapesRepo.find", { level: "Debug" })(
+  function* (id: ScrapeId) {
+    const db = yield* Db
 
-  return yield* one(
-    yield* query(db.select().from(scrapes).where(eq(scrapes.id, id))),
-  )
-})
+    return yield* one(
+      yield* query(db.select().from(scrapes).where(eq(scrapes.id, id))),
+    )
+  },
+)
 
 export const get = (id: ScrapeId) => find(id).pipe(orNotFound(id))
 
 /** The Parent's Scrape in `pending` or `running`, if any. */
-export const findInFlight = Effect.fn("ScrapesRepo.findInFlight")(function* (
-  parent: ScrapeParent,
-) {
+export const findInFlight = Effect.fn("ScrapesRepo.findInFlight", {
+  level: "Debug",
+})(function* (parent: ScrapeParent) {
   const db = yield* Db
 
   return yield* one(
@@ -91,15 +93,15 @@ export const findInFlight = Effect.fn("ScrapesRepo.findInFlight")(function* (
 })
 
 /** Manual dispatch uses the partial unique indexes as its refusal. */
-export const insert = Effect.fn("ScrapesRepo.insert")(function* (
-  scrape: ScrapeInsert,
-) {
-  const db = yield* Db
+export const insert = Effect.fn("ScrapesRepo.insert", { level: "Debug" })(
+  function* (scrape: ScrapeInsert) {
+    const db = yield* Db
 
-  return yield* Rows.decodeOne(Scrape)(
-    yield* query(db.insert(scrapes).values(toRow(scrape)).returning()),
-  )
-})
+    return yield* Rows.decodeOne(Scrape)(
+      yield* query(db.insert(scrapes).values(toRow(scrape)).returning()),
+    )
+  },
+)
 
 /**
  * Insert a `pending` Scrape unless its Parent is in flight, in which case
@@ -108,6 +110,7 @@ export const insert = Effect.fn("ScrapesRepo.insert")(function* (
  */
 export const insertUnlessInFlight = Effect.fn(
   "ScrapesRepo.insertUnlessInFlight",
+  { level: "Debug" },
 )(function* (scrape: ScrapeInsert) {
   const db = yield* Db
 
@@ -126,7 +129,9 @@ export const insertUnlessInFlight = Effect.fn(
  * `UPDATE ... WHERE id = ? AND status = from RETURNING`: `Some` when this
  * write moved the row, `None` when it did not, and the caller re-reads.
  */
-export const transition = Effect.fn("ScrapesRepo.transition")(function* (
+export const transition = Effect.fn("ScrapesRepo.transition", {
+  level: "Debug",
+})(function* (
   id: ScrapeId,
   from: ScrapeStatus,
   to: ScrapeStatus,
@@ -146,9 +151,9 @@ export const transition = Effect.fn("ScrapesRepo.transition")(function* (
 })
 
 /** `pending` rows oldest first, for the Cron's drain. */
-export const listPending = Effect.fn("ScrapesRepo.listPending")(function* (
-  limit: number,
-) {
+export const listPending = Effect.fn("ScrapesRepo.listPending", {
+  level: "Debug",
+})(function* (limit: number) {
   if (limit <= 0) return []
   const db = yield* Db
 
@@ -165,36 +170,35 @@ export const listPending = Effect.fn("ScrapesRepo.listPending")(function* (
 })
 
 /** `running` rows that started before `before`: the stuck sweep's targets. */
-export const listStuck = Effect.fn("ScrapesRepo.listStuck")(function* (
-  before: DateTime.Utc,
-) {
-  const db = yield* Db
+export const listStuck = Effect.fn("ScrapesRepo.listStuck", { level: "Debug" })(
+  function* (before: DateTime.Utc) {
+    const db = yield* Db
 
-  return yield* all(
-    yield* query(
-      db
-        .select()
-        .from(scrapes)
-        .where(
-          and(
-            eq(scrapes.status, "running"),
-            lt(scrapes.startedAt, DateTime.toDateUtc(before)),
-          ),
-        )
-        .orderBy(asc(scrapes.startedAt), asc(scrapes.id)),
-    ),
-  )
-})
+    return yield* all(
+      yield* query(
+        db
+          .select()
+          .from(scrapes)
+          .where(
+            and(
+              eq(scrapes.status, "running"),
+              lt(scrapes.startedAt, DateTime.toDateUtc(before)),
+            ),
+          )
+          .orderBy(asc(scrapes.startedAt), asc(scrapes.id)),
+      ),
+    )
+  },
+)
 
 /**
  * Remove up to `limit` terminal Scrapes created before `before`, oldest
  * first; Extractions cascade. Returns the ids actually removed so the
  * caller can delete their objects afterwards (ADR 0001).
  */
-export const deleteExpired = Effect.fn("ScrapesRepo.deleteExpired")(function* (
-  before: DateTime.Utc,
-  limit: number,
-) {
+export const deleteExpired = Effect.fn("ScrapesRepo.deleteExpired", {
+  level: "Debug",
+})(function* (before: DateTime.Utc, limit: number) {
   if (limit <= 0) return []
   const db = yield* Db
 
@@ -228,33 +232,34 @@ const Backlog = Schema.Struct({
 })
 
 /** Terminal Scrapes still waiting for retention, and the oldest of them. */
-export const expiredBacklog = Effect.fn("ScrapesRepo.expiredBacklog")(
-  function* (before: DateTime.Utc) {
-    const db = yield* Db
+export const expiredBacklog = Effect.fn("ScrapesRepo.expiredBacklog", {
+  level: "Debug",
+})(function* (before: DateTime.Utc) {
+  const db = yield* Db
 
-    const rows = yield* query(
-      db
-        .select({
-          remaining: sql<number>`count(*)::int`,
-          oldestCreatedAt: sql`min(${scrapes.createdAt})`.mapWith(
-            scrapes.createdAt,
-          ),
-        })
-        .from(scrapes)
-        .where(
-          and(
-            inArray(scrapes.status, terminalStatuses),
-            lt(scrapes.createdAt, DateTime.toDateUtc(before)),
-          ),
+  const rows = yield* query(
+    db
+      .select({
+        remaining: sql<number>`count(*)::int`,
+        oldestCreatedAt: sql`min(${scrapes.createdAt})`.mapWith(
+          scrapes.createdAt,
         ),
-    )
+      })
+      .from(scrapes)
+      .where(
+        and(
+          inArray(scrapes.status, terminalStatuses),
+          lt(scrapes.createdAt, DateTime.toDateUtc(before)),
+        ),
+      ),
+  )
 
-    return yield* Rows.decodeOne(Backlog)(rows)
-  },
-)
+  return yield* Rows.decodeOne(Backlog)(rows)
+})
 
 export const mostRecentSuccessful = Effect.fn(
   "ScrapesRepo.mostRecentSuccessful",
+  { level: "Debug" },
 )(function* (parent: ScrapeParent) {
   const db = yield* Db
 
@@ -282,41 +287,43 @@ export const mostRecentSuccessful = Effect.fn(
  * cursor names. One extra row is read so the caller knows whether another
  * page exists without a second query.
  */
-export const list = Effect.fn("ScrapesRepo.list")(function* (options: {
-  readonly listingId?: ListingId | undefined
-  readonly pageId?: PageId | undefined
-  readonly status?: ScrapeStatus | undefined
-  readonly cursor?: Cursor | undefined
-  readonly limit: number
-}) {
-  const db = yield* Db
+export const list = Effect.fn("ScrapesRepo.list", { level: "Debug" })(
+  function* (options: {
+    readonly listingId?: ListingId | undefined
+    readonly pageId?: PageId | undefined
+    readonly status?: ScrapeStatus | undefined
+    readonly cursor?: Cursor | undefined
+    readonly limit: number
+  }) {
+    const db = yield* Db
 
-  const rows = yield* all(
-    yield* query(
-      db
-        .select()
-        .from(scrapes)
-        .where(
-          and(
-            options.listingId === undefined
-              ? undefined
-              : eq(scrapes.listingId, options.listingId),
-            options.pageId === undefined
-              ? undefined
-              : eq(scrapes.pageId, options.pageId),
-            options.status === undefined
-              ? undefined
-              : eq(scrapes.status, options.status),
-            beforeCursor(scrapes.createdAt, scrapes.id, options.cursor),
-          ),
-        )
-        .orderBy(desc(scrapes.createdAt), desc(scrapes.id))
-        .limit(options.limit + 1),
-    ),
-  )
+    const rows = yield* all(
+      yield* query(
+        db
+          .select()
+          .from(scrapes)
+          .where(
+            and(
+              options.listingId === undefined
+                ? undefined
+                : eq(scrapes.listingId, options.listingId),
+              options.pageId === undefined
+                ? undefined
+                : eq(scrapes.pageId, options.pageId),
+              options.status === undefined
+                ? undefined
+                : eq(scrapes.status, options.status),
+              beforeCursor(scrapes.createdAt, scrapes.id, options.cursor),
+            ),
+          )
+          .orderBy(desc(scrapes.createdAt), desc(scrapes.id))
+          .limit(options.limit + 1),
+      ),
+    )
 
-  return {
-    items: rows.slice(0, options.limit),
-    hasMore: rows.length > options.limit,
-  }
-})
+    return {
+      items: rows.slice(0, options.limit),
+      hasMore: rows.length > options.limit,
+    }
+  },
+)

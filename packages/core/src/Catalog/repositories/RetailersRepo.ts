@@ -47,13 +47,15 @@ const orNotFound =
       }),
     )
 
-export const find = Effect.fn("RetailersRepo.find")(function* (id: RetailerId) {
-  const db = yield* Db
+export const find = Effect.fn("RetailersRepo.find", { level: "Debug" })(
+  function* (id: RetailerId) {
+    const db = yield* Db
 
-  return yield* one(
-    yield* query(db.select().from(retailers).where(eq(retailers.id, id))),
-  )
-})
+    return yield* one(
+      yield* query(db.select().from(retailers).where(eq(retailers.id, id))),
+    )
+  },
+)
 
 export const get = (id: RetailerId) => find(id).pipe(orNotFound(id))
 
@@ -64,7 +66,9 @@ export const get = (id: RetailerId) => find(id).pipe(orNotFound(id))
  * domain change's, which must exclude them while it inspects their URLs.
  */
 const locked = (strength: "share" | "update") =>
-  Effect.fn(`RetailersRepo.get.for.${strength}`)(function* (id: RetailerId) {
+  Effect.fn(`RetailersRepo.get.for.${strength}`, { level: "Debug" })(function* (
+    id: RetailerId,
+  ) {
     const db = yield* Db
 
     return yield* one(
@@ -78,61 +82,68 @@ export const getForShare = locked("share")
 
 export const getForUpdate = locked("update")
 
-export const list = Effect.fn("RetailersRepo.list")(function* () {
-  const db = yield* Db
+export const list = Effect.fn("RetailersRepo.list", { level: "Debug" })(
+  function* () {
+    const db = yield* Db
 
-  return yield* all(
-    yield* query(
-      db
-        .select()
-        .from(retailers)
-        .orderBy(asc(retailers.name), asc(retailers.createdAt)),
-    ),
-  )
-})
+    return yield* all(
+      yield* query(
+        db
+          .select()
+          .from(retailers)
+          .orderBy(asc(retailers.name), asc(retailers.createdAt)),
+      ),
+    )
+  },
+)
 
-export const insert = Effect.fn("RetailersRepo.insert")(function* (
-  retailer: RetailerInsert,
-) {
-  const db = yield* Db
+export const insert = Effect.fn("RetailersRepo.insert", { level: "Debug" })(
+  function* (retailer: RetailerInsert) {
+    const db = yield* Db
 
-  return yield* exactlyOne(
-    yield* query(db.insert(retailers).values(toRow(retailer)).returning()).pipe(
-      onUniqueViolation("retailers_domain", () => new DomainTaken()),
-    ),
-  )
-})
+    return yield* exactlyOne(
+      yield* query(
+        db.insert(retailers).values(toRow(retailer)).returning(),
+      ).pipe(onUniqueViolation("retailers_domain", () => new DomainTaken())),
+    )
+  },
+)
 
-export const update = Effect.fn("RetailersRepo.update")(function* (
-  id: RetailerId,
-  patch: RetailerUpdate,
-) {
-  const values = toPatch(patch)
+export const update = Effect.fn("RetailersRepo.update", { level: "Debug" })(
+  function* (id: RetailerId, patch: RetailerUpdate) {
+    const values = toPatch(patch)
 
-  if (Object.keys(values).length === 0) return yield* get(id)
-  const db = yield* Db
+    if (Object.keys(values).length === 0) return yield* get(id)
+    const db = yield* Db
 
-  return yield* one(
-    yield* query(
-      db.update(retailers).set(values).where(eq(retailers.id, id)).returning(),
-    ).pipe(onUniqueViolation("retailers_domain", () => new DomainTaken())),
-  ).pipe(orNotFound(id))
-})
+    return yield* one(
+      yield* query(
+        db
+          .update(retailers)
+          .set(values)
+          .where(eq(retailers.id, id))
+          .returning(),
+      ).pipe(onUniqueViolation("retailers_domain", () => new DomainTaken())),
+    ).pipe(orNotFound(id))
+  },
+)
 
 /** The raw row delete; Catalog/Cascade collects what the cascade drops first. */
-export const remove = Effect.fn("RetailersRepo.remove")(function* (
-  id: RetailerId,
-) {
-  const db = yield* Db
+export const remove = Effect.fn("RetailersRepo.remove", { level: "Debug" })(
+  function* (id: RetailerId) {
+    const db = yield* Db
 
-  return yield* one(
-    yield* query(db.delete(retailers).where(eq(retailers.id, id)).returning()),
-  ).pipe(orNotFound(id))
-})
+    return yield* one(
+      yield* query(
+        db.delete(retailers).where(eq(retailers.id, id)).returning(),
+      ),
+    ).pipe(orNotFound(id))
+  },
+)
 
-export const findByDomain = Effect.fn("RetailersRepo.findByDomain")(function* (
-  domain: RetailerDomain,
-) {
+export const findByDomain = Effect.fn("RetailersRepo.findByDomain", {
+  level: "Debug",
+})(function* (domain: RetailerDomain) {
   const db = yield* Db
 
   return yield* one(

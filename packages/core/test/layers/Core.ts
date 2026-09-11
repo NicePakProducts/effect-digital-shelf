@@ -16,6 +16,7 @@ export const layerTest = Layer.mergeAll(
   Layers.ScrapeWorkflow,
   Layers.ExtractionWorkflow,
 ).pipe(
+  Layer.provideMerge(Layers.TraceIdentity),
   Layer.provideMerge(
     Layer.mergeAll(
       DbTest.layerTest,
@@ -26,11 +27,12 @@ export const layerTest = Layer.mergeAll(
       EmailSenderTest.layerTest,
     ),
   ),
-  Layer.provide(
+  Layer.provideMerge(
     ConfigProvider.layerAdd(
       ConfigProvider.fromUnknown({
         AUTH_SECRET: "test-secret-with-at-least-thirty-two-characters",
         AUTH_BASE_URL: "http://localhost",
+        AI_GATEWAY_ID: "digital-shelf-ai-gateway-dev",
       }),
     ),
   ),

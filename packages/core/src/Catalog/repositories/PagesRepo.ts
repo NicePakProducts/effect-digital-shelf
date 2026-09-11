@@ -58,7 +58,9 @@ const orNotFound =
       }),
     )
 
-export const find = Effect.fn("PagesRepo.find")(function* (id: PageId) {
+export const find = Effect.fn("PagesRepo.find", { level: "Debug" })(function* (
+  id: PageId,
+) {
   const db = yield* Db
 
   return yield* one(
@@ -70,7 +72,7 @@ export const get = (id: PageId) => find(id).pipe(orNotFound(id))
 
 export type Filter = { brandId?: BrandId; retailerId?: RetailerId }
 
-export const list = Effect.fn("PagesRepo.list")(function* (
+export const list = Effect.fn("PagesRepo.list", { level: "Debug" })(function* (
   filter: Filter = {},
 ) {
   const db = yield* Db
@@ -95,45 +97,47 @@ export const list = Effect.fn("PagesRepo.list")(function* (
   )
 })
 
-export const insert = Effect.fn("PagesRepo.insert")(function* (
-  page: PageInsert,
-) {
-  const db = yield* Db
+export const insert = Effect.fn("PagesRepo.insert", { level: "Debug" })(
+  function* (page: PageInsert) {
+    const db = yield* Db
 
-  return yield* exactlyOne(
-    yield* query(db.insert(pages).values(toRow(page)).returning()).pipe(
-      onUniqueViolation("pages_brand_id_retailer_id", () => new PageTaken()),
-    ),
-  )
-})
+    return yield* exactlyOne(
+      yield* query(db.insert(pages).values(toRow(page)).returning()).pipe(
+        onUniqueViolation("pages_brand_id_retailer_id", () => new PageTaken()),
+      ),
+    )
+  },
+)
 
-export const update = Effect.fn("PagesRepo.update")(function* (
-  id: PageId,
-  patch: PageUpdate,
-) {
-  const values = toPatch(patch)
+export const update = Effect.fn("PagesRepo.update", { level: "Debug" })(
+  function* (id: PageId, patch: PageUpdate) {
+    const values = toPatch(patch)
 
-  if (Object.keys(values).length === 0) return yield* get(id)
-  const db = yield* Db
+    if (Object.keys(values).length === 0) return yield* get(id)
+    const db = yield* Db
 
-  return yield* one(
-    yield* query(
-      db.update(pages).set(values).where(eq(pages.id, id)).returning(),
-    ),
-  ).pipe(orNotFound(id))
-})
+    return yield* one(
+      yield* query(
+        db.update(pages).set(values).where(eq(pages.id, id)).returning(),
+      ),
+    ).pipe(orNotFound(id))
+  },
+)
 
 /** The raw row delete; Catalog/Cascade collects what the cascade drops first. */
-export const remove = Effect.fn("PagesRepo.remove")(function* (id: PageId) {
-  const db = yield* Db
+export const remove = Effect.fn("PagesRepo.remove", { level: "Debug" })(
+  function* (id: PageId) {
+    const db = yield* Db
 
-  return yield* one(
-    yield* query(db.delete(pages).where(eq(pages.id, id)).returning()),
-  ).pipe(orNotFound(id))
-})
+    return yield* one(
+      yield* query(db.delete(pages).where(eq(pages.id, id)).returning()),
+    ).pipe(orNotFound(id))
+  },
+)
 
 export const findByBrandAndRetailer = Effect.fn(
   "PagesRepo.findByBrandAndRetailer",
+  { level: "Debug" },
 )(function* (brandId: BrandId, retailerId: RetailerId) {
   const db = yield* Db
 
@@ -187,45 +191,44 @@ const withStatus = (db: Db["Service"]) => {
     .leftJoinLateral(extraction, sql`true`)
 }
 
-const readStatus = Effect.fn("PagesRepo.readStatus")(function* (
-  filter: Filter,
-  id?: PageId,
-) {
-  const db = yield* Db
+const readStatus = Effect.fn("PagesRepo.readStatus", { level: "Debug" })(
+  function* (filter: Filter, id?: PageId) {
+    const db = yield* Db
 
-  const rows = yield* Rows.decodeAll(StatusRow)(
-    yield* query(
-      withStatus(db)
-        .where(
-          and(
-            id === undefined ? undefined : eq(pages.id, id),
-            filter.brandId === undefined
-              ? undefined
-              : eq(pages.brandId, filter.brandId),
-            filter.retailerId === undefined
-              ? undefined
-              : eq(pages.retailerId, filter.retailerId),
-          ),
-        )
-        .orderBy(asc(pages.createdAt), asc(pages.id)),
-    ),
-  )
+    const rows = yield* Rows.decodeAll(StatusRow)(
+      yield* query(
+        withStatus(db)
+          .where(
+            and(
+              id === undefined ? undefined : eq(pages.id, id),
+              filter.brandId === undefined
+                ? undefined
+                : eq(pages.brandId, filter.brandId),
+              filter.retailerId === undefined
+                ? undefined
+                : eq(pages.retailerId, filter.retailerId),
+            ),
+          )
+          .orderBy(asc(pages.createdAt), asc(pages.id)),
+      ),
+    )
 
-  return rows.map(({ scrapeStatus, extractionStatus, ...row }) => ({
-    ...row,
+    return rows.map(({ scrapeStatus, extractionStatus, ...row }) => ({
+      ...row,
 
-    combinedStatus: combinedStatus(scrapeStatus, extractionStatus),
-  }))
-})
+      combinedStatus: combinedStatus(scrapeStatus, extractionStatus),
+    }))
+  },
+)
 
-export const findWithStatus = Effect.fn("PagesRepo.findWithStatus")(function* (
-  id: PageId,
-) {
+export const findWithStatus = Effect.fn("PagesRepo.findWithStatus", {
+  level: "Debug",
+})(function* (id: PageId) {
   return Option.fromUndefinedOr((yield* readStatus({}, id))[0])
 })
 
-export const listWithStatus = Effect.fn("PagesRepo.listWithStatus")(function* (
-  filter: Filter = {},
-) {
+export const listWithStatus = Effect.fn("PagesRepo.listWithStatus", {
+  level: "Debug",
+})(function* (filter: Filter = {}) {
   return yield* readStatus(filter)
 })
