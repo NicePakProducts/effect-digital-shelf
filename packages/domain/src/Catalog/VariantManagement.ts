@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema"
-import { ProductId } from "../Shared/Ids.ts"
+import { ProductId, VariantId } from "../Shared/Ids.ts"
 import { Name } from "../Shared/Refine.ts"
 
 export const CreateVariant = Schema.Struct({
@@ -14,3 +14,18 @@ export const UpdateVariant = Schema.Struct({
 })
 
 export type UpdateVariant = typeof UpdateVariant.Type
+
+export const GetVariantInput = Schema.Struct({ variantId: VariantId })
+
+export type GetVariantInput = typeof GetVariantInput.Type
+
+export const RemoveVariantInput = Schema.Struct({ variantId: VariantId })
+
+export type RemoveVariantInput = typeof RemoveVariantInput.Type
+
+export const UpdateVariantInput = Schema.Struct({
+  variantId: VariantId,
+  command: UpdateVariant,
+})
+
+export type UpdateVariantInput = typeof UpdateVariantInput.Type

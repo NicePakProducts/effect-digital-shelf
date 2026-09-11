@@ -58,7 +58,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         expect(yield* query(db.select().from(scrapes))).toHaveLength(2)
         expect(yield* query(db.select().from(extractions))).toHaveLength(2)
         expect((yield* bucket.inspect).size).toBe(4)
-        expect(yield* service.remove(row.id)).toEqual({
+        expect(yield* service.remove({ pageId: row.id })).toEqual({
           ...emptyImpact,
           scrapes: 2,
         })
@@ -91,7 +91,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
             pageId: page.id,
           }),
         )
-        expect(yield* pages.get(page.id)).toEqual(page)
+        expect(yield* pages.get({ pageId: page.id })).toEqual(page)
       }),
   )
 
@@ -120,16 +120,23 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
 
           if (source === "Retailer") {
             const retailers = yield* Retailers
-            yield* retailers.update(c.retailerId, { paused: true })
+            yield* retailers.update({
+              retailerId: c.retailerId,
+              command: { paused: true },
+            })
           }
 
           if (source === "Product") {
             const products = yield* Products
-            yield* products.update(c.productId, { paused: true })
+            yield* products.update({
+              productId: c.productId,
+              command: { paused: true },
+            })
           }
 
-          if (source === "Page") yield* pages.update(page.id, { paused: true })
-          expect((yield* pages.get(page.id)).effectivePaused).toBe(
+          if (source === "Page")
+            yield* pages.update({ pageId: page.id, command: { paused: true } })
+          expect((yield* pages.get({ pageId: page.id })).effectivePaused).toBe(
             source !== "Product",
           )
         }),
@@ -156,7 +163,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
           "running",
           "1 minute",
         )
-        expect((yield* pages.get(page.id)).combinedStatus).toBe("running")
+        expect((yield* pages.get({ pageId: page.id })).combinedStatus).toBe(
+          "running",
+        )
         expect((yield* pages.list())[0]?.combinedStatus).toBe("running")
       }),
   )
@@ -231,10 +240,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         ),
       ).toEqual(new RetailerNotFound({ retailerId }))
       const error = new PageNotFound({ pageId: id })
-      expect(yield* Effect.flip(pages.get(id))).toEqual(error)
-      expect(yield* Effect.flip(pages.update(id, {}))).toEqual(error)
-      expect(yield* Effect.flip(pages.impact(id))).toEqual(error)
-      expect(yield* Effect.flip(pages.remove(id))).toEqual(error)
+      expect(yield* Effect.flip(pages.get({ pageId: id }))).toEqual(error)
+      expect(
+        yield* Effect.flip(pages.update({ pageId: id, command: {} })),
+      ).toEqual(error)
+      expect(yield* Effect.flip(pages.impact({ pageId: id }))).toEqual(error)
+      expect(yield* Effect.flip(pages.remove({ pageId: id }))).toEqual(error)
     }),
   )
 })

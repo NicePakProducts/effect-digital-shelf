@@ -2,10 +2,10 @@ import { CascadeRoot } from "./repositories/CascadeRepo.ts"
 import type { Brand } from "@digital-shelf/domain/Catalog/Brand"
 import type {
   CreateBrand,
-  GetBrand,
-  RemoveBrand,
-  BrandImpact,
-  UpdateBrand,
+  GetBrandInput,
+  RemoveBrandInput,
+  BrandImpactInput,
+  UpdateBrandInput,
 } from "@digital-shelf/domain/Catalog/BrandManagement"
 import type { CascadeImpact } from "@digital-shelf/domain/Catalog/CascadeImpact"
 import type { BrandNotFound } from "@digital-shelf/domain/Catalog/Errors"
@@ -27,16 +27,16 @@ export class Brands extends Context.Service<
   {
     readonly create: (command: CreateBrand) => Effect.Effect<Brand, SqlError>
     readonly update: (
-      input: UpdateBrand,
+      input: UpdateBrandInput,
     ) => Effect.Effect<Brand, BrandNotFound | SqlError>
     readonly remove: (
-      input: RemoveBrand,
+      input: RemoveBrandInput,
     ) => Effect.Effect<CascadeImpact, BrandNotFound | SqlError>
     readonly impact: (
-      input: BrandImpact,
+      input: BrandImpactInput,
     ) => Effect.Effect<CascadeImpact, BrandNotFound | SqlError>
     readonly get: (
-      input: GetBrand,
+      input: GetBrandInput,
     ) => Effect.Effect<Brand, BrandNotFound | SqlError>
     readonly list: Effect.Effect<ReadonlyArray<Brand>, SqlError>
   }
@@ -52,11 +52,15 @@ export class Brands extends Context.Service<
       })
     })
 
-    const update = Effect.fn("Brands.update")(function* (input: UpdateBrand) {
+    const update = Effect.fn("Brands.update")(function* (
+      input: UpdateBrandInput,
+    ) {
       return yield* repo.update(input.brandId, input.command)
     })
 
-    const remove = Effect.fn("Brands.remove")(function* (input: RemoveBrand) {
+    const remove = Effect.fn("Brands.remove")(function* (
+      input: RemoveBrandInput,
+    ) {
       const result = yield* cascade.remove(
         CascadeRoot.Brand({ id: input.brandId }),
         repo.remove(input.brandId),
@@ -65,13 +69,15 @@ export class Brands extends Context.Service<
       return result.impact
     })
 
-    const impact = Effect.fn("Brands.impact")(function* (input: BrandImpact) {
+    const impact = Effect.fn("Brands.impact")(function* (
+      input: BrandImpactInput,
+    ) {
       yield* repo.get(input.brandId)
 
       return yield* cascade.impact(CascadeRoot.Brand({ id: input.brandId }))
     })
 
-    const get = Effect.fn("Brands.get")(function* (input: GetBrand) {
+    const get = Effect.fn("Brands.get")(function* (input: GetBrandInput) {
       return yield* repo.get(input.brandId)
     })
 

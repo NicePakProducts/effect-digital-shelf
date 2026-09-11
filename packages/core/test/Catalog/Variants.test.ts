@@ -42,14 +42,17 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Variants", (it) => {
   it.effect("rejects renaming onto another Variant name", () =>
     Effect.gen(function* () {
       yield* DbTest.reset
-      const { productId } = yield* seed()
+      const seeded = yield* seed()
+      const productId = seeded.productId
       const variants = yield* Variants
       yield* variants.create({ productId, name: "500 ML" })
       const row = yield* variants.create({ productId, name: "1 L" })
       expect(
-        yield* Effect.flip(variants.update(row.id, { name: "500 ml" })),
+        yield* Effect.flip(
+          variants.update({ variantId: row.id, command: { name: "500 ml" } }),
+        ),
       ).toEqual(new DuplicateVariantName({ productId, name: "500 ml" }))
-      expect((yield* variants.get(row.id)).name).toBe("1 L")
+      expect((yield* variants.get({ variantId: row.id })).name).toBe("1 L")
     }),
   )
   it.effect(
@@ -70,8 +73,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Variants", (it) => {
           variantIds: [a.id, b.id],
         })
 
-        expect(yield* variants.remove(a.id)).toEqual(emptyImpact)
-        expect((yield* listings.get(listing.id)).variantIds).toEqual([b.id])
+        expect(yield* variants.remove({ variantId: a.id })).toEqual(emptyImpact)
+        expect(
+          (yield* listings.get({ listingId: listing.id })).variantIds,
+        ).toEqual([b.id])
       }),
   )
   it.effect("returns the specific missing parent or Variant id", () =>
@@ -84,13 +89,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Variants", (it) => {
       expect(
         yield* Effect.flip(variants.create({ productId, name: "A" })),
       ).toEqual(new ProductNotFound({ productId }))
-      expect(yield* Effect.flip(variants.get(variantId))).toEqual(
+      expect(yield* Effect.flip(variants.get({ variantId }))).toEqual(
         new VariantNotFound({ variantId }),
       )
       expect(
-        yield* Effect.flip(variants.update(variantId, { name: "A" })),
+        yield* Effect.flip(
+          variants.update({ variantId, command: { name: "A" } }),
+        ),
       ).toEqual(new VariantNotFound({ variantId }))
-      expect(yield* Effect.flip(variants.remove(variantId))).toEqual(
+      expect(yield* Effect.flip(variants.remove({ variantId }))).toEqual(
         new VariantNotFound({ variantId }),
       )
     }),

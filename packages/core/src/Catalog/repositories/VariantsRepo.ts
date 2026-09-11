@@ -13,6 +13,8 @@ import {
 } from "@digital-shelf/domain/Shared/Ids"
 import { variants } from "@digital-shelf/domain/Sql/Catalog"
 import { and, asc, eq } from "drizzle-orm"
+import * as Context from "effect/Context"
+import * as Layer from "effect/Layer"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import type { SqlError } from "effect/unstable/sql/SqlError"
@@ -49,93 +51,128 @@ const orNotFound =
       }),
     )
 
-export const find = Effect.fn("VariantsRepo.find", { level: "Debug" })(
-  function* (id: VariantId) {
-    const db = yield* Db
-
-    return yield* one(
-      yield* query(db.select().from(variants).where(eq(variants.id, id))),
-    )
-  },
-)
-
-export const get = (id: VariantId) => find(id).pipe(orNotFound(id))
-
 export type Filter = { productId?: ProductId }
 
-export const list = Effect.fn("VariantsRepo.list", { level: "Debug" })(
-  function* (filter: Filter = {}) {
+export class VariantsRepo extends Context.Service<
+  VariantsRepo,
+  {
+    readonly find: (
+      id: VariantId,
+    ) => Effect.Effect<Option.Option<Variant>, SqlError>
+    readonly get: (
+      id: VariantId,
+    ) => Effect.Effect<Variant, VariantNotFound | SqlError>
+    readonly list: (
+      filter?: Filter,
+    ) => Effect.Effect<ReadonlyArray<Variant>, SqlError>
+    readonly insert: (
+      variant: VariantInsert,
+    ) => Effect.Effect<Variant, SqlError | DuplicateVariantName>
+    readonly update: (
+      id: VariantId,
+      patch: VariantUpdate,
+    ) => Effect.Effect<
+      Variant,
+      VariantNotFound | SqlError | DuplicateVariantName
+    >
+    readonly remove: (
+      id: VariantId,
+    ) => Effect.Effect<Variant, VariantNotFound | SqlError>
+  }
+>()("@digital-shelf/core/Catalog/repositories/VariantsRepo", {
+  make: Effect.gen(function* () {
     const db = yield* Db
 
-    return yield* all(
-      yield* query(
-        db
-          .select()
-          .from(variants)
-          .where(
-            and(
-              filter.productId === undefined
-                ? undefined
-                : eq(variants.productId, filter.productId),
+    const find = Effect.fn("VariantsRepo.find", { level: "Debug" })(function* (
+      id: VariantId,
+    ) {
+      return yield* one(
+        yield* query(db.select().from(variants).where(eq(variants.id, id))),
+      )
+    })
+
+    const get = (id: VariantId) => find(id).pipe(orNotFound(id))
+
+    const list = Effect.fn("VariantsRepo.list", { level: "Debug" })(function* (
+      filter: Filter = {},
+    ) {
+      return yield* all(
+        yield* query(
+          db
+            .select()
+            .from(variants)
+            .where(
+              and(
+                filter.productId === undefined
+                  ? undefined
+                  : eq(variants.productId, filter.productId),
+              ),
+            )
+            .orderBy(asc(variants.name), asc(variants.createdAt)),
+        ),
+      )
+    })
+
+    const insert = Effect.fn("VariantsRepo.insert", { level: "Debug" })(
+      function* (variant: VariantInsert) {
+        return yield* exactlyOne(
+          yield* query(
+            db.insert(variants).values(toRow(variant)).returning(),
+          ).pipe(
+            onUniqueViolation(
+              "variants_product_id_name",
+              () =>
+                new DuplicateVariantName({
+                  productId: variant.productId,
+                  name: variant.name,
+                }),
             ),
-          )
-          .orderBy(asc(variants.name), asc(variants.createdAt)),
-      ),
+          ),
+        )
+      },
     )
-  },
-)
 
-export const insert = Effect.fn("VariantsRepo.insert", { level: "Debug" })(
-  function* (variant: VariantInsert) {
-    const db = yield* Db
+    const update = Effect.fn("VariantsRepo.update", { level: "Debug" })(
+      function* (id: VariantId, patch: VariantUpdate) {
+        const existing = yield* get(id)
+        const values = toPatch(patch)
 
-    return yield* exactlyOne(
-      yield* query(db.insert(variants).values(toRow(variant)).returning()).pipe(
-        onUniqueViolation(
-          "variants_product_id_name",
-          () =>
-            new DuplicateVariantName({
-              productId: variant.productId,
-              name: variant.name,
-            }),
-        ),
-      ),
+        if (Object.keys(values).length === 0) return existing
+
+        return yield* one(
+          yield* query(
+            db
+              .update(variants)
+              .set(values)
+              .where(eq(variants.id, id))
+              .returning(),
+          ).pipe(
+            onUniqueViolation(
+              "variants_product_id_name",
+              () =>
+                new DuplicateVariantName({
+                  productId: patch.productId ?? existing.productId,
+                  name: patch.name ?? existing.name,
+                }),
+            ),
+          ),
+        ).pipe(orNotFound(id))
+      },
     )
-  },
-)
 
-export const update = Effect.fn("VariantsRepo.update", { level: "Debug" })(
-  function* (id: VariantId, patch: VariantUpdate) {
-    const existing = yield* get(id)
-    const values = toPatch(patch)
+    /** The raw row delete; Catalog/Cascade collects what the cascade drops first. */
+    const remove = Effect.fn("VariantsRepo.remove", { level: "Debug" })(
+      function* (id: VariantId) {
+        return yield* one(
+          yield* query(
+            db.delete(variants).where(eq(variants.id, id)).returning(),
+          ),
+        ).pipe(orNotFound(id))
+      },
+    )
 
-    if (Object.keys(values).length === 0) return existing
-    const db = yield* Db
-
-    return yield* one(
-      yield* query(
-        db.update(variants).set(values).where(eq(variants.id, id)).returning(),
-      ).pipe(
-        onUniqueViolation(
-          "variants_product_id_name",
-          () =>
-            new DuplicateVariantName({
-              productId: patch.productId ?? existing.productId,
-              name: patch.name ?? existing.name,
-            }),
-        ),
-      ),
-    ).pipe(orNotFound(id))
-  },
-)
-
-/** The raw row delete; Catalog/Cascade collects what the cascade drops first. */
-export const remove = Effect.fn("VariantsRepo.remove", { level: "Debug" })(
-  function* (id: VariantId) {
-    const db = yield* Db
-
-    return yield* one(
-      yield* query(db.delete(variants).where(eq(variants.id, id)).returning()),
-    ).pipe(orNotFound(id))
-  },
-)
+    return { find, get, list, insert, update, remove } as const
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}

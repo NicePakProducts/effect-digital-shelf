@@ -2,7 +2,7 @@ import { expect, it } from "@effect/vitest"
 import { Listings } from "@digital-shelf/core/Catalog/Listings"
 import { Pages } from "@digital-shelf/core/Catalog/Pages"
 import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
-import * as RetailersRepo from "@digital-shelf/core/Catalog/repositories/RetailersRepo"
+import { RetailersRepo } from "@digital-shelf/core/Catalog/repositories/RetailersRepo"
 import { Db } from "@digital-shelf/core/Sql/Db"
 import { query } from "@digital-shelf/core/Sql/Errors"
 import { UrlHostMismatch } from "@digital-shelf/domain/Catalog/Errors"
@@ -86,7 +86,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
 
       expect(
         yield* Effect.flip(
-          listings.update(row.id, { url: "https://coles.com.au/p/1" }),
+          listings.update({
+            listingId: row.id,
+            command: { url: "https://coles.com.au/p/1" },
+          }),
         ),
       ).toEqual(
         new UrlHostMismatch({
@@ -96,7 +99,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
           pageIds: [],
         }),
       )
-      expect((yield* listings.get(row.id)).url).toBe(
+      expect((yield* listings.get({ listingId: row.id })).url).toBe(
         "https://www.bigw.com.au/p/1",
       )
     }),
@@ -114,8 +117,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
         url: "  HTTPS://WWW.BigW.com.au/p/1?utm_source=a&th=1  ",
       })
 
-      yield* listings.update(row.id, {
-        url: "  HTTPS://WWW.BigW.com.au/p/2?utm_source=a&th=1  ",
+      yield* listings.update({
+        listingId: row.id,
+        command: {
+          url: "  HTTPS://WWW.BigW.com.au/p/2?utm_source=a&th=1  ",
+        },
       })
       // The column itself, not the entity schema's reading of it: that
       // reading normalises too and would hide raw bytes on disk.
@@ -153,7 +159,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
 
       expect(
         yield* Effect.flip(
-          pages.update(row.id, { url: "https://bigw.com.au.evil.com/x" }),
+          pages.update({
+            pageId: row.id,
+            command: { url: "https://bigw.com.au.evil.com/x" },
+          }),
         ),
       ).toEqual(
         new UrlHostMismatch({
@@ -163,7 +172,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
           pageIds: [],
         }),
       )
-      expect((yield* pages.get(row.id)).url).toBe(
+      expect((yield* pages.get({ pageId: row.id })).url).toBe(
         "https://www.bigw.com.au/brand/gaia",
       )
     }),
@@ -173,16 +182,18 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
     "refuses a Retailer domain change that would strand children, naming them",
     () =>
       Effect.gen(function* () {
+        const listings = yield* Listings
+        const pages = yield* Pages
         yield* DbTest.reset
         const c = yield* catalog("a.example.com")
 
-        const listing = yield* (yield* Listings).create({
+        const listing = yield* listings.create({
           productId: c.productId,
           retailerId: c.retailerId,
           url: "https://a.example.com/p/1",
         })
 
-        const page = yield* (yield* Pages).create({
+        const page = yield* pages.create({
           brandId: c.brandId,
           retailerId: c.retailerId,
           url: "https://a.example.com/brand",
@@ -191,7 +202,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
         const retailers = yield* Retailers
         expect(
           yield* Effect.flip(
-            retailers.update(c.retailerId, { domain: "b.example.com" }),
+            retailers.update({
+              retailerId: c.retailerId,
+              command: { domain: "b.example.com" },
+            }),
           ),
         ).toEqual(
           new UrlHostMismatch({
@@ -201,17 +215,22 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
             pageIds: [page.id],
           }),
         )
-        expect((yield* retailers.get(c.retailerId)).domain).toBe(
-          "a.example.com",
-        )
+        expect(
+          (yield* retailers.get({ retailerId: c.retailerId })).domain,
+        ).toBe("a.example.com")
         // Widening to the parent domain keeps every child valid, so it passes.
         expect(
-          (yield* retailers.update(c.retailerId, { domain: "example.com" }))
-            .domain,
+          (yield* retailers.update({
+            retailerId: c.retailerId,
+            command: { domain: "example.com" },
+          })).domain,
         ).toBe("example.com")
         // A change that touches no domain never inspects the children.
         expect(
-          (yield* retailers.update(c.retailerId, { name: "Renamed" })).name,
+          (yield* retailers.update({
+            retailerId: c.retailerId,
+            command: { name: "Renamed" },
+          })).name,
         ).toBe("Renamed")
       }),
   )
@@ -225,8 +244,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
    * row locks, which `pg_locks` reports while the transaction holds them, and
    * that the rule holds whichever of the two writes runs first.
    */
-  const locksHeld = Effect.fn("HostRuleFixture.locksHeld")(function* (
-    read: Effect.Effect<unknown, never, Db>,
+  const locksHeld = Effect.fn("HostRuleFixture.locksHeld")(function* <A, E>(
+    read: Effect.Effect<A, E>,
   ) {
     const db = yield* Db
 
@@ -255,22 +274,21 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* catalog("bigw.com.au")
+      const retailersRepo = yield* RetailersRepo
       // A plain read takes only AccessShareLock, which blocks nothing.
-      expect(
-        yield* locksHeld(RetailersRepo.get(c.retailerId).pipe(Effect.orDie)),
-      ).toEqual(["AccessShareLock"])
+      expect(yield* locksHeld(retailersRepo.get(c.retailerId))).toEqual([
+        "AccessShareLock",
+      ])
 
       // Both locking reads make PostgreSQL take a row lock on the table; the
       // tuple-level difference between SHARE and UPDATE only becomes visible
       // to a second connection, which PGlite cannot give us.
       for (const read of [
-        RetailersRepo.getForShare(c.retailerId),
-        RetailersRepo.getForUpdate(c.retailerId),
+        retailersRepo.getForShare(c.retailerId),
+        retailersRepo.getForUpdate(c.retailerId),
       ])
-        expect(yield* locksHeld(read.pipe(Effect.orDie))).toContain(
-          "RowShareLock",
-        )
-    }),
+        expect(yield* locksHeld(read)).toContain("RowShareLock")
+    }).pipe(Effect.provide(RetailersRepo.layer)),
   )
 
   it.effect(
@@ -292,7 +310,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
 
         expect(
           yield* Effect.flip(
-            retailers.update(first.retailerId, { domain: "b.example.com" }),
+            retailers.update({
+              retailerId: first.retailerId,
+              command: { domain: "b.example.com" },
+            }),
           ),
         ).toEqual(
           new UrlHostMismatch({
@@ -302,14 +323,17 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
             pageIds: [],
           }),
         )
-        expect((yield* listings.get(row.id)).url).toBe(
+        expect((yield* listings.get({ listingId: row.id })).url).toBe(
           "https://a.example.com/p/1",
         )
 
         // Domain change first: the child write then reads the new domain and
         // is refused.
         const second = yield* catalog("c.example.com")
-        yield* retailers.update(second.retailerId, { domain: "d.example.com" })
+        yield* retailers.update({
+          retailerId: second.retailerId,
+          command: { domain: "d.example.com" },
+        })
         expect(
           yield* Effect.flip(
             listings.create({

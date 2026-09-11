@@ -5,7 +5,7 @@ import {
 import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
 import { R2Bucket } from "@digital-shelf/core/Storage/R2Bucket"
 import { BrandsRepo } from "@digital-shelf/core/Catalog/repositories/BrandsRepo"
-import * as VariantsRepo from "@digital-shelf/core/Catalog/repositories/VariantsRepo"
+import { VariantsRepo } from "@digital-shelf/core/Catalog/repositories/VariantsRepo"
 import { expect, it } from "@effect/vitest"
 import { Brands } from "@digital-shelf/core/Catalog/Brands"
 import { Products } from "@digital-shelf/core/Catalog/Products"
@@ -57,23 +57,23 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         expect(yield* brands.impact({ brandId: c.brandId })).toEqual(
           brandImpact,
         )
-        expect(yield* retailers.impact(c.retailerId)).toEqual({
+        expect(yield* retailers.impact({ retailerId: c.retailerId })).toEqual({
           ...brandImpact,
           products: 0,
           variants: 0,
         })
-        expect(yield* products.impact(c.productId)).toEqual({
+        expect(yield* products.impact({ productId: c.productId })).toEqual({
           products: 0,
           variants: 2,
           listings: 1,
           pages: 0,
           scrapes: 1,
         })
-        expect(yield* listings.impact(c.listingId)).toEqual({
+        expect(yield* listings.impact({ listingId: c.listingId })).toEqual({
           ...emptyImpact,
           scrapes: 1,
         })
-        expect(yield* pages.impact(c.pageId)).toEqual({
+        expect(yield* pages.impact({ pageId: c.pageId })).toEqual({
           ...emptyImpact,
           scrapes: 1,
         })
@@ -233,7 +233,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         const bucket = yield* R2BucketTest
         yield* DbTest.reset
         const c = yield* tree
-        expect(yield* retailers.remove(c.retailerId)).toEqual({
+        expect(yield* retailers.remove({ retailerId: c.retailerId })).toEqual({
           ...brandImpact,
           products: 0,
           variants: 0,
@@ -265,6 +265,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         const brands = yield* Brands
         const brandsRepo = yield* BrandsRepo
         const sizes: number[] = []
+        const variantsRepo = yield* VariantsRepo
 
         const cascade = yield* Cascade.make.pipe(
           Effect.provideService(R2Bucket, {
@@ -281,7 +282,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
 
         const variant = yield* cascade.remove(
           CascadeRoot.Variant({ id: c.variantId }),
-          VariantsRepo.remove(c.variantId),
+          variantsRepo.remove(c.variantId),
         )
 
         expect(variant.removed.id).toBe(c.variantId)
@@ -313,7 +314,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         expect(removed.impact.scrapes).toBe(501)
         expect(sizes).toEqual([1000, 2])
         expect((yield* bucket.inspect).size).toBe(0)
-      }).pipe(Effect.provide(BrandsRepo.layer)),
+      }).pipe(Effect.provide([BrandsRepo.layer, VariantsRepo.layer])),
     60_000,
   )
 })

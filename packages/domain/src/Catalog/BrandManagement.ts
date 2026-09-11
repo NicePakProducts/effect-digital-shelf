@@ -11,29 +11,29 @@ export const CreateBrand = Schema.Struct({
 
 export type CreateBrand = typeof CreateBrand.Type
 
-export const UpdateBrandCommand = Schema.Struct({
+export const UpdateBrand = Schema.Struct({
   name: Schema.optionalKey(Name),
   paused: Schema.optionalKey(Schema.Boolean),
 })
 
-export type UpdateBrandCommand = typeof UpdateBrandCommand.Type
+export type UpdateBrand = typeof UpdateBrand.Type
 
 /** Inputs to the Brands feature's methods; the api builds them from params and payload. */
-export const GetBrand = Schema.Struct({ brandId: BrandId })
+export const GetBrandInput = Schema.Struct({ brandId: BrandId })
 
-export type GetBrand = typeof GetBrand.Type
+export type GetBrandInput = typeof GetBrandInput.Type
 
-export const RemoveBrand = GetBrand
+export const RemoveBrandInput = Schema.Struct({ brandId: BrandId })
 
-export type RemoveBrand = typeof RemoveBrand.Type
+export type RemoveBrandInput = typeof RemoveBrandInput.Type
 
-export const BrandImpact = GetBrand
+export const BrandImpactInput = Schema.Struct({ brandId: BrandId })
 
-export type BrandImpact = typeof BrandImpact.Type
+export type BrandImpactInput = typeof BrandImpactInput.Type
 
-export const UpdateBrand = Schema.Struct({
+export const UpdateBrandInput = Schema.Struct({
   brandId: BrandId,
-  command: UpdateBrandCommand,
+  command: UpdateBrand,
 })
 
-export type UpdateBrand = typeof UpdateBrand.Type
+export type UpdateBrandInput = typeof UpdateBrandInput.Type
