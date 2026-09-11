@@ -74,6 +74,11 @@ jobs:
       - name: Prove the disposable Postgres overlaps transactions
         run: .github/scripts/postgres-lock-probe.sh
 
+      # `pnpm --recursive` skips the workspace root, and only the root `vp check`
+      # type-checks `alchemy.run.ts` and the other root files (#77).
+      - name: Check the workspace root
+        run: pnpm run check
+
       - name: Check every package
         run: pnpm --recursive run check
 
