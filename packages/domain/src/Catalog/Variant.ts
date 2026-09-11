@@ -18,6 +18,7 @@ export const Variant = createSelectSchema(variants, {
   createdAt: Timestamp,
   updatedAt: Timestamp,
 })
+
 export type Variant = typeof Variant.Type
 
 export const VariantInsert = createInsertSchema(variants, {
@@ -26,6 +27,7 @@ export const VariantInsert = createInsertSchema(variants, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type VariantInsert = typeof VariantInsert.Type
 
 export const VariantUpdate = createUpdateSchema(variants, {
@@ -34,4 +36,5 @@ export const VariantUpdate = createUpdateSchema(variants, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type VariantUpdate = typeof VariantUpdate.Type

@@ -12,6 +12,7 @@ import { Effect, Schema } from "effect"
 import * as CoreTest from "../layers/Core.ts"
 import * as DbTest from "../layers/Db.ts"
 import { seed } from "../fixtures/Catalog.ts"
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Variants", (it) => {
   it.effect(
     "rejects case-insensitive duplicates within one Product and permits the same name under another",
@@ -61,12 +62,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Variants", (it) => {
         const a = yield* variants.create({ productId: c.productId, name: "A" })
         const b = yield* variants.create({ productId: c.productId, name: "B" })
         const listings = yield* Listings
+
         const listing = yield* listings.create({
           productId: c.productId,
           retailerId: c.retailerId,
           url: c.url("/item"),
           variantIds: [a.id, b.id],
         })
+
         expect(yield* variants.remove(a.id)).toEqual(emptyImpact)
         expect((yield* listings.get(listing.id)).variantIds).toEqual([b.id])
       }),

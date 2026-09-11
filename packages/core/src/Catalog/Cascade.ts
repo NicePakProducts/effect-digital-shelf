@@ -16,9 +16,11 @@ const make = Effect.gen(function* () {
   const db = yield* Db
   const bucket = yield* R2Bucket
   const withDb = Effect.provideService(Db, db)
+
   const impact = Effect.fn("Cascade.impact")(function* (root: CascadeRoot) {
     return yield* CascadeRepo.impact(root)
   }, withDb)
+
   /** Collect descendants and remove the row in one transaction, then clean R2 after commit. */
   const remove = Effect.fn("Cascade.remove")(function* <A, E>(
     root: CascadeRoot,
@@ -31,14 +33,17 @@ const make = Effect.gen(function* () {
         // requires the bucket lifecycle rule to backstop orphaned objects.
         const ids = yield* CascadeRepo.scrapeIds(root)
         const removed = yield* remove
+
         return { impact, ids, removed }
       }),
     )
+
     yield* Effect.annotateCurrentSpan(
       "shelf.cascade.scrapes",
       result.ids.length,
     )
     const keys = result.ids.flatMap(keysOf)
+
     for (let i = 0; i < keys.length; i += R2_DELETE_KEY_LIMIT) {
       yield* bucket
         .delete(keys.slice(i, i + R2_DELETE_KEY_LIMIT))
@@ -48,10 +53,13 @@ const make = Effect.gen(function* () {
           ),
         )
     }
+
     return { removed: result.removed, impact: result.impact }
   }, withDb)
+
   return { impact, remove }
 })
+
 export class Cascade extends Context.Service<
   Cascade,
   {

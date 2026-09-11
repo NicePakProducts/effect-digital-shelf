@@ -1,5 +1,7 @@
+import * as Predicate from "effect/Predicate"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import type * as Schema from "effect/Schema"
 import * as Ref from "effect/Ref"
 import * as HttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientError from "effect/unstable/http/HttpClientError"
@@ -35,6 +37,7 @@ export const respondingWith = (
 ): Effect.Effect<Fixture> =>
   Effect.gen(function* () {
     const requests = yield* Ref.make<ReadonlyArray<Recorded>>([])
+
     const record = (
       request: HttpClientRequest.HttpClientRequest,
       url: URL,
@@ -42,17 +45,19 @@ export const respondingWith = (
       url: url.toString(),
       method: request.method,
       headers: { ...request.headers },
-      body:
-        request.body._tag === "Uint8Array"
-          ? new TextDecoder().decode(request.body.body)
-          : "",
+      body: Predicate.isTagged(request.body, "Uint8Array")
+        ? new TextDecoder().decode(request.body.body)
+        : "",
     })
+
     const client = HttpClient.make((request, url) =>
       Effect.gen(function* () {
         const recorded = record(request, url)
         yield* Ref.update(requests, (all) => [...all, recorded])
         const response = respond(recorded)
+
         if (response === "never") return yield* Effect.never
+
         if (response === "unreachable")
           return yield* Effect.fail(
             new HttpClientError.HttpClientError({
@@ -62,16 +67,18 @@ export const respondingWith = (
               }),
             }),
           )
+
         return HttpClientResponse.fromWeb(
           request,
           yield* Effect.promise(async () => response),
         )
       }),
     )
+
     return { client, requests: Ref.get(requests) }
   })
 
-export const json = (body: unknown, status = 200) =>
+export const json = (body: Schema.Json, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json" },

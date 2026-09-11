@@ -1,3 +1,4 @@
+import { BulkScrape } from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import * as Option from "effect/Option"
 import * as Exit from "effect/Exit"
 import * as Cause from "effect/Cause"
@@ -53,10 +54,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         yield* fixture.page
         const service = yield* Scrapes
         yield* service.trigger({ parent: one.parent })
-        const report = yield* service.bulk({
-          _tag: "Brand",
-          brandId: fixture.brandId,
-        })
+
+        const report = yield* service.bulk(
+          BulkScrape.members[0].make({
+            brandId: fixture.brandId,
+          }),
+        )
+
         expect(report.created).toHaveLength(2)
         expect(report.skipped).toEqual([one.parent])
         expect(report.started).toBe(2)
@@ -109,12 +113,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
     Effect.gen(function* () {
       yield* reset
       const fixture = yield* seed()
+
       for (let i = 0; i < 102; i++) yield* fixture.listing
       const service = yield* Scrapes
-      const report = yield* service.bulk({
-        _tag: "Product",
-        productId: fixture.productId,
-      })
+
+      const report = yield* service.bulk(
+        BulkScrape.members[1].make({
+          productId: fixture.productId,
+        }),
+      )
+
       expect(report.created).toHaveLength(102)
       expect(report.started).toBe(100)
       expect(yield* service.drainPending(102)).toEqual({
@@ -136,21 +144,25 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         const executions = yield* ExecutionsTest
         const terminalParent = (yield* fixture.listing).parent
         const terminal = yield* history(terminalParent, "pending", "25 hours")
+
         const active = yield* history(
           (yield* fixture.listing).parent,
           "pending",
           "25 hours",
         )
+
         const broken = yield* history(
           (yield* fixture.listing).parent,
           "pending",
           "26 hours",
         )
+
         const unknown = yield* history(
           (yield* fixture.listing).parent,
           "pending",
           "25 hours",
         )
+
         yield* executions.setStatus("scrape", terminal.id, "errored")
         yield* executions.setStatus("scrape", active.id, "running")
         yield* executions.setStatus("scrape", broken.id, "errored")
@@ -167,6 +179,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         expect(failed.status).toBe("failed")
         expect(failed.errorCode).toEqual(Option.some("unknown"))
         expect(failed.finishedAt).toEqual(Option.some(yield* DateTime.now))
+
         for (const row of [active, broken, unknown])
           expect((yield* service.get(row.id)).status).toBe("pending")
         expect(
@@ -181,28 +194,35 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         yield* reset
         const fixture = yield* seed()
         const service = yield* Scrapes
+
         const advanced = yield* service.trigger({
           parent: (yield* fixture.listing).parent,
           mode: "advance",
           country: "Japan",
         })
+
         expect(advanced.mode).toBe("advance")
         expect(advanced.country).toEqual(Option.some("Japan"))
+
         const defaultAdvanced = yield* seed({
           mode: "advance",
           country: "Canada",
         })
+
         const basic = yield* service.trigger({
           parent: (yield* defaultAdvanced.listing).parent,
           mode: "basic",
           country: "Japan",
         })
+
         expect(basic.mode).toBe("basic")
         expect(basic.country).toEqual(Option.none())
+
         const countryOnly = yield* service.trigger({
           parent: (yield* defaultAdvanced.listing).parent,
           country: "France",
         })
+
         expect(countryOnly.mode).toBe("advance")
         expect(countryOnly.country).toEqual(Option.some("France"))
       }),
@@ -223,10 +243,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
       yield* reset
       const { parent } = yield* (yield* seed()).listing
       const service = yield* Scrapes
+
       const exit = yield* service
         .trigger({ parent })
         .pipe(Effect.withTracerEnabled(false), Effect.exit)
+
       expect(Exit.isFailure(exit)).toBe(true)
+
       if (Exit.isFailure(exit))
         expect(Cause.pretty(exit.cause)).toContain(
           "Scrape.created needs a real span; tracing is disabled",
@@ -244,10 +267,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         const paused = yield* fixture.listing
         const pausedPage = yield* fixture.page
         const service = yield* Scrapes
-        const report = yield* service.bulk({
-          _tag: "Brand",
-          brandId: fixture.brandId,
-        })
+
+        const report = yield* service.bulk(
+          BulkScrape.members[0].make({
+            brandId: fixture.brandId,
+          }),
+        )
+
         expect(report.created).toEqual([])
         expect(report.skipped).toEqual([])
         expect(report.skippedPaused).toEqual([paused.parent, pausedPage.parent])
@@ -260,26 +286,32 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
       yield* reset
       const fixture = yield* seed()
       const service = yield* Scrapes
+
       // One clock tick, so all three share a created_at and only id orders them.
       const tied = yield* Effect.forEach([1, 2, 3], () =>
         Effect.flatMap(fixture.listing, ({ parent }) =>
           history(parent, "success", "1 hour"),
         ),
       )
+
       expect(
         new Set(tied.map((row) => DateTime.toEpochMillis(row.createdAt))).size,
       ).toBe(1)
+
       const expected = [...tied]
         .sort((a, b) => (a.id < b.id ? 1 : -1))
         .map((row) => row.id)
+
       const first = yield* service.list({ limit: 2 })
       expect(first.items.map((row) => row.id)).toEqual(expected.slice(0, 2))
       expect(first.hasMore).toBe(true)
       const last = first.items[1]!
+
       const second = yield* service.list({
         limit: 2,
         cursor: { createdAt: last.createdAt, id: last.id },
       })
+
       expect(second.items.map((row) => row.id)).toEqual(expected.slice(2))
       expect(second.hasMore).toBe(false)
     }),

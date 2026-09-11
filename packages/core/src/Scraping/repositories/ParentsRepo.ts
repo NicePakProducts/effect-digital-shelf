@@ -1,5 +1,7 @@
+import * as Match from "effect/Match"
+import * as Predicate from "effect/Predicate"
 import { Cadence, Cadences } from "@digital-shelf/domain/Catalog/Cadence"
-import type { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
+import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
 import type { BulkScrape } from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import {
   ScrapeMode,
@@ -51,13 +53,16 @@ export const ScrapeTarget = Schema.Struct({
   anchorAt: nullable(Timestamp),
   anchorStatus: nullable(ScrapeStatus),
 })
+
 export type ScrapeTarget = typeof ScrapeTarget.Type
 
 export const parentOf = (target: ScrapeTarget): ScrapeParent =>
   Option.match(target.listingId, {
-    onSome: (listingId) => ({ _tag: "Listing", listingId }) as const,
+    onSome: (listingId) => ScrapeParent.members[0].make({ listingId }),
     onNone: () =>
-      ({ _tag: "Page", pageId: Option.getOrThrow(target.pageId) }) as const,
+      ScrapeParent.members[1].make({
+        pageId: Option.getOrThrow(target.pageId),
+      }),
   })
 
 const decodeTargets = Rows.decodeAll(ScrapeTarget)
@@ -87,6 +92,7 @@ const listingBase = (db: Db["Service"]) => {
     .orderBy(desc(scrapes.createdAt), desc(scrapes.id))
     .limit(1)
     .as("last")
+
   const select = db
     .select({
       parentKind: sql<"listing">`'listing'`,
@@ -107,6 +113,7 @@ const listingBase = (db: Db["Service"]) => {
     .innerJoin(brands, eq(brands.id, products.brandId))
     .innerJoin(retailers, eq(retailers.id, listings.retailerId))
     .leftJoinLateral(last, sql`true`)
+
   return { select, last }
 }
 
@@ -118,6 +125,7 @@ const pageBase = (db: Db["Service"]) => {
     .orderBy(desc(scrapes.createdAt), desc(scrapes.id))
     .limit(1)
     .as("last")
+
   const select = db
     .select({
       parentKind: sql<"page">`'page'`,
@@ -137,12 +145,14 @@ const pageBase = (db: Db["Service"]) => {
     .innerJoin(brands, eq(brands.id, pages.brandId))
     .innerJoin(retailers, eq(retailers.id, pages.retailerId))
     .leftJoinLateral(last, sql`true`)
+
   return { select, last }
 }
 
 const listingNotInFlight = notExists(
   sql`(SELECT 1 FROM ${scrapes} WHERE ${scrapes.listingId} = ${listings.id} AND ${scrapes.status} IN ('pending', 'running'))`,
 )
+
 const pageNotInFlight = notExists(
   sql`(SELECT 1 FROM ${scrapes} WHERE ${scrapes.pageId} = ${pages.id} AND ${scrapes.status} IN ('pending', 'running'))`,
 )
@@ -151,13 +161,15 @@ export const findTarget = Effect.fn("ParentsRepo.findTarget")(function* (
   parent: ScrapeParent,
 ) {
   const db = yield* Db
-  const rows =
-    parent._tag === "Listing"
-      ? yield* query(
-          listingBase(db).select.where(eq(listings.id, parent.listingId)),
-        )
-      : yield* query(pageBase(db).select.where(eq(pages.id, parent.pageId)))
+
+  const rows = Predicate.isTagged(parent, "Listing")
+    ? yield* query(
+        listingBase(db).select.where(eq(listings.id, parent.listingId)),
+      )
+    : yield* query(pageBase(db).select.where(eq(pages.id, parent.pageId)))
+
   const targets = yield* decodeTargets(rows)
+
   return Option.fromUndefinedOr(targets[0])
 })
 
@@ -174,13 +186,16 @@ export const cadenceDue = Effect.fn("ParentsRepo.cadenceDue")(function* (
 ) {
   if (limit <= 0) return []
   const db = yield* Db
+
   const due = (
     last: { readonly createdAt: unknown; readonly status: unknown },
     cadence: AnyPgColumn,
   ): SQL =>
     sql`(${last.createdAt} IS NULL OR ${last.createdAt} + (CASE WHEN ${last.status} = 'failed' THEN LEAST(${cadenceIntervalSql(cadence)}, ${interval(failureRetryInterval)}) ELSE ${cadenceIntervalSql(cadence)} END) <= ${tsz(now)})`
+
   const l = listingBase(db)
   const p = pageBase(db)
+
   const listingRows = yield* query(
     l.select
       .where(
@@ -193,6 +208,7 @@ export const cadenceDue = Effect.fn("ParentsRepo.cadenceDue")(function* (
       .orderBy(sql`${l.last.createdAt} ASC NULLS FIRST`, asc(listings.id))
       .limit(limit),
   )
+
   const pageRows = yield* query(
     p.select
       .where(
@@ -205,7 +221,9 @@ export const cadenceDue = Effect.fn("ParentsRepo.cadenceDue")(function* (
       .orderBy(sql`${p.last.createdAt} ASC NULLS FIRST`, asc(pages.id))
       .limit(limit),
   )
+
   const targets = yield* decodeTargets([...listingRows, ...pageRows])
+
   return [...targets].sort(byAnchor).slice(0, limit)
 })
 
@@ -213,10 +231,14 @@ export const cadenceDue = Effect.fn("ParentsRepo.cadenceDue")(function* (
 const byAnchor = (a: ScrapeTarget, b: ScrapeTarget): number => {
   const aAt = Option.map(a.anchorAt, DateTime.toEpochMillis)
   const bAt = Option.map(b.anchorAt, DateTime.toEpochMillis)
+
   if (Option.isNone(aAt) && Option.isNone(bAt))
     return idOf(a) < idOf(b) ? -1 : 1
+
   if (Option.isNone(aAt)) return -1
+
   if (Option.isNone(bAt)) return 1
+
   return aAt.value - bAt.value || (idOf(a) < idOf(b) ? -1 : 1)
 }
 
@@ -233,29 +255,32 @@ export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
     const db = yield* Db
     const l = listingBase(db)
     const p = pageBase(db)
-    const listingScope =
-      scope._tag === "Brand"
-        ? eq(brands.id, scope.brandId)
-        : scope._tag === "Product"
-          ? eq(products.id, scope.productId)
-          : eq(retailers.id, scope.retailerId)
+
+    const listingScope = Match.value(scope).pipe(
+      Match.tag("Brand", (scope) => eq(brands.id, scope.brandId)),
+      Match.tag("Product", (scope) => eq(products.id, scope.productId)),
+      Match.tag("Retailer", (scope) => eq(retailers.id, scope.retailerId)),
+      Match.exhaustive,
+    )
+
     const listingRows = yield* query(
       l.select
         .where(listingScope)
         .orderBy(asc(listings.createdAt), asc(listings.id)),
     )
-    const pageRows =
-      scope._tag === "Product"
-        ? []
-        : yield* query(
-            p.select
-              .where(
-                scope._tag === "Brand"
-                  ? eq(brands.id, scope.brandId)
-                  : eq(retailers.id, scope.retailerId),
-              )
-              .orderBy(asc(pages.createdAt), asc(pages.id)),
-          )
+
+    const pageRows = Predicate.isTagged(scope, "Product")
+      ? []
+      : yield* query(
+          p.select
+            .where(
+              Predicate.isTagged(scope, "Brand")
+                ? eq(brands.id, scope.brandId)
+                : eq(retailers.id, scope.retailerId),
+            )
+            .orderBy(asc(pages.createdAt), asc(pages.id)),
+        )
+
     return yield* decodeTargets([...listingRows, ...pageRows])
   },
 )
@@ -264,27 +289,35 @@ export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
 export const containerExists = Effect.fn("ParentsRepo.containerExists")(
   function* (scope: BulkScrape) {
     const db = yield* Db
-    const rows =
-      scope._tag === "Brand"
-        ? yield* query(
-            db
-              .select({ id: brands.id })
-              .from(brands)
-              .where(eq(brands.id, scope.brandId)),
-          )
-        : scope._tag === "Product"
-          ? yield* query(
-              db
-                .select({ id: products.id })
-                .from(products)
-                .where(eq(products.id, scope.productId)),
-            )
-          : yield* query(
-              db
-                .select({ id: retailers.id })
-                .from(retailers)
-                .where(eq(retailers.id, scope.retailerId)),
-            )
+
+    const rows = yield* Match.value(scope).pipe(
+      Match.tag("Brand", (scope) =>
+        query(
+          db
+            .select({ id: brands.id })
+            .from(brands)
+            .where(eq(brands.id, scope.brandId)),
+        ),
+      ),
+      Match.tag("Product", (scope) =>
+        query(
+          db
+            .select({ id: products.id })
+            .from(products)
+            .where(eq(products.id, scope.productId)),
+        ),
+      ),
+      Match.tag("Retailer", (scope) =>
+        query(
+          db
+            .select({ id: retailers.id })
+            .from(retailers)
+            .where(eq(retailers.id, scope.retailerId)),
+        ),
+      ),
+      Match.exhaustive,
+    )
+
     return rows.length > 0
   },
 )
@@ -296,7 +329,8 @@ export const markScraped = Effect.fn("ParentsRepo.markScraped")(function* (
 ) {
   const db = yield* Db
   const lastScrapedAt = DateTime.toDateUtc(at)
-  if (parent._tag === "Listing") {
+
+  if (Predicate.isTagged(parent, "Listing")) {
     yield* query(
       db
         .update(listings)

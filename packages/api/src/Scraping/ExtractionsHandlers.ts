@@ -1,6 +1,6 @@
 import { Extractions } from "@digital-shelf/core/Scraping/Extractions"
 import { NoExtractedData } from "@digital-shelf/domain/Scraping/Errors"
-import type { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
+import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
@@ -11,6 +11,7 @@ import { toLatestWire, toWire } from "./ExtractionsWire.ts"
 export const layer = HttpApiBuilder.group(RootApi, "extractions", (handlers) =>
   Effect.gen(function* () {
     const extractions = yield* Extractions
+
     /** The latest reads answer 404 when the Parent has no successful Extraction. */
     const latest = (parent: ScrapeParent) =>
       extractions.latestExtractedData(parent).pipe(
@@ -22,6 +23,7 @@ export const layer = HttpApiBuilder.group(RootApi, "extractions", (handlers) =>
         ),
         Effect.catchTag("SqlError", Effect.die),
       )
+
     return handlers
       .handle("list", ({ query }) =>
         extractions
@@ -68,10 +70,10 @@ export const layer = HttpApiBuilder.group(RootApi, "extractions", (handlers) =>
         ),
       )
       .handle("latestForListing", ({ params }) =>
-        latest({ _tag: "Listing", listingId: params.id }),
+        latest(ScrapeParent.members[0].make({ listingId: params.id })),
       )
       .handle("latestForPage", ({ params }) =>
-        latest({ _tag: "Page", pageId: params.id }),
+        latest(ScrapeParent.members[1].make({ pageId: params.id })),
       )
       .handle("latestForProduct", ({ params }) =>
         extractions.latestExtractedDataForProduct(params.id).pipe(

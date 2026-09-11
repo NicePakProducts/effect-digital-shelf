@@ -25,9 +25,13 @@ import * as Rows from "../../Sql/Rows.ts"
 export class DomainTaken extends Data.TaggedError("DomainTaken") {}
 
 const one = Rows.decodeOptional(Retailer)
+
 const all = Rows.decodeAll(Retailer)
+
 const exactlyOne = Rows.decodeOne(Retailer)
+
 const toRow = Rows.encode(RetailerInsert)
+
 const toPatch = Rows.encode(RetailerUpdate)
 
 const orNotFound =
@@ -45,6 +49,7 @@ const orNotFound =
 
 export const find = Effect.fn("RetailersRepo.find")(function* (id: RetailerId) {
   const db = yield* Db
+
   return yield* one(
     yield* query(db.select().from(retailers).where(eq(retailers.id, id))),
   )
@@ -61,6 +66,7 @@ export const get = (id: RetailerId) => find(id).pipe(orNotFound(id))
 const locked = (strength: "share" | "update") =>
   Effect.fn(`RetailersRepo.get.for.${strength}`)(function* (id: RetailerId) {
     const db = yield* Db
+
     return yield* one(
       yield* query(
         db.select().from(retailers).where(eq(retailers.id, id)).for(strength),
@@ -74,6 +80,7 @@ export const getForUpdate = locked("update")
 
 export const list = Effect.fn("RetailersRepo.list")(function* () {
   const db = yield* Db
+
   return yield* all(
     yield* query(
       db
@@ -88,6 +95,7 @@ export const insert = Effect.fn("RetailersRepo.insert")(function* (
   retailer: RetailerInsert,
 ) {
   const db = yield* Db
+
   return yield* exactlyOne(
     yield* query(db.insert(retailers).values(toRow(retailer)).returning()).pipe(
       onUniqueViolation("retailers_domain", () => new DomainTaken()),
@@ -100,8 +108,10 @@ export const update = Effect.fn("RetailersRepo.update")(function* (
   patch: RetailerUpdate,
 ) {
   const values = toPatch(patch)
+
   if (Object.keys(values).length === 0) return yield* get(id)
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db.update(retailers).set(values).where(eq(retailers.id, id)).returning(),
@@ -114,6 +124,7 @@ export const remove = Effect.fn("RetailersRepo.remove")(function* (
   id: RetailerId,
 ) {
   const db = yield* Db
+
   return yield* one(
     yield* query(db.delete(retailers).where(eq(retailers.id, id)).returning()),
   ).pipe(orNotFound(id))
@@ -123,6 +134,7 @@ export const findByDomain = Effect.fn("RetailersRepo.findByDomain")(function* (
   domain: RetailerDomain,
 ) {
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db.select().from(retailers).where(eq(retailers.domain, domain)),

@@ -4,7 +4,10 @@ import * as OpenApi from "effect/unstable/httpapi/OpenApi"
 import { RootApi } from "../src/RootApi.ts"
 
 const spec = OpenApi.fromApi(RootApi)
-const codesOf = (responses: object) => Object.keys(responses).sort()
+
+const codesOf = (responses: OpenApi.OpenAPISpecResponses) =>
+  Object.keys(responses).sort()
+
 describe("RootApi", () => {
   it("matches the OpenAPI contract snapshot", async () => {
     // Use the repo formatter so vp check --fix cannot invalidate this JSON snapshot.
@@ -13,6 +16,7 @@ describe("RootApi", () => {
       JSON.stringify(spec, null, 2),
       { printWidth: 80 },
     )
+
     expect(formatted.errors).toEqual([])
     await expect(formatted.code).toMatchFileSnapshot(
       "./__snapshots__/RootApi.openapi.json",
@@ -25,6 +29,7 @@ describe("RootApi", () => {
     expect(paths.every((path) => path.startsWith("/api/v1/"))).toBe(true)
     expect(paths.some((path) => path.startsWith("/api/v1/auth"))).toBe(false)
     expect(spec.paths["/api/v1/variants/{id}/impact"]).toBeUndefined()
+
     for (const path of [
       "/api/v1/scrapes",
       "/api/v1/scrapes/bulk",
@@ -59,11 +64,13 @@ describe("RootApi", () => {
         ["200", "401", ...updateErrors.map(String)].sort(),
       )
       expect(codesOf(item.delete!.responses)).toEqual(["200", "401", "404"])
+
       if (group !== "variants")
         expect(
           codesOf(spec.paths[`/api/v1/${group}/{id}/impact`]!.get!.responses),
         ).toEqual(["200", "401", "404"])
     }
+
     expect(JSON.stringify(spec)).not.toContain("SqlError")
   })
   it("answers dispatch with 202 and names its refusals", () => {
@@ -95,6 +102,7 @@ describe("RootApi", () => {
     const row = JSON.stringify(
       spec.paths["/api/v1/scrapes/{id}"]!.get!.responses[200],
     )
+
     expect(row).not.toContain("htmlR2Key")
     expect(row).not.toContain("rawR2Key")
     expect(row).toContain("rootSpanId")
@@ -120,12 +128,15 @@ describe("RootApi", () => {
         "^\\d{1,13}:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
       description: "a page cursor, `<createdAtMillis>:<id>`",
     })
+
     for (const path of ["/api/v1/scrapes", "/api/v1/extractions"]) {
       const parameters = spec.paths[path]!.get!.parameters!
+
       const named = (name: string) =>
         parameters.find(
           (parameter) => "name" in parameter && parameter.name === name,
         )
+
       expect(named("limit")).toEqual({
         name: "limit",
         in: "query",
@@ -142,6 +153,7 @@ describe("RootApi", () => {
         '"required":["items","nextCursor"]',
       )
     }
+
     expect(
       (spec.paths["/api/v1/scrapes"]!.get!.parameters ?? []).flatMap(
         (parameter) => ("name" in parameter ? [parameter.name] : []),
@@ -175,6 +187,7 @@ describe("RootApi", () => {
           },
         },
       })
+
       if (group === "listings" || group === "pages")
         expect(row).toMatchObject({
           content: {
@@ -200,6 +213,7 @@ describe("RootApi", () => {
   })
   it("returns the five nonnegative CascadeImpact counts from remove and impact", () => {
     const count = { type: "integer", minimum: 0 }
+
     const schema = {
       type: "object",
       properties: {
@@ -212,6 +226,7 @@ describe("RootApi", () => {
       required: ["products", "variants", "listings", "pages", "scrapes"],
       additionalProperties: false,
     }
+
     for (const group of [
       "brands",
       "products",
@@ -223,6 +238,7 @@ describe("RootApi", () => {
       expect(
         spec.paths[`/api/v1/${group}/{id}`]!.delete!.responses[200],
       ).toMatchObject({ content: { "application/json": { schema } } })
+
       if (group !== "variants")
         expect(
           spec.paths[`/api/v1/${group}/{id}/impact`]!.get!.responses[200],
@@ -269,13 +285,14 @@ describe("RootApi", () => {
         ["PageNotFound", "UrlHostMismatch"],
       ],
     ] as const) {
-      const names = (responses: object) =>
+      const names = (responses: OpenApi.OpenAPISpecResponses) =>
         Array.from(
           JSON.stringify(responses).matchAll(
             /#\/components\/schemas\/([A-Za-z]+)Encoded/g,
           ),
           (match) => match[1]!,
         ).sort()
+
       expect(names(spec.paths[`/api/v1/${group}`]!.post!.responses)).toEqual(
         [...creates].sort(),
       )

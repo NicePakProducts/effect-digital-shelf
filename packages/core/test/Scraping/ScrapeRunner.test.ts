@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate"
 import { expect, it } from "@effect/vitest"
 import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
 import {
@@ -32,8 +33,10 @@ const setup = Effect.gen(function* () {
   const target = yield* (yield* seed()).listing
   const scrapes = yield* Scrapes
   const row = yield* scrapes.trigger({ parent: target.parent })
+
   return { target, scrapes, row, runner: yield* ScrapeRunner }
 })
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
   "ScrapeRunner",
   (it) => {
@@ -42,10 +45,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           yield* reset
+
           const { parent, url } = yield* (yield* seed({
             mode: "advance",
             country: "Canada",
           })).listing
+
           const scrapes = yield* Scrapes
           const row = yield* scrapes.trigger({ parent })
           expect(row.mode).toBe("advance")
@@ -67,10 +72,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           const { row, runner, scrapes, target } = yield* setup
+
           const fetched = yield* runner.fetch(
             row.id,
             yield* runner.claim(row.id),
           )
+
           yield* runner.finish(row.id, fetched)
           const successful = yield* scrapes.get(row.id)
           yield* TestClock.adjust("1 second")
@@ -89,10 +96,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           const { row, runner } = yield* setup
+
           const outcome = yield* runner.fetch(
             row.id,
             yield* runner.claim(row.id),
           )
+
           yield* runner.fail(row.id, "timeout", "swept")
           yield* (yield* R2BucketTest).failNextDelete
           expect(
@@ -127,12 +136,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             promptSnapshot: "Extract listing",
             attempt: 1,
           })
+
           const parentRows = yield* query(
             db
               .select()
               .from(listings)
               .where(eq(listings.id, target.parent.listingId)),
           )
+
           expect(parentRows[0]?.lastScrapedAt).toEqual(
             DateTime.toDateUtc(yield* DateTime.now),
           )
@@ -143,9 +154,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           expect(objects.get(`raw/${row.id}.json`)?.contentType).toBe(
             "application/json",
           )
+
           const initial = Option.getOrThrow(
             yield* ExtractionsRepo.findInitial(row.id),
           )
+
           yield* runner.startExtraction(initial.id, row.id)
           yield* runner.startExtraction(initial.id, row.id)
           const calls = yield* (yield* ExecutionsTest).calls
@@ -196,11 +209,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           Effect.sleep("10 minutes").pipe(Effect.as(fetched(target.url))),
         )
         const claimed = yield* runner.claim(row.id)
+
         const fiber = yield* runner
           .fetch(row.id, claimed)
           .pipe(Effect.forkChild)
+
         yield* TestClock.adjust("181 seconds")
         expect(yield* Fiber.join(fiber)).toMatchObject({
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
           _tag: "failed",
           code: "timeout",
           attempts: 1,
@@ -220,7 +236,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         )
         const outcome = yield* runner.fetch(row.id, yield* runner.claim(row.id))
         expect(outcome._tag).toBe("fetched")
-        if (outcome._tag !== "fetched") return
+
+        if (!Predicate.isTagged(outcome, "fetched")) return
         expect(outcome.truncated).toBe(true)
         expect(
           new TextEncoder().encode(outcome.envelope.innerText).length,
@@ -245,6 +262,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         )
         const outcome = yield* runner.fetch(row.id, yield* runner.claim(row.id))
         expect(outcome).toMatchObject({
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
           _tag: "failed",
           code: "blocked",
           detail: { status: 403 },
@@ -277,10 +295,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           const { row, runner, scrapes } = yield* setup
+
           const outcome = yield* runner.fetch(
             row.id,
             yield* runner.claim(row.id),
           )
+
           const now = yield* DateTime.now
           yield* ExtractionsRepo.insert({
             scrapeId: row.id,

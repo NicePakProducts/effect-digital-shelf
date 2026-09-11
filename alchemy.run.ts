@@ -7,6 +7,7 @@ import * as AiGateway from "./packages/infra/src/Resources/AiGateway.ts"
 import * as Bucket from "./packages/infra/src/Resources/Bucket.ts"
 import { stageOf } from "./packages/infra/src/Resources/Names.ts"
 import * as Postgres from "./packages/infra/src/Resources/Postgres.ts"
+// oxlint-disable-next-line anti-slop-effect/no-service-constructor-imports -- makeServer is an Alchemy resource factory, not an Effect service constructor
 import { makeServer } from "./apps/server/src/Worker.ts"
 
 export default Alchemy.Stack(
@@ -15,13 +16,16 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const stage = stageOf(yield* Alchemy.Stage)
     const databaseUrl = yield* Config.redacted("DATABASE_URL")
+
     const hostname = (yield* Config.option(
       Config.string("SERVER_HOSTNAME"),
     )).pipe(Option.filter((name) => name !== ""))
+
     const hyperdrive = yield* Postgres.make({ stage, databaseUrl })
     const bucket = yield* Bucket.make(stage)
     yield* AiGateway.make(stage)
     const server = yield* makeServer({ stage, hostname, hyperdrive, bucket })
+
     return { url: server.url }
   }),
 )

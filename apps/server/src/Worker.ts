@@ -42,9 +42,11 @@ export const makeServer = (options: {
     },
     Effect.gen(function* () {
       yield* ConfigKeys.bind
+
       const hyperdrive = yield* Cloudflare.Hyperdrive.Connect(
         options.hyperdrive,
       )
+
       const bucket = yield* Cloudflare.R2.ReadWriteBucket(options.bucket)
       const browser = yield* Cloudflare.Browser("BROWSER")
 
@@ -53,11 +55,13 @@ export const makeServer = (options: {
       const executions: Layer.Layer<Executions> = Layer.unwrap(
         Effect.sync(() => ExecutionsAdapter.layer({ scrape, extraction })),
       )
+
       const adapters = Layer.mergeAll(
         Layer.unwrap(Effect.map(hyperdrive.connectionString, DbAdapter.layer)),
         R2BucketAdapter.layer(bucket),
         executions,
       )
+
       const providers = Core.ScrapeProvidersLive.pipe(
         Layer.provide([
           Layer.unwrap(
@@ -68,15 +72,18 @@ export const makeServer = (options: {
           FetchHttpClient.layer,
         ]),
       )
+
       const workflowLayers: WorkflowLayers["Service"] = {
         scrape: Core.ScrapeWorkflow.pipe(Layer.provide([adapters, providers])),
         extraction: Core.ExtractionWorkflow.pipe(
           Layer.provide([adapters, Core.LanguageModelLive]),
         ),
       }
+
       const scrape = yield* ScrapeWorkflow.pipe(
         Effect.provideService(WorkflowLayers, workflowLayers),
       )
+
       const extraction = yield* ExtractionWorkflow.pipe(
         Effect.provideService(WorkflowLayers, workflowLayers),
       )
@@ -99,6 +106,7 @@ export const makeServer = (options: {
         Layer.provide(Core.Api.pipe(Layer.provide(Core.EmailSenderLive))),
         Layer.provide(adapters),
       )
+
       return {
         fetch: Http.fetch(appLayer),
       }
@@ -117,6 +125,7 @@ export default Effect.gen(function* () {
   const { stage } = yield* Stack
   const hyperdrive = yield* Cloudflare.Hyperdrive.Connection.ref("Postgres")
   const bucket = yield* Cloudflare.R2.Bucket.ref("Bucket")
+
   return yield* makeServer({
     stage: stageOf(stage),
     hostname: Option.none(),

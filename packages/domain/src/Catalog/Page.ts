@@ -19,6 +19,7 @@ export const Page = createSelectSchema(pages, {
   createdAt: Timestamp,
   updatedAt: Timestamp,
 })
+
 export type Page = typeof Page.Type
 
 export const PageInsert = createInsertSchema(pages, {
@@ -30,6 +31,7 @@ export const PageInsert = createInsertSchema(pages, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type PageInsert = typeof PageInsert.Type
 
 export const PageUpdate = createUpdateSchema(pages, {
@@ -41,6 +43,7 @@ export const PageUpdate = createUpdateSchema(pages, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type PageUpdate = typeof PageUpdate.Type
 
 /** A Page as the api reads it, with its derived pause and status readings. */
@@ -50,4 +53,5 @@ export const PageWithStatus = Schema.Struct({
   effectivePaused: Schema.Boolean,
   combinedStatus: CombinedStatus,
 })
+
 export type PageWithStatus = typeof PageWithStatus.Type

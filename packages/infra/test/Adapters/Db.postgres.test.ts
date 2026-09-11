@@ -9,10 +9,12 @@ import * as Redacted from "effect/Redacted"
 const url = process.env.DIGITAL_SHELF_TEST_POSTGRES_URL
 
 /** Drizzle types `execute` as the rows; the pg driver hands back its Result. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Drizzle's execute type differs from the pg driver's Result at this boundary.
 const rowsOf = (result: unknown): ReadonlyArray<unknown> =>
   Array.isArray(result)
     ? result
-    : (result as { readonly rows: ReadonlyArray<unknown> }).rows
+    : // SAFETY: Non-array execute results come from pg, whose Result owns rows.
+      (result as { readonly rows: ReadonlyArray<unknown> }).rows
 
 describe.skipIf(url === undefined)("Db adapter on PostgreSQL", () => {
   it.layer(Adapter.layer(Redacted.make(url ?? "")), { timeout: "30 seconds" })(
@@ -34,6 +36,7 @@ describe.skipIf(url === undefined)("Db adapter on PostgreSQL", () => {
             yield* db.transaction(() =>
               db.execute(sql`INSERT INTO infra_rollback_probe VALUES (1)`),
             )
+
             const failed = yield* Effect.flip(
               db.transaction(() =>
                 Effect.gen(function* () {
@@ -49,10 +52,12 @@ describe.skipIf(url === undefined)("Db adapter on PostgreSQL", () => {
                       ),
                     ),
                   ).toEqual([{ id: 1 }, { id: 2 }])
+
                   return yield* Effect.fail("rollback probe")
                 }),
               ),
             )
+
             expect(failed).toBe("rollback probe")
             expect(
               rowsOf(

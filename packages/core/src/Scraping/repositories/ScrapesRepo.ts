@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate"
 import { ScrapeNotFound } from "@digital-shelf/domain/Scraping/Errors"
 import {
   Scrape,
@@ -33,8 +34,11 @@ import * as Rows from "../../Sql/Rows.ts"
  */
 
 const one = Rows.decodeOptional(Scrape)
+
 const all = Rows.decodeAll(Scrape)
+
 const toRow = Rows.encode(ScrapeInsert)
+
 const toPatch = Rows.encode(ScrapeUpdate)
 
 const terminalStatuses: ReadonlyArray<ScrapeStatus> = ["success", "failed"]
@@ -54,6 +58,7 @@ const orNotFound =
 
 export const find = Effect.fn("ScrapesRepo.find")(function* (id: ScrapeId) {
   const db = yield* Db
+
   return yield* one(
     yield* query(db.select().from(scrapes).where(eq(scrapes.id, id))),
   )
@@ -66,6 +71,7 @@ export const findInFlight = Effect.fn("ScrapesRepo.findInFlight")(function* (
   parent: ScrapeParent,
 ) {
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db
@@ -73,7 +79,7 @@ export const findInFlight = Effect.fn("ScrapesRepo.findInFlight")(function* (
         .from(scrapes)
         .where(
           and(
-            parent._tag === "Listing"
+            Predicate.isTagged(parent, "Listing")
               ? eq(scrapes.listingId, parent.listingId)
               : eq(scrapes.pageId, parent.pageId),
             inArray(scrapes.status, ["pending", "running"]),
@@ -89,6 +95,7 @@ export const insert = Effect.fn("ScrapesRepo.insert")(function* (
   scrape: ScrapeInsert,
 ) {
   const db = yield* Db
+
   return yield* Rows.decodeOne(Scrape)(
     yield* query(db.insert(scrapes).values(toRow(scrape)).returning()),
   )
@@ -103,6 +110,7 @@ export const insertUnlessInFlight = Effect.fn(
   "ScrapesRepo.insertUnlessInFlight",
 )(function* (scrape: ScrapeInsert) {
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db
@@ -125,6 +133,7 @@ export const transition = Effect.fn("ScrapesRepo.transition")(function* (
   patch: ScrapeUpdate,
 ) {
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db
@@ -142,6 +151,7 @@ export const listPending = Effect.fn("ScrapesRepo.listPending")(function* (
 ) {
   if (limit <= 0) return []
   const db = yield* Db
+
   return yield* all(
     yield* query(
       db
@@ -159,6 +169,7 @@ export const listStuck = Effect.fn("ScrapesRepo.listStuck")(function* (
   before: DateTime.Utc,
 ) {
   const db = yield* Db
+
   return yield* all(
     yield* query(
       db
@@ -186,6 +197,7 @@ export const deleteExpired = Effect.fn("ScrapesRepo.deleteExpired")(function* (
 ) {
   if (limit <= 0) return []
   const db = yield* Db
+
   const expired = db
     .select({ id: scrapes.id })
     .from(scrapes)
@@ -197,12 +209,14 @@ export const deleteExpired = Effect.fn("ScrapesRepo.deleteExpired")(function* (
     )
     .orderBy(asc(scrapes.createdAt), asc(scrapes.id))
     .limit(limit)
+
   const rows = yield* query(
     db
       .delete(scrapes)
       .where(inArray(scrapes.id, expired))
       .returning({ id: scrapes.id }),
   )
+
   return yield* Rows.decodeAll(Schema.Struct({ id: ScrapeId }))(rows).pipe(
     Effect.map((decoded) => decoded.map((row) => row.id)),
   )
@@ -217,6 +231,7 @@ const Backlog = Schema.Struct({
 export const expiredBacklog = Effect.fn("ScrapesRepo.expiredBacklog")(
   function* (before: DateTime.Utc) {
     const db = yield* Db
+
     const rows = yield* query(
       db
         .select({
@@ -233,6 +248,7 @@ export const expiredBacklog = Effect.fn("ScrapesRepo.expiredBacklog")(
           ),
         ),
     )
+
     return yield* Rows.decodeOne(Backlog)(rows)
   },
 )
@@ -241,6 +257,7 @@ export const mostRecentSuccessful = Effect.fn(
   "ScrapesRepo.mostRecentSuccessful",
 )(function* (parent: ScrapeParent) {
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db
@@ -248,7 +265,7 @@ export const mostRecentSuccessful = Effect.fn(
         .from(scrapes)
         .where(
           and(
-            parent._tag === "Listing"
+            Predicate.isTagged(parent, "Listing")
               ? eq(scrapes.listingId, parent.listingId)
               : eq(scrapes.pageId, parent.pageId),
             eq(scrapes.status, "success"),
@@ -273,6 +290,7 @@ export const list = Effect.fn("ScrapesRepo.list")(function* (options: {
   readonly limit: number
 }) {
   const db = yield* Db
+
   const rows = yield* all(
     yield* query(
       db
@@ -296,6 +314,7 @@ export const list = Effect.fn("ScrapesRepo.list")(function* (options: {
         .limit(options.limit + 1),
     ),
   )
+
   return {
     items: rows.slice(0, options.limit),
     hasMore: rows.length > options.limit,

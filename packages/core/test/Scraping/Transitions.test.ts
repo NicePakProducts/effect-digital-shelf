@@ -52,12 +52,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           yield* reset
+
           const row = yield* extraction(
             (yield* successfulScrape((yield* (yield* seed()).listing).parent))
               .id,
             1,
             "pending",
           )
+
           expect(
             (yield* transitionExtraction(row.id, "pending", "running", {}))
               .result,
@@ -72,6 +74,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               transitionExtraction(row.id, "running", "success", {}),
             ),
           ).toMatchObject({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
             _tag: "TransitionRejected",
             kind: "extraction",
             id: row.id,

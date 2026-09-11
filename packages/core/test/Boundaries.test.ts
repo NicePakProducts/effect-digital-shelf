@@ -13,6 +13,7 @@ const src = resolve(import.meta.dirname, "../src")
 const walk = (dir: string): ReadonlyArray<string> =>
   readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry)
+
     return statSync(path).isDirectory() ? walk(path) : [path]
   })
 

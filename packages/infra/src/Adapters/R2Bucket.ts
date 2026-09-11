@@ -31,6 +31,7 @@ export const layer = <R>(client: BucketClient<R>) =>
       // calls use the layer's build span, not the per-call R2Bucket.* span.
       // Alchemy's client only wraps promises; revisit with #40 if spans matter.
       const services = yield* Effect.context<R>()
+
       const run = <A>(
         operation: StorageError["operation"],
         key: string,
@@ -45,6 +46,7 @@ export const layer = <R>(client: BucketClient<R>) =>
             Effect.fail(new StorageError({ operation, key, cause })),
           ),
         )
+
       return R2Bucket.of({
         put: Effect.fn("R2Bucket.put")((key, body, contentType) =>
           run("put", key, () =>
@@ -55,6 +57,7 @@ export const layer = <R>(client: BucketClient<R>) =>
           run("get", key, () =>
             Effect.gen(function* () {
               const object = yield* client.get(key)
+
               return object === null
                 ? Option.none()
                 : Option.some(yield* object.text())

@@ -51,6 +51,7 @@ describe("Combined status", () => {
         success: "success",
       },
     }
+
     for (const scrape of LifecycleStatuses)
       for (const extraction of LifecycleStatuses)
         expect(
@@ -61,6 +62,7 @@ describe("Combined status", () => {
     expect(Schema.decodeUnknownSync(CascadeImpact)(emptyImpact)).toEqual(
       emptyImpact,
     )
+
     for (const products of [-1, 0.5])
       expect(
         Option.isNone(

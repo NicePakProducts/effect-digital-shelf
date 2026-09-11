@@ -13,10 +13,14 @@ import {
  * why the error-code sets are text + CHECK instead.
  */
 export const cadenceEnum = pgEnum("cadence", Cadences)
+
 export const scrapeModeEnum = pgEnum("scrape_mode", ScrapeModes)
+
 export const scrapeStatusEnum = pgEnum("scrape_status", LifecycleStatuses)
+
 export const extractionStatusEnum = pgEnum(
   "extraction_status",
   LifecycleStatuses,
 )
+
 export const promptKindEnum = pgEnum("prompt_kind", ParentKinds)

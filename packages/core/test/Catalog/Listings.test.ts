@@ -1,3 +1,4 @@
+import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
 import { eq } from "drizzle-orm"
 import * as DateTime from "effect/DateTime"
 import { Db } from "@digital-shelf/core/Sql/Db"
@@ -29,22 +30,26 @@ import * as CoreTest from "../layers/Core.ts"
 import * as DbTest from "../layers/Db.ts"
 import { seed } from "../fixtures/Catalog.ts"
 import { history, extraction } from "../fixtures/Scraping.ts"
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
   it.effect("uses attempt 2 when Extraction timestamps tie", () =>
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* seed()
       const service = yield* Listings
+
       const row = yield* service.create({
         productId: c.productId,
         retailerId: c.retailerId,
         url: c.url("/tie"),
       })
+
       const scrape = yield* history(
-        { _tag: "Listing", listingId: row.id },
+        ScrapeParent.members[0].make({ listingId: row.id }),
         "success",
         "1 hour",
       )
+
       const first = yield* extraction(scrape.id, 1, "success")
       const second = yield* extraction(scrape.id, 2, "pending")
       const db = yield* Db
@@ -69,23 +74,29 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         yield* DbTest.reset
         const c = yield* seed()
         const service = yield* Listings
+
         const row = yield* service.create({
           productId: c.productId,
           retailerId: c.retailerId,
           url: c.url("/remove"),
         })
+
         const bucket = yield* R2BucketTest
         yield* bucket.reset
+
         for (const age of ["2 hours", "1 hour"] as const) {
           const scrape = yield* history(
-            { _tag: "Listing", listingId: row.id },
+            ScrapeParent.members[0].make({ listingId: row.id }),
             "success",
             age,
           )
+
           yield* extraction(scrape.id, 1, "success")
+
           for (const key of keysOf(scrape.id))
             yield* bucket.service.put(key, "payload", "text/plain")
         }
+
         const db = yield* Db
         expect(yield* query(db.select().from(scrapes))).toHaveLength(2)
         expect(yield* query(db.select().from(extractions))).toHaveLength(2)
@@ -109,12 +120,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         const b = yield* variants.create({ productId: c.productId, name: "B" })
         const a = yield* variants.create({ productId: c.productId, name: "A" })
         const listings = yield* Listings
+
         const row = yield* listings.create({
           productId: c.productId,
           retailerId: c.retailerId,
           url: c.url("/item"),
           variantIds: [b.id, a.id, b.id],
         })
+
         expect(row.variantIds).toEqual([a.id, b.id])
         expect(row.effectivePaused).toBe(false)
         expect(row.combinedStatus).toBe("none")
@@ -129,16 +142,20 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         yield* DbTest.reset
         const a = yield* seed()
         const b = yield* seed()
+
         const variant = yield* (yield* Variants).create({
           productId: b.productId,
           name: "Other",
         })
+
         const listings = yield* Listings
+
         const command = {
           productId: a.productId,
           retailerId: a.retailerId,
           url: a.url("/item"),
         }
+
         for (const variantId of [
           variant.id,
           Schema.decodeUnknownSync(VariantId)(
@@ -153,6 +170,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
             new VariantNotInProduct({ productId: a.productId, variantId }),
           )
         }
+
         expect(yield* listings.list()).toEqual([])
         const row = yield* listings.create(command)
         expect(
@@ -176,9 +194,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       yield* DbTest.reset
       const c = yield* seed()
       const listings = yield* Listings
+
       const productId = Schema.decodeUnknownSync(ProductId)(
         "00000000-0000-4000-8000-000000000404",
       )
+
       const retailerId = Schema.decodeUnknownSync(RetailerId)(productId)
       expect(
         yield* Effect.flip(
@@ -204,17 +224,21 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* seed()
+
       const variant = yield* (yield* Variants).create({
         productId: c.productId,
         name: "A",
       })
+
       const listings = yield* Listings
+
       const row = yield* listings.create({
         productId: c.productId,
         retailerId: c.retailerId,
         url: c.url("/item"),
         variantIds: [variant.id],
       })
+
       expect(
         (yield* listings.update(row.id, { cadence: "daily" })).variantIds,
       ).toEqual([variant.id])
@@ -223,21 +247,26 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       ).toEqual([])
     }),
   )
+
   for (const container of ["Brand", "Product", "Retailer"] as const) {
     it.effect(`is effectively paused by its ${container}`, () =>
       Effect.gen(function* () {
         yield* DbTest.reset
         const c = yield* seed()
         const listings = yield* Listings
+
         const row = yield* listings.create({
           productId: c.productId,
           retailerId: c.retailerId,
           url: c.url("/item"),
         })
+
         if (container === "Brand")
           yield* (yield* Brands).update(c.brandId, { paused: true })
+
         if (container === "Product")
           yield* (yield* Products).update(c.productId, { paused: true })
+
         if (container === "Retailer")
           yield* (yield* Retailers).update(c.retailerId, { paused: true })
         expect((yield* listings.get(row.id)).effectivePaused).toBe(true)
@@ -245,6 +274,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       }),
     )
   }
+
   it.effect(
     "uses the newest Scrape and its latest Extraction for dominant-failure status",
     () =>
@@ -252,12 +282,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         yield* DbTest.reset
         const c = yield* seed()
         const listings = yield* Listings
+
         const row = yield* listings.create({
           productId: c.productId,
           retailerId: c.retailerId,
           url: c.url("/item"),
         })
-        const parent = { _tag: "Listing", listingId: row.id } as const
+
+        const parent = ScrapeParent.members[0].make({ listingId: row.id })
         yield* history(parent, "failed", "3 hours")
         expect((yield* listings.get(row.id)).combinedStatus).toBe("failed")
         const current = yield* history(parent, "success", "1 hour")
@@ -278,16 +310,19 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       const a = yield* seed()
       const b = yield* seed()
       const listings = yield* Listings
+
       const first = yield* listings.create({
         productId: a.productId,
         retailerId: a.retailerId,
         url: a.url("/a"),
       })
+
       const second = yield* listings.create({
         productId: a.productId,
         retailerId: b.retailerId,
         url: b.url("/b"),
       })
+
       yield* listings.create({
         productId: b.productId,
         retailerId: b.retailerId,
@@ -319,9 +354,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const listings = yield* Listings
+
         const id = Schema.decodeUnknownSync(ListingId)(
           "00000000-0000-4000-8000-000000000404",
         )
+
         const error = new ListingNotFound({ listingId: id })
         expect(yield* Effect.flip(listings.get(id))).toEqual(error)
         expect(

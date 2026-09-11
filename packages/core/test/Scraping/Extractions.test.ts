@@ -1,3 +1,5 @@
+import * as Result from "effect/Result"
+import { TriggerExtraction } from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import { expect, it } from "@effect/vitest"
 import { Extractions } from "@digital-shelf/core/Scraping/Extractions"
 import { ExtractionRunner } from "@digital-shelf/core/Scraping/ExtractionRunner"
@@ -54,10 +56,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
             .where(eq(retailers.id, catalog.retailerId)),
         )
         const service = yield* Extractions
-        const row = yield* service.trigger({
-          _tag: "Scrape",
-          scrapeId: scrape.id,
-        })
+
+        const row = yield* service.trigger(
+          TriggerExtraction.members[0].make({
+            scrapeId: scrape.id,
+          }),
+        )
+
         expect(row).toMatchObject({
           attempt: 2,
           promptSnapshot: "Edited prompt",
@@ -71,7 +76,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         ])
         expect(
           yield* Effect.flip(
-            service.trigger({ _tag: "Scrape", scrapeId: scrape.id }),
+            service.trigger(
+              TriggerExtraction.members[0].make({ scrapeId: scrape.id }),
+            ),
           ),
         ).toEqual(
           new ExtractionInFlight({
@@ -82,8 +89,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         )
         yield* (yield* ExtractionRunner).fail(row.id, "unknown", "test")
         expect(
-          (yield* service.trigger({ _tag: "Scrape", scrapeId: scrape.id }))
-            .attempt,
+          (yield* service.trigger(
+            TriggerExtraction.members[0].make({ scrapeId: scrape.id }),
+          )).attempt,
         ).toBe(3)
       }),
   )
@@ -92,24 +100,31 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
     () =>
       Effect.gen(function* () {
         yield* reset
+
         const scrape = yield* successfulScrape(
           (yield* (yield* seed()).listing).parent,
         )
+
         yield* extraction(scrape.id, 1, "success")
         const service = yield* Extractions
+
         const results = yield* Effect.all(
           Array.from({ length: 8 }, () =>
             service
-              .trigger({ _tag: "Scrape", scrapeId: scrape.id })
+              .trigger(
+                TriggerExtraction.members[0].make({ scrapeId: scrape.id }),
+              )
               .pipe(Effect.result),
           ),
           { concurrency: "unbounded" },
         )
-        const successes = results.filter((result) => result._tag === "Success")
+
+        const successes = results.filter((result) => Result.isSuccess(result))
         expect(successes).toHaveLength(1)
         expect(successes[0]?.success.attempt).toBe(2)
-        const failures = results.filter((result) => result._tag === "Failure")
+        const failures = results.filter((result) => Result.isFailure(result))
         expect(failures).toHaveLength(7)
+
         for (const result of failures)
           expect(result.failure).toBeInstanceOf(ExtractionInFlight)
         expect(yield* service.listByScrape(scrape.id)).toHaveLength(2)
@@ -128,18 +143,23 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
           .where(eq(scrapes.id, expired.id)),
       )
       const service = yield* Extractions
+
       for (const [row, reason] of [
         [failed, "not_successful"],
         [expired, "html_expired"],
       ] as const)
         expect(
           yield* Effect.flip(
-            service.trigger({ _tag: "Scrape", scrapeId: row.id }),
+            service.trigger(
+              TriggerExtraction.members[0].make({ scrapeId: row.id }),
+            ),
           ),
         ).toEqual(new ScrapeNotReExtractable({ scrapeId: row.id, reason }))
       const id = Schema.decodeUnknownSync(ScrapeId)(crypto.randomUUID())
       expect(
-        yield* Effect.flip(service.trigger({ _tag: "Scrape", scrapeId: id })),
+        yield* Effect.flip(
+          service.trigger(TriggerExtraction.members[0].make({ scrapeId: id })),
+        ),
       ).toEqual(new ScrapeNotFound({ scrapeId: id }))
     }),
   )
@@ -153,7 +173,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         yield* successfulScrape(parent, { age: "2 hours" })
         const newest = yield* successfulScrape(parent, { age: "1 hour" })
         const service = yield* Extractions
-        const row = yield* service.trigger({ _tag: "Parent", parent })
+
+        const row = yield* service.trigger(
+          TriggerExtraction.members[1].make({ parent }),
+        )
+
         expect(row).toMatchObject({
           scrapeId: newest.id,
           promptKind: "page",
@@ -163,7 +187,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         yield* history(empty, "failed", "1 hour")
         expect(
           yield* Effect.flip(
-            service.trigger({ _tag: "Parent", parent: empty }),
+            service.trigger(
+              TriggerExtraction.members[1].make({ parent: empty }),
+            ),
           ),
         ).toEqual(new NoSuccessfulScrape({ parent: empty }))
       }),
@@ -185,10 +211,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         yield* extraction(c.id, 1, "pending")
         yield* successfulScrape((yield* catalog.page).parent)
         const service = yield* Extractions
+
         const report = yield* service.bulk({
           retailerId: catalog.retailerId,
           promptKind: "listing",
         })
+
         expect(report).toMatchObject({ skipped: 2, started: 1 })
         expect(report.created).toHaveLength(1)
         expect((yield* service.get(report.created[0]!)).scrapeId).toBe(b.id)
@@ -200,16 +228,20 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
       Effect.gen(function* () {
         yield* reset
         const catalog = yield* seed()
+
         for (let i = 0; i < 150; i++)
           yield* successfulScrape((yield* catalog.listing).parent)
         const service = yield* Extractions
+
         const report = yield* service.bulk({
           retailerId: catalog.retailerId,
           promptKind: "listing",
         })
+
         expect(report.created).toHaveLength(150)
         expect(report.started).toBe(100)
         const runner = yield* ExtractionRunner
+
         for (const id of report.created.slice(0, 100)) yield* runner.claim(id)
         expect(yield* service.drainPending(100)).toEqual({
           started: 50,
@@ -231,9 +263,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
   it.effect("unknown retailer is a domain error", () =>
     Effect.gen(function* () {
       yield* reset
+
       const retailerId = Schema.decodeUnknownSync(RetailerId)(
         crypto.randomUUID(),
       )
+
       expect(
         yield* Effect.flip(
           (yield* Extractions).bulk({ retailerId, promptKind: "listing" }),
@@ -248,6 +282,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         yield* reset
         const catalog = yield* seed()
         const rows = []
+
         for (let i = 0; i < 4; i++)
           rows.push(
             yield* extraction(
@@ -257,6 +292,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
             ),
           )
         const fake = yield* ExecutionsTest
+
         for (const [i, status] of [
           "complete",
           "running",
@@ -282,6 +318,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
           status: "failed",
           errorCode: Option.some("unknown"),
         })
+
         for (const row of rows.slice(1))
           expect((yield* service.get(row.id)).status).toBe("pending")
       }),
@@ -289,16 +326,19 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
   it.effect("redispatch starts pending rows and refuses running rows", () =>
     Effect.gen(function* () {
       yield* reset
+
       const row = yield* extraction(
         (yield* successfulScrape((yield* (yield* seed()).listing).parent)).id,
         1,
         "pending",
       )
+
       const service = yield* Extractions
       expect(yield* service.redispatch(row.id)).toBe("created")
       expect(yield* service.redispatch(row.id)).toBe("already-active")
       yield* (yield* ExtractionRunner).claim(row.id)
       expect(yield* Effect.flip(service.redispatch(row.id))).toMatchObject({
+        // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
         _tag: "TransitionRejected",
         kind: "extraction",
         observed: "running",
@@ -317,17 +357,21 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         const empty = (yield* catalog.listing).parent
         const older = yield* successfulScrape(first, { age: "2 hours" })
         yield* extraction(older.id, 1, "success", { age: "90 minutes" })
+
         const best = yield* extraction(older.id, 2, "success", {
           age: "80 minutes",
         })
+
         yield* extraction(older.id, 3, "failed")
         const newer = yield* successfulScrape(first, { age: "1 hour" })
         yield* extraction(newer.id, 1, "failed")
         yield* extraction((yield* successfulScrape(second)).id, 1, "success")
         const service = yield* Extractions
+
         const data = Option.getOrThrow(
           yield* service.latestExtractedData(first),
         )
+
         expect(data).toEqual({
           parent: first,
           data: { attempt: 2 },
@@ -341,9 +385,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
           },
         })
         expect(yield* service.latestExtractedData(empty)).toEqual(Option.none())
+
         const result = yield* service.latestExtractedDataForProduct(
           catalog.productId,
         )
+
         expect(result.map((item) => item.parent)).toEqual([first, second])
         expect(
           result.find((item) => item.provenance.scrapeId === older.id),
@@ -379,7 +425,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         )
         const service = yield* Extractions
         expect(
-          yield* Effect.flip(service.trigger({ _tag: "Parent", parent })),
+          yield* Effect.flip(
+            service.trigger(TriggerExtraction.members[1].make({ parent })),
+          ),
         ).toEqual(
           new ScrapeNotReExtractable({
             scrapeId: newest.id,
@@ -405,25 +453,31 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
       const other = (yield* catalog.listing).parent
       const scrape = yield* successfulScrape(parent)
       const otherScrape = yield* successfulScrape(other)
+
       const first = yield* extraction(scrape.id, 1, "success", {
         age: "3 hours",
       })
+
       const second = yield* extraction(scrape.id, 2, "failed", {
         age: "2 hours",
       })
+
       const third = yield* extraction(scrape.id, 3, "success", {
         age: "1 hour",
       })
+
       const elsewhere = yield* extraction(otherScrape.id, 1, "success")
       const service = yield* Extractions
       const page = yield* service.list({ limit: 2 })
       expect(page.items.map((row) => row.id)).toEqual([elsewhere.id, third.id])
       expect(page.hasMore).toBe(true)
       const last = page.items[1]!
+
       const rest = yield* service.list({
         limit: 2,
         cursor: { createdAt: last.createdAt, id: last.id },
       })
+
       expect(rest.items.map((row) => row.id)).toEqual([second.id, first.id])
       expect(rest.hasMore).toBe(false)
       expect(

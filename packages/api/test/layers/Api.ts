@@ -80,11 +80,13 @@ export const baseUrl = "http://localhost:3000/api/v1"
  */
 export const rawClient = Effect.gen(function* () {
   const context = yield* Effect.context<never>()
+
   const handler = yield* HttpRouter.toHttpEffect(
     HttpApiBuilder.layer(RootApi).pipe(
       Layer.provide(Layer.succeedContext(context)),
     ),
   )
+
   return HttpClient.make(
     Effect.fnUntraced(function* (request) {
       // A request the contract refuses fails the route with a respondable
@@ -98,10 +100,13 @@ export const rawClient = Effect.gen(function* () {
           ),
         ),
       )
+
       if (Exit.isSuccess(exit)) {
         return HttpServerResponse.toClientResponse(exit.value)
       }
+
       const [response] = yield* HttpServerError.causeResponse(exit.cause)
+
       return HttpServerResponse.toClientResponse(response)
     }, Effect.scoped),
   )

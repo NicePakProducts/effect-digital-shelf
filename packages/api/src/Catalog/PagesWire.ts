@@ -11,13 +11,18 @@ export const PageWire = Schema.Struct({
   updatedAt: TimestampWire,
   lastScrapedAt: Schema.NullOr(TimestampWire),
 })
+
 export type PageWire = typeof PageWire.Type
+
 export const toWire = (entity: PageWithStatus): PageWire => ({
   ...entity,
   lastScrapedAt: Option.getOrNull(entity.lastScrapedAt),
 })
+
 export const PageList = Schema.Struct({ items: Schema.Array(PageWire) })
+
 export const IdParams = Schema.Struct({ id: PageId })
+
 export const PagesQuery = Schema.Struct({
   brandId: Schema.optionalKey(BrandId),
   retailerId: Schema.optionalKey(RetailerId),

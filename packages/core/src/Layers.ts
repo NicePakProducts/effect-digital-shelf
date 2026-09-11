@@ -47,11 +47,13 @@ export const Scraping: Layer.Layer<
 > = Layer.mergeAll(Scrapes.layer, Extractions.layer)
 
 export const Api = Layer.mergeAll(Catalog, Scraping, Auth.layer)
+
 export const Cron = CronService.layer.pipe(
   Layer.provideMerge(
     Layer.mergeAll(Sweeps.layer, Scrapes.layer, Extractions.layer),
   ),
 )
+
 export const ScrapeWorkflow = ScrapeRunner.layer
 
 /**
@@ -61,9 +63,11 @@ export const ScrapeWorkflow = ScrapeRunner.layer
  * the same Workflow layer over the scripted fake.
  */
 export { layer as ScrapeProvidersLive } from "./Providers/ScrapeProviders.ts"
+
 export { BrowserRendering } from "./Providers/BrowserRendering.ts"
 
 export const ExtractionWorkflow = ExtractionRunner.layer
+
 export { layer as LanguageModelLive } from "./Providers/LanguageModel.ts"
 
 export const EmailSenderLive = EmailSender.layerPostmark

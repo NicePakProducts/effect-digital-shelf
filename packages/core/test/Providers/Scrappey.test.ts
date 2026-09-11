@@ -3,6 +3,7 @@ import * as Scrappey from "@digital-shelf/core/Providers/Scrappey"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
+import * as Schema from "effect/Schema"
 import * as Option from "effect/Option"
 import * as Redacted from "effect/Redacted"
 import * as TestClock from "effect/testing/TestClock"
@@ -15,6 +16,7 @@ import success from "../fixtures/scrappey/success.json" with { type: "json" }
 import * as Http from "../layers/HttpClient.ts"
 
 const KEY = Redacted.make("scrappey-secret-key")
+
 const request = {
   url: "https://www.example.com/product/1",
   country: Option.none<string>(),
@@ -29,6 +31,7 @@ const against = (
 ) =>
   Effect.gen(function* () {
     const fixture = yield* Http.respondingWith(respond)
+
     return {
       fixture,
       fetch: Scrappey.fetchOnce({
@@ -60,6 +63,7 @@ describe("Scrappey provider — the call", () => {
       const { fixture, fetch } = yield* against(() => Http.json(success), {
         request: { url: request.url, country: Option.some("Australia") },
       })
+
       yield* fetch
       const [sent] = yield* fixture.requests
       expect(JSON.parse(sent?.body ?? "{}").proxyCountry).toBe("Australia")
@@ -106,11 +110,16 @@ describe("Scrappey provider — envelope", () => {
           creditsLeft: 41,
         }),
       )
+
       const { envelope } = yield* fetch
-      const raw = envelope.raw as {
-        readonly creditsLeft: number
-        readonly solution: Record<string, unknown>
-      }
+
+      const raw = Schema.decodeUnknownSync(
+        Schema.Struct({
+          creditsLeft: Schema.Number,
+          solution: Schema.Record(Schema.String, Schema.Json),
+        }),
+      )(envelope.raw)
+
       expect(raw.creditsLeft).toBe(41)
       expect(raw.solution.fingerprint).toEqual({ vendor: "extension" })
       expect(raw.solution.verified).toBe(true)
@@ -126,6 +135,7 @@ describe("Scrappey provider — envelope", () => {
           solution: { statusCode: 200, response: "<html></html>" },
         }),
       )
+
       const { envelope } = yield* fetch
       expect(envelope.finalUrl).toBe(request.url)
       expect(envelope.statusCode).toBe(200)
@@ -188,6 +198,7 @@ describe("Scrappey provider — classification", () => {
       const error = yield* failing(() =>
         Http.json({ data: "success", solution: { response: "<html></html>" } }),
       )
+
       expect(error.code).toBe("provider_error")
       expect(error.retryable).toBe(false)
       expect(error.message).toContain("without a status code")
@@ -199,6 +210,7 @@ describe("Scrappey provider — classification", () => {
       const error = yield* failing(
         () => new Response("<html>not json</html>", { status: 200 }),
       )
+
       expect(error.code).toBe("provider_error")
       expect(error.retryable).toBe(false)
       expect(error.message).toContain("cannot read")
@@ -210,6 +222,7 @@ describe("Scrappey provider — classification", () => {
       const error = yield* failing(() =>
         Http.json({ data: "success", solution: { statusCode: "200" } }),
       )
+
       expect(error.code).toBe("provider_error")
       expect(error.message).toContain("cannot read")
     }),
@@ -236,6 +249,7 @@ describe("Scrappey provider — classification", () => {
       const { fetch } = yield* against(() => "never", {
         deadline: Duration.seconds(30),
       })
+
       const fiber = yield* Effect.flip(fetch).pipe(Effect.forkChild)
       yield* TestClock.adjust(Duration.seconds(31))
       const error = yield* Fiber.join(fiber)
@@ -269,18 +283,22 @@ describe("Scrappey provider — the key and the trace stay put", () => {
     Effect.gen(function* () {
       const base = yield* Tracer.Tracer
       const spans: Tracer.Span[] = []
+
       const tracer = Tracer.make({
         span(options) {
           const span = base.span(options)
           spans.push(span)
+
           return span
         },
       })
+
       const { fetch } = yield* against(() => Http.json(success))
       yield* fetch.pipe(Effect.withTracer(tracer))
       const client = spans.filter((span) => span.name.startsWith("http.client"))
       // The local client span is kept (#28); only the key is withheld.
       expect(client.length).toBe(1)
+
       for (const span of spans)
         for (const value of span.attributes.values())
           expect(String(value)).not.toContain(Redacted.value(KEY))

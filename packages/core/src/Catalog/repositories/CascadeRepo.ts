@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate"
 import {
   CascadeImpact,
   emptyImpact,
@@ -19,6 +20,8 @@ import {
 } from "@digital-shelf/domain/Sql/Catalog"
 import { scrapes } from "@digital-shelf/domain/Sql/Scraping"
 import { eq, inArray, or, sql } from "drizzle-orm"
+import * as Data from "effect/Data"
+import * as Match from "effect/Match"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { Db } from "../../Sql/Db.ts"
@@ -33,34 +36,37 @@ export type CascadeRoot =
   | { _tag: "Listing"; id: ListingId }
   | { _tag: "Page"; id: PageId }
 
+export const CascadeRoot = Data.taggedEnum<CascadeRoot>()
+
 /** SQL predicates mirror the foreign-key subtree; the root itself is never counted. */
 const subtree = (db: Db["Service"], root: CascadeRoot) => {
-  const product =
-    root._tag === "Brand"
-      ? eq(products.brandId, root.id)
-      : root._tag === "Product"
-        ? eq(products.id, root.id)
-        : sql`false`
+  const product = Match.value(root).pipe(
+    Match.tag("Brand", ({ id }) => eq(products.brandId, id)),
+    Match.tag("Product", ({ id }) => eq(products.id, id)),
+    Match.orElse(() => sql`false`),
+  )
+
   const productIds = db
     .select({ id: products.id })
     .from(products)
     .where(product)
-  const listing =
-    root._tag === "Brand" || root._tag === "Product"
-      ? inArray(listings.productId, productIds)
-      : root._tag === "Retailer"
-        ? eq(listings.retailerId, root.id)
-        : root._tag === "Listing"
-          ? eq(listings.id, root.id)
-          : sql`false`
-  const page =
-    root._tag === "Brand"
-      ? eq(pages.brandId, root.id)
-      : root._tag === "Retailer"
-        ? eq(pages.retailerId, root.id)
-        : root._tag === "Page"
-          ? eq(pages.id, root.id)
-          : sql`false`
+
+  const listing = Match.value(root).pipe(
+    Match.tag("Brand", "Product", () =>
+      inArray(listings.productId, productIds),
+    ),
+    Match.tag("Retailer", ({ id }) => eq(listings.retailerId, id)),
+    Match.tag("Listing", ({ id }) => eq(listings.id, id)),
+    Match.orElse(() => sql`false`),
+  )
+
+  const page = Match.value(root).pipe(
+    Match.tag("Brand", ({ id }) => eq(pages.brandId, id)),
+    Match.tag("Retailer", ({ id }) => eq(pages.retailerId, id)),
+    Match.tag("Page", ({ id }) => eq(pages.id, id)),
+    Match.orElse(() => sql`false`),
+  )
+
   const scrape = or(
     inArray(
       scrapes.listingId,
@@ -71,42 +77,44 @@ const subtree = (db: Db["Service"], root: CascadeRoot) => {
       db.select({ id: pages.id }).from(pages).where(page),
     ),
   )
+
   return { product, productIds, listing, page, scrape }
 }
+
 export const impact = Effect.fn("CascadeRepo.impact")(function* (
   root: CascadeRoot,
 ) {
-  if (root._tag === "Variant") return emptyImpact
+  if (Predicate.isTagged(root, "Variant")) return emptyImpact
   const db = yield* Db
   const tree = subtree(db, root)
+
   return yield* Rows.decodeOne(CascadeImpact)(
     yield* query(
       db
         .select({
-          products:
-            root._tag === "Brand"
-              ? sql<number>`(select count(*)::int from ${products} where ${tree.product})`
-              : sql<number>`0`,
+          products: Predicate.isTagged(root, "Brand")
+            ? sql<number>`(select count(*)::int from ${products} where ${tree.product})`
+            : sql<number>`0`,
           variants: sql<number>`(select count(*)::int from ${variants} where ${inArray(variants.productId, tree.productIds)})`,
-          listings:
-            root._tag === "Listing"
-              ? sql<number>`0`
-              : sql<number>`(select count(*)::int from ${listings} where ${tree.listing})`,
-          pages:
-            root._tag === "Page"
-              ? sql<number>`0`
-              : sql<number>`(select count(*)::int from ${pages} where ${tree.page})`,
+          listings: Predicate.isTagged(root, "Listing")
+            ? sql<number>`0`
+            : sql<number>`(select count(*)::int from ${listings} where ${tree.listing})`,
+          pages: Predicate.isTagged(root, "Page")
+            ? sql<number>`0`
+            : sql<number>`(select count(*)::int from ${pages} where ${tree.page})`,
           scrapes: sql<number>`(select count(*)::int from ${scrapes} where ${tree.scrape})`,
         })
         .from(sql`(values (1)) as cascade_root(n)`),
     ),
   )
 })
+
 export const scrapeIds = Effect.fn("CascadeRepo.scrapeIds")(function* (
   root: CascadeRoot,
 ) {
-  if (root._tag === "Variant") return []
+  if (Predicate.isTagged(root, "Variant")) return []
   const db = yield* Db
+
   const rows = yield* Rows.decodeAll(Schema.Struct({ id: ScrapeId }))(
     yield* query(
       db
@@ -115,5 +123,6 @@ export const scrapeIds = Effect.fn("CascadeRepo.scrapeIds")(function* (
         .where(subtree(db, root).scrape),
     ),
   )
+
   return rows.map((row) => row.id)
 })

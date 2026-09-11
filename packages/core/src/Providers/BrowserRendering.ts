@@ -13,6 +13,7 @@ import * as Context from "effect/Context"
  * cast the library demands.
  */
 export interface BrowserBinding {
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- Cloudflare binding is opaque here; Playwright consumes its fetch contract.
   readonly fetch: (input: never, init?: never) => Promise<unknown>
 }
 

@@ -8,7 +8,9 @@ import * as Schema from "effect/Schema"
  */
 
 export const ExecutionKinds = ["scrape", "extraction"] as const
+
 export const ExecutionKind = Schema.Literals(ExecutionKinds)
+
 export type ExecutionKind = typeof ExecutionKind.Type
 
 export const ActiveExecutionStatuses = [
@@ -18,11 +20,13 @@ export const ActiveExecutionStatuses = [
   "paused",
   "waitingForPause",
 ] as const
+
 export const TerminalExecutionStatuses = [
   "complete",
   "errored",
   "terminated",
 ] as const
+
 export const UnresolvedExecutionStatuses = ["unknown"] as const
 
 export const ExecutionStatuses = [
@@ -30,18 +34,20 @@ export const ExecutionStatuses = [
   ...TerminalExecutionStatuses,
   ...UnresolvedExecutionStatuses,
 ] as const
+
 export const ExecutionStatus = Schema.Literals(ExecutionStatuses)
+
 export type ExecutionStatus = typeof ExecutionStatus.Type
 
 export const isTerminalExecutionStatus = (
   status: ExecutionStatus,
 ): status is (typeof TerminalExecutionStatuses)[number] =>
-  (TerminalExecutionStatuses as ReadonlyArray<string>).includes(status)
+  TerminalExecutionStatuses.some((candidate) => candidate === status)
 
 export const isActiveExecutionStatus = (
   status: ExecutionStatus,
 ): status is (typeof ActiveExecutionStatuses)[number] =>
-  (ActiveExecutionStatuses as ReadonlyArray<string>).includes(status)
+  ActiveExecutionStatuses.some((candidate) => candidate === status)
 
 /** The result of a Dispatch, as a value rather than an exception. */
 export const DispatchOutcomes = [
@@ -50,7 +56,9 @@ export const DispatchOutcomes = [
   "already-active",
   "recovered-failed",
 ] as const
+
 export const DispatchOutcome = Schema.Literals(DispatchOutcomes)
+
 export type DispatchOutcome = typeof DispatchOutcome.Type
 
 /**
@@ -64,4 +72,5 @@ export const SpanId = Schema.String.check(
     description: "a 16-character lower-case hex span id",
   }),
 )
+
 export type SpanId = typeof SpanId.Type

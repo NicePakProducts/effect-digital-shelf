@@ -3,6 +3,7 @@ import {
   createSelectSchema,
   createUpdateSchema,
 } from "drizzle-orm/effect-schema"
+import * as Match from "effect/Match"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { ListingId, PageId, ScrapeId } from "../Shared/Ids.ts"
@@ -17,10 +18,17 @@ export const ScrapeParent = Schema.Union([
   Schema.TaggedStruct("Listing", { listingId: ListingId }),
   Schema.TaggedStruct("Page", { pageId: PageId }),
 ])
+
 export type ScrapeParent = typeof ScrapeParent.Type
 
 export const parentKind = (parent: ScrapeParent): ParentKind =>
-  parent._tag === "Listing" ? "listing" : "page"
+  Match.value(parent).pipe(
+    Match.tags({
+      Listing: () => "listing" as const,
+      Page: () => "page" as const,
+    }),
+    Match.exhaustive,
+  )
 
 const exactlyOneParent = Schema.makeFilter(
   (row: {
@@ -64,21 +72,34 @@ export const Scrape = createSelectSchema(scrapes, {
   createdAt: Timestamp,
   updatedAt: Timestamp,
 }).check(exactlyOneParent)
+
 export type Scrape = typeof Scrape.Type
 
 /** Total on a decoded Scrape: the check above guarantees one side is set. */
 export const parent = (scrape: Scrape): ScrapeParent =>
   Option.match(scrape.listingId, {
-    onSome: (listingId) => ({ _tag: "Listing", listingId }) as const,
+    onSome: (listingId) => ScrapeParent.members[0].make({ listingId }),
     onNone: () =>
-      ({ _tag: "Page", pageId: Option.getOrThrow(scrape.pageId) }) as const,
+      ScrapeParent.members[1].make({
+        pageId: Option.getOrThrow(scrape.pageId),
+      }),
   })
 
 /** The two nullable columns a `ScrapeParent` writes. */
 export const parentColumns = (parent: ScrapeParent) =>
-  parent._tag === "Listing"
-    ? { listingId: Option.some(parent.listingId), pageId: Option.none() }
-    : { listingId: Option.none(), pageId: Option.some(parent.pageId) }
+  Match.value(parent).pipe(
+    Match.tags({
+      Listing: ({ listingId }) => ({
+        listingId: Option.some(listingId),
+        pageId: Option.none(),
+      }),
+      Page: ({ pageId }) => ({
+        listingId: Option.none(),
+        pageId: Option.some(pageId),
+      }),
+    }),
+    Match.exhaustive,
+  )
 
 export const ScrapeInsert = createInsertSchema(scrapes, {
   id: Schema.optionalKey(ScrapeId),
@@ -106,6 +127,7 @@ export const ScrapeInsert = createInsertSchema(scrapes, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type ScrapeInsert = typeof ScrapeInsert.Type
 
 export const ScrapeUpdate = createUpdateSchema(scrapes, {
@@ -134,4 +156,5 @@ export const ScrapeUpdate = createUpdateSchema(scrapes, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type ScrapeUpdate = typeof ScrapeUpdate.Type

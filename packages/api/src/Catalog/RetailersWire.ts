@@ -9,9 +9,13 @@ export const RetailerWire = Schema.Struct({
   createdAt: TimestampWire,
   updatedAt: TimestampWire,
 })
+
 export type RetailerWire = typeof RetailerWire.Type
+
 export const toWire = (entity: Retailer): RetailerWire => ({
   ...entity,
 })
+
 export const RetailerList = Schema.Struct({ items: Schema.Array(RetailerWire) })
+
 export const IdParams = Schema.Struct({ id: RetailerId })

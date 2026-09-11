@@ -1,3 +1,4 @@
+import { CascadeRoot } from "./repositories/CascadeRepo.ts"
 import type {
   CreateProduct,
   UpdateProduct,
@@ -15,12 +16,14 @@ const make = Effect.gen(function* () {
   const db = yield* Db
   const withDb = Effect.provideService(Db, db)
   const cascade = yield* Cascade
+
   const create = Effect.fn("Products.create")(function* (
     command: CreateProduct,
   ) {
     return yield* db.transaction(() =>
       Effect.gen(function* () {
         yield* ParentRepo.get(command.brandId)
+
         return yield* Repo.insert({
           ...command,
           paused: command.paused ?? false,
@@ -28,28 +31,36 @@ const make = Effect.gen(function* () {
       }),
     )
   }, withDb)
+
   const update = Effect.fn("Products.update")(function* (
     id: ProductId,
     command: UpdateProduct,
   ) {
     return yield* Repo.update(id, command)
   }, withDb)
+
   const get = Effect.fn("Products.get")(function* (id: ProductId) {
     return yield* Repo.get(id)
   }, withDb)
+
   const list = Effect.fn("Products.list")(function* (filter: Repo.Filter = {}) {
     return yield* Repo.list(filter).pipe(withDb)
   })
+
   const remove = Effect.fn("Products.remove")(function* (id: ProductId) {
-    return (yield* cascade.remove({ _tag: "Product", id }, Repo.remove(id)))
+    return (yield* cascade.remove(CascadeRoot.Product({ id }), Repo.remove(id)))
       .impact
   }, withDb)
+
   const impact = Effect.fn("Products.impact")(function* (id: ProductId) {
     yield* Repo.get(id)
-    return yield* cascade.impact({ _tag: "Product", id })
+
+    return yield* cascade.impact(CascadeRoot.Product({ id }))
   }, withDb)
+
   return { create, update, get, list, remove, impact }
 })
+
 export class Products extends Context.Service<
   Products,
   Effect.Success<typeof make>

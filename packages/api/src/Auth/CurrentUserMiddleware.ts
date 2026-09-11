@@ -10,12 +10,15 @@ export const layer = Layer.effect(
   CurrentUserMiddleware,
   Effect.gen(function* () {
     const auth = yield* Auth
+
     return (httpEffect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
         const user = yield* auth.getSession(request.headers)
+
         if (Option.isNone(user)) return yield* new HttpApiError.Unauthorized({})
         yield* Effect.annotateCurrentSpan("shelf.user.id", user.value.id)
+
         return yield* Effect.provideService(httpEffect, CurrentUser, user.value)
       })
   }),

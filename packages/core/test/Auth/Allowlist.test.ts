@@ -4,6 +4,7 @@ import { isAllowlisted, parseDomains } from "@digital-shelf/core/Auth/Allowlist"
 it("matches exact domains case-insensitively and rejects malformed addresses", () => {
   for (const email of ["someone@npbrands.com.au", "Someone@NPBrands.com.au"])
     expect(isAllowlisted(email, ["npbrands.com.au"])).toBe(true)
+
   for (const email of [
     "npbrands.com.au",
     "someone@",

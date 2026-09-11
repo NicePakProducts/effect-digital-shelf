@@ -14,6 +14,7 @@ export const Brand = createSelectSchema(brands, {
   createdAt: Timestamp,
   updatedAt: Timestamp,
 })
+
 export type Brand = typeof Brand.Type
 
 export const BrandInsert = createInsertSchema(brands, {
@@ -21,6 +22,7 @@ export const BrandInsert = createInsertSchema(brands, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type BrandInsert = typeof BrandInsert.Type
 
 export const BrandUpdate = createUpdateSchema(brands, {
@@ -28,4 +30,5 @@ export const BrandUpdate = createUpdateSchema(brands, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type BrandUpdate = typeof BrandUpdate.Type

@@ -9,9 +9,13 @@ export const BrandWire = Schema.Struct({
   createdAt: TimestampWire,
   updatedAt: TimestampWire,
 })
+
 export type BrandWire = typeof BrandWire.Type
+
 export const toWire = (entity: Brand): BrandWire => ({
   ...entity,
 })
+
 export const BrandList = Schema.Struct({ items: Schema.Array(BrandWire) })
+
 export const IdParams = Schema.Struct({ id: BrandId })

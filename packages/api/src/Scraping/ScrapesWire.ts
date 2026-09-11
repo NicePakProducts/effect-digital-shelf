@@ -46,6 +46,7 @@ export const ScrapeWire = Schema.Struct({
   createdAt: TimestampWire,
   updatedAt: TimestampWire,
 })
+
 export type ScrapeWire = typeof ScrapeWire.Type
 
 export const toWire = (entity: Scrape): ScrapeWire => ({

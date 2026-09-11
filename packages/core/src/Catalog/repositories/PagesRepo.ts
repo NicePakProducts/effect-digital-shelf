@@ -36,9 +36,13 @@ import * as Rows from "../../Sql/Rows.ts"
 export class PageTaken extends Data.TaggedError("PageTaken") {}
 
 const one = Rows.decodeOptional(Page)
+
 const all = Rows.decodeAll(Page)
+
 const exactlyOne = Rows.decodeOne(Page)
+
 const toRow = Rows.encode(PageInsert)
+
 const toPatch = Rows.encode(PageUpdate)
 
 const orNotFound =
@@ -56,6 +60,7 @@ const orNotFound =
 
 export const find = Effect.fn("PagesRepo.find")(function* (id: PageId) {
   const db = yield* Db
+
   return yield* one(
     yield* query(db.select().from(pages).where(eq(pages.id, id))),
   )
@@ -64,10 +69,12 @@ export const find = Effect.fn("PagesRepo.find")(function* (id: PageId) {
 export const get = (id: PageId) => find(id).pipe(orNotFound(id))
 
 export type Filter = { brandId?: BrandId; retailerId?: RetailerId }
+
 export const list = Effect.fn("PagesRepo.list")(function* (
   filter: Filter = {},
 ) {
   const db = yield* Db
+
   return yield* all(
     yield* query(
       db
@@ -92,6 +99,7 @@ export const insert = Effect.fn("PagesRepo.insert")(function* (
   page: PageInsert,
 ) {
   const db = yield* Db
+
   return yield* exactlyOne(
     yield* query(db.insert(pages).values(toRow(page)).returning()).pipe(
       onUniqueViolation("pages_brand_id_retailer_id", () => new PageTaken()),
@@ -104,8 +112,10 @@ export const update = Effect.fn("PagesRepo.update")(function* (
   patch: PageUpdate,
 ) {
   const values = toPatch(patch)
+
   if (Object.keys(values).length === 0) return yield* get(id)
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db.update(pages).set(values).where(eq(pages.id, id)).returning(),
@@ -116,6 +126,7 @@ export const update = Effect.fn("PagesRepo.update")(function* (
 /** The raw row delete; Catalog/Cascade collects what the cascade drops first. */
 export const remove = Effect.fn("PagesRepo.remove")(function* (id: PageId) {
   const db = yield* Db
+
   return yield* one(
     yield* query(db.delete(pages).where(eq(pages.id, id)).returning()),
   ).pipe(orNotFound(id))
@@ -125,6 +136,7 @@ export const findByBrandAndRetailer = Effect.fn(
   "PagesRepo.findByBrandAndRetailer",
 )(function* (brandId: BrandId, retailerId: RetailerId) {
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db
@@ -143,6 +155,7 @@ const StatusRow = Schema.Struct({
   scrapeStatus: nullable(ScrapeStatus),
   extractionStatus: nullable(ExtractionStatus),
 })
+
 const withStatus = (db: Db["Service"]) => {
   const last = db
     .select({ id: scrapes.id, status: scrapes.status })
@@ -151,6 +164,7 @@ const withStatus = (db: Db["Service"]) => {
     .orderBy(desc(scrapes.createdAt), desc(scrapes.id))
     .limit(1)
     .as("last_scrape")
+
   const extraction = db
     .select({ status: extractions.status })
     .from(extractions)
@@ -158,6 +172,7 @@ const withStatus = (db: Db["Service"]) => {
     .orderBy(desc(extractions.attempt))
     .limit(1)
     .as("last_extraction")
+
   return db
     .select({
       ...getTableColumns(pages),
@@ -171,11 +186,13 @@ const withStatus = (db: Db["Service"]) => {
     .leftJoinLateral(last, sql`true`)
     .leftJoinLateral(extraction, sql`true`)
 }
+
 const readStatus = Effect.fn("PagesRepo.readStatus")(function* (
   filter: Filter,
   id?: PageId,
 ) {
   const db = yield* Db
+
   const rows = yield* Rows.decodeAll(StatusRow)(
     yield* query(
       withStatus(db)
@@ -200,11 +217,13 @@ const readStatus = Effect.fn("PagesRepo.readStatus")(function* (
     combinedStatus: combinedStatus(scrapeStatus, extractionStatus),
   }))
 })
+
 export const findWithStatus = Effect.fn("PagesRepo.findWithStatus")(function* (
   id: PageId,
 ) {
   return Option.fromUndefinedOr((yield* readStatus({}, id))[0])
 })
+
 export const listWithStatus = Effect.fn("PagesRepo.listWithStatus")(function* (
   filter: Filter = {},
 ) {

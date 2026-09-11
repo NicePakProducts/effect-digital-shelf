@@ -27,9 +27,13 @@ import * as Rows from "../../Sql/Rows.ts"
  */
 
 const one = Rows.decodeOptional(Variant)
+
 const all = Rows.decodeAll(Variant)
+
 const exactlyOne = Rows.decodeOne(Variant)
+
 const toRow = Rows.encode(VariantInsert)
+
 const toPatch = Rows.encode(VariantUpdate)
 
 const orNotFound =
@@ -47,6 +51,7 @@ const orNotFound =
 
 export const find = Effect.fn("VariantsRepo.find")(function* (id: VariantId) {
   const db = yield* Db
+
   return yield* one(
     yield* query(db.select().from(variants).where(eq(variants.id, id))),
   )
@@ -55,10 +60,12 @@ export const find = Effect.fn("VariantsRepo.find")(function* (id: VariantId) {
 export const get = (id: VariantId) => find(id).pipe(orNotFound(id))
 
 export type Filter = { productId?: ProductId }
+
 export const list = Effect.fn("VariantsRepo.list")(function* (
   filter: Filter = {},
 ) {
   const db = yield* Db
+
   return yield* all(
     yield* query(
       db
@@ -80,6 +87,7 @@ export const insert = Effect.fn("VariantsRepo.insert")(function* (
   variant: VariantInsert,
 ) {
   const db = yield* Db
+
   return yield* exactlyOne(
     yield* query(db.insert(variants).values(toRow(variant)).returning()).pipe(
       onUniqueViolation(
@@ -100,8 +108,10 @@ export const update = Effect.fn("VariantsRepo.update")(function* (
 ) {
   const existing = yield* get(id)
   const values = toPatch(patch)
+
   if (Object.keys(values).length === 0) return existing
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db.update(variants).set(values).where(eq(variants.id, id)).returning(),
@@ -123,6 +133,7 @@ export const remove = Effect.fn("VariantsRepo.remove")(function* (
   id: VariantId,
 ) {
   const db = yield* Db
+
   return yield* one(
     yield* query(db.delete(variants).where(eq(variants.id, id)).returning()),
   ).pipe(orNotFound(id))

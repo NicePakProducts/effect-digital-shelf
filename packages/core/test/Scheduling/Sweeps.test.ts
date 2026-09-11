@@ -22,45 +22,53 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         yield* reset
         yield* TestClock.setTime(Date.UTC(2026, 8, 9))
         const fixture = yield* seed()
+
         const terminal = yield* history(
           (yield* fixture.listing).parent,
           "running",
           "7 minutes",
           "6 minutes",
         )
+
         const active = yield* history(
           (yield* fixture.listing).parent,
           "running",
           "7 minutes",
           "6 minutes",
         )
+
         const recent = yield* history(
           (yield* fixture.listing).parent,
           "running",
           "2 minutes",
           "1 minute",
         )
+
         const missing = yield* history(
           (yield* fixture.listing).parent,
           "running",
           "7 minutes",
           "6 minutes",
         )
+
         const unknown = yield* history(
           (yield* fixture.listing).parent,
           "running",
           "7 minutes",
           "6 minutes",
         )
+
         const executions = yield* ExecutionsTest
         yield* executions.setStatus("scrape", terminal.id, "errored")
         yield* executions.setStatus("scrape", active.id, "running")
         yield* executions.setStatus("scrape", unknown.id, "unknown")
         const bucket = yield* R2Bucket
+
         for (const row of [terminal, active, missing, unknown]) {
           yield* bucket.put(`html/${row.id}.html`, "html", "text/html")
           yield* bucket.put(`raw/${row.id}.json`, "{}", "application/json")
         }
+
         const sweeps = yield* Sweeps
         expect(yield* sweeps.stuck(yield* DateTime.now)).toEqual({
           examined: 4,
@@ -71,12 +79,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           extractionsAlreadyTerminal: 0,
         })
         const scrapes = yield* Scrapes
+
         for (const row of [recent])
           expect((yield* scrapes.get(row.id)).status).toBe("running")
+
         for (const row of [terminal, active, missing, unknown])
           expect((yield* scrapes.get(row.id)).errorCode).toEqual(
             Option.some("timeout"),
           )
+
         for (const row of [terminal, active, missing, unknown])
           expect(yield* executions.service.status("scrape", row.id)).toEqual(
             Option.some("terminated"),
@@ -93,11 +104,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         const fixture = yield* seed()
         const parent = (yield* fixture.listing).parent
         const bucket = yield* R2Bucket
+
         for (let i = 0; i < 52; i++) {
           const row = yield* history(parent, "success", `${100 + i} days`)
           yield* bucket.put(`html/${row.id}.html`, "html", "text/html")
           yield* bucket.put(`raw/${row.id}.json`, "{}", "application/json")
         }
+
         const pending = yield* history(parent, "pending", "200 days")
         const sweeps = yield* Sweeps
         const report = yield* sweeps.retention(yield* DateTime.now)
@@ -142,6 +155,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         yield* reset
         const fixture = yield* seed()
         const rows = []
+
         for (let i = 0; i < 3; i++)
           rows.push(
             yield* history(
@@ -152,6 +166,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
             ),
           )
         const executions = yield* ExecutionsTest
+
         for (const row of rows) {
           yield* executions.setStatus("scrape", row.id, "running")
           yield* (yield* R2Bucket).put(
@@ -160,6 +175,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
             "text/html",
           )
         }
+
         yield* executions.failTerminate("scrape", rows[0]!.id)
         yield* (yield* R2BucketTest).failNextDelete
         expect(yield* (yield* Sweeps).stuck(yield* DateTime.now)).toEqual({
@@ -170,6 +186,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           extractionsFailed: 0,
           extractionsAlreadyTerminal: 0,
         })
+
         for (const row of rows)
           expect((yield* ScrapesRepo.get(row.id)).status).toBe("failed")
         expect(yield* executions.service.status("scrape", rows[0]!.id)).toEqual(
@@ -185,15 +202,18 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         yield* reset
         const catalog = yield* seed()
         const scrape = yield* successfulScrape((yield* catalog.listing).parent)
+
         const overdue = yield* extraction(scrape.id, 1, "running", {
           age: "6 minutes",
         })
+
         const recent = yield* extraction(
           (yield* successfulScrape((yield* catalog.listing).parent)).id,
           1,
           "running",
           { age: "4 minutes" },
         )
+
         yield* history(
           (yield* catalog.listing).parent,
           "running",

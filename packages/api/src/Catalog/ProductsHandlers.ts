@@ -7,6 +7,7 @@ import { toWire } from "./ProductsWire.ts"
 export const layer = HttpApiBuilder.group(RootApi, "products", (handlers) =>
   Effect.gen(function* () {
     const products = yield* Products
+
     return handlers
       .handle("list", ({ query }) =>
         products.list(query).pipe(

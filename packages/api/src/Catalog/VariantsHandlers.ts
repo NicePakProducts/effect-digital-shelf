@@ -7,6 +7,7 @@ import { toWire } from "./VariantsWire.ts"
 export const layer = HttpApiBuilder.group(RootApi, "variants", (handlers) =>
   Effect.gen(function* () {
     const variants = yield* Variants
+
     return handlers
       .handle("list", ({ query }) =>
         variants.list(query).pipe(

@@ -18,11 +18,14 @@ export const ScrapeParams = Schema.Struct({
   scrapeId: Schema.String,
   traceparent: Schema.String,
 })
+
 export type ScrapeParams = typeof ScrapeParams.Type
+
 export const ExtractionParams = Schema.Struct({
   extractionId: Schema.String,
   traceparent: Schema.String,
 })
+
 export type ExtractionParams = typeof ExtractionParams.Type
 
 interface CreateOptions<Params> {
@@ -47,36 +50,55 @@ export interface WorkflowHandle<Params> {
   readonly get: (id: string) => Effect.Effect<WorkflowInstance>
 }
 
+const RpcError = Schema.Struct({
+  message: Schema.optional(Schema.Unknown),
+  cause: Schema.optional(Schema.Unknown),
+})
+
 /** Alchemy uses tryPromise(...).orDie: RPC errors arrive inside UnknownError.cause. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Effect defects from Alchemy RPC are unknown; this boundary decodes each error in the cause chain.
 const matches = (defect: unknown, pattern: RegExp): boolean => {
   const seen = new Set<unknown>()
   let current = defect
+
   while (!seen.has(current)) {
     seen.add(current)
-    if (typeof current === "string") return pattern.test(current)
-    if (typeof current !== "object" || current === null) return false
-    if (
-      "message" in current &&
-      typeof current.message === "string" &&
-      pattern.test(current.message)
+
+    const text = Schema.decodeUnknownOption(Schema.String)(current)
+
+    if (Option.isSome(text)) return pattern.test(text.value)
+
+    const error = Schema.decodeUnknownOption(RpcError)(current)
+
+    if (Option.isNone(error)) return false
+
+    const message = Schema.decodeUnknownOption(Schema.String)(
+      error.value.message,
     )
-      return true
-    if (!("cause" in current)) return false
-    current = current.cause
+
+    if (Option.isSome(message) && pattern.test(message.value)) return true
+
+    current = error.value.cause
   }
+
   return false
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Alchemy's catchDefect contract supplies unknown; matches decodes the RPC cause chain.
 const duplicate = (defect: unknown) =>
   matches(
     defect,
     /\binstance\.(?:already_exists|id_conflict)\b|\b(?:instance|id)\b[^\n]*\balready (?:exists|in use|used)\b/i,
   )
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Alchemy's catchDefect contract supplies unknown; matches decodes the RPC cause chain.
 const notFound = (defect: unknown) =>
   matches(
     defect,
     /\binstance\.not_found\b|\binstance\b[^\n]*\b(?:not found|does not exist)\b/i,
   )
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Alchemy's catchDefect contract supplies unknown; matches decodes the RPC cause chain.
 const terminal = (defect: unknown) =>
   matches(
     defect,
@@ -90,12 +112,14 @@ const start = <Params>(
 ): Effect.Effect<StartReport, ExecutionsError> => {
   const error = (cause: unknown) =>
     new ExecutionsError({ operation: "start", kind, cause })
+
   return Effect.suspend(() => handle.createBatch(batch)).pipe(
     Effect.map((created) => {
       const ids = new Set(created.map(({ id }) => id))
+
       return {
-        started: batch.filter(({ id }) => ids.has(id)).map(({ id }) => id),
-        skipped: batch.filter(({ id }) => !ids.has(id)).map(({ id }) => id),
+        started: batch.flatMap(({ id }) => (ids.has(id) ? [id] : [])),
+        skipped: batch.flatMap(({ id }) => (ids.has(id) ? [] : [id])),
       }
     }),
     // Live docs say duplicates are omitted; the installed workers-types
@@ -105,6 +129,7 @@ const start = <Params>(
         ? Effect.gen(function* () {
             const started: string[] = [],
               skipped: string[] = []
+
             for (const options of batch) {
               const created = yield* Effect.suspend(() =>
                 handle.create(options),
@@ -116,9 +141,11 @@ const start = <Params>(
                     : Effect.fail(error(cause)),
                 ),
               )
+
               if (created) started.push(options.id)
               else skipped.push(options.id)
             }
+
             return { started, skipped }
           })
         : Effect.fail(error(cause)),
@@ -138,6 +165,7 @@ export const layer = (handles: {
         instances: ReadonlyArray<ExecutionInstance>,
       ) {
         yield* Effect.annotateCurrentSpan("shelf.execution.kind", kind)
+
         if (instances.length > startBatchLimit)
           return yield* Effect.fail(
             new ExecutionsError({
@@ -146,15 +174,19 @@ export const layer = (handles: {
               cause: `At most ${startBatchLimit} instances may be started in one batch`,
             }),
           )
+
         if (instances.length === 0) return { started: [], skipped: [] }
         // Report by id, matching the single-use identity contract even if an input
         // contains an id twice. Keep the first trace context for that id.
         const seen = new Set<string>()
+
         const unique = instances.filter(({ id }) => {
           if (seen.has(id)) return false
           seen.add(id)
+
           return true
         })
+
         return yield* kind === "scrape"
           ? start(
               kind,
@@ -178,9 +210,11 @@ export const layer = (handles: {
         id: string,
       ) {
         yield* Effect.annotateCurrentSpan("shelf.execution.kind", kind)
+
         return yield* Effect.gen(function* () {
           const instance = yield* handles[kind].get(id)
           const { status } = yield* instance.status()
+
           return Option.some(
             Option.getOrElse(
               Schema.decodeUnknownOption(ExecutionStatus)(status),
@@ -202,6 +236,7 @@ export const layer = (handles: {
         id: string,
       ) {
         yield* Effect.annotateCurrentSpan("shelf.execution.kind", kind)
+
         return yield* Effect.gen(function* () {
           const instance = yield* handles[kind].get(id)
           yield* instance.terminate()

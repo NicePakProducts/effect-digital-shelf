@@ -13,10 +13,12 @@ export interface EmailMessage {
   readonly subject: string
   readonly text: string
 }
+
 export class EmailSendFailed extends Schema.TaggedError<EmailSendFailed>()(
   "EmailSendFailed",
   { message: Schema.String },
 ) {}
+
 export class EmailSender extends Context.Service<
   EmailSender,
   {
@@ -30,10 +32,13 @@ export class EmailSender extends Context.Service<
     Effect.gen(function* () {
       const token = yield* Config.redacted("POSTMARK_SERVER_TOKEN")
       const from = yield* Config.string("POSTMARK_FROM")
+
       const stream = yield* Config.string("POSTMARK_MESSAGE_STREAM").pipe(
         Config.withDefault("outbound"),
       )
+
       const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient)
+
       const send = Effect.fn("EmailSender.send")(
         function* (message: EmailMessage) {
           const request = yield* HttpClientRequest.post(
@@ -52,6 +57,7 @@ export class EmailSender extends Context.Service<
               MessageStream: stream,
             }),
           )
+
           const response = yield* client.execute(request)
           yield* response.json
         },
@@ -63,6 +69,7 @@ export class EmailSender extends Context.Service<
             }),
         ),
       )
+
       return { send }
     }),
   ).pipe(Layer.provide(FetchHttpClient.layer))

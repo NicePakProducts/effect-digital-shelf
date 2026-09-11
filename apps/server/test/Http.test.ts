@@ -12,6 +12,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
     const handler = Effect.gen(function* () {
       const context =
         yield* Effect.context<Layer.Success<typeof CoreTest.layerTest>>()
+
       return yield* Http.fetch(
         Http.layer("dev").pipe(Layer.provide(Layer.succeedContext(context))),
       )
@@ -21,9 +22,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       Effect.gen(function* () {
         const context =
           yield* Effect.context<Layer.Success<typeof CoreTest.layerTest>>()
+
         const webHandler = HttpEffect.toWebHandler(
           handler.pipe(Effect.provide(context)),
         )
+
         return yield* Effect.promise(() =>
           webHandler(new Request(`http://localhost${path}`)),
         )
@@ -40,8 +43,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           ),
           Effect.flip,
         )
+
         expect(error).toMatchObject({
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- This is a partial assertion on an HTTP error, not an error constructor.
           _tag: "HttpServerError",
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- This partial reason pattern intentionally omits RouteNotFound's request.
           reason: { _tag: "RouteNotFound" },
         })
       }),

@@ -32,6 +32,7 @@ beforeAll(async () => {
 
 const open = async () => {
   await pglite.exec("TRUNCATE brands, retailers CASCADE")
+
   return pglite
 }
 
@@ -43,14 +44,23 @@ const count = async (db: PGlite, table: string) =>
 
 const id = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
+
 const b1 = id(1)
+
 const p1 = id(2)
+
 const v1 = id(3)
+
 const r1 = id(4)
+
 const l1 = id(5)
+
 const pg1 = id(6)
+
 const s1 = id(7)
+
 const s2 = id(8)
+
 const e1 = id(9)
 
 const seed = (db: PGlite) =>
@@ -80,10 +90,12 @@ describe("Postgres migrations", () => {
   it("forces exactly one Parent on a Scrape", async () => {
     const db = await open()
     await seed(db)
+
     const insert = (values: string) =>
       db.exec(
         `INSERT INTO scrapes (id, listing_id, page_id, mode, status, root_span_id, request_url) VALUES ('${id(99)}', ${values}, 'basic', 'pending', '0000000000000001', 'u')`,
       )
+
     await expect(insert(`'${l1}', '${pg1}'`)).rejects.toThrow(
       /check constraint/,
     )
@@ -118,10 +130,12 @@ describe("Postgres migrations", () => {
   it("lets a Parent hold at most one Scrape in pending or running", async () => {
     const db = await open()
     await seed(db)
+
     const insert = (n: number, parent: string, status: string) =>
       db.exec(
         `INSERT INTO scrapes (id, ${parent}, mode, status, root_span_id, request_url) VALUES ('${id(n)}', '${parent === "listing_id" ? l1 : pg1}', 'basic', '${status}', '000000000000000${n % 10}', 'u')`,
       )
+
     // The Page already has a pending Scrape; the Listing's is terminal.
     await expect(insert(20, "page_id", "pending")).rejects.toThrow(/unique/)
     await expect(insert(21, "page_id", "running")).rejects.toThrow(/unique/)
@@ -137,10 +151,12 @@ describe("Postgres migrations", () => {
     const db = await open()
     await seed(db)
     await db.exec(`DELETE FROM extractions WHERE scrape_id = '${s1}'`)
+
     const insert = (attempt: number, status: string) =>
       db.exec(
         `INSERT INTO extractions (id, scrape_id, attempt, status, prompt_kind, prompt_snapshot, model) VALUES ('${id(30 + attempt)}', '${s1}', ${attempt}, '${status}', 'listing', 'p', 'm')`,
       )
+
     await insert(1, "pending")
     await expect(insert(2, "pending")).rejects.toThrow(
       /extractions_scrape_in_flight/,
@@ -191,6 +207,7 @@ describe("Postgres migrations", () => {
     const db = await open()
     await seed(db)
     await db.exec(`DELETE FROM brands WHERE id = '${b1}'`)
+
     for (const table of [
       "products",
       "variants",
@@ -202,6 +219,7 @@ describe("Postgres migrations", () => {
     ]) {
       expect(await count(db, table), table).toBe(0)
     }
+
     expect(await count(db, "retailers")).toBe(1)
   })
 

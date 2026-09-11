@@ -43,25 +43,31 @@ const Solution = Schema.Struct({
   type: Schema.optionalKey(Schema.String),
   response: Schema.optionalKey(Schema.String),
 })
+
 const Body = Schema.Struct({
   solution: Schema.optionalKey(Solution),
   session: Schema.optionalKey(Schema.String),
   data: Schema.optionalKey(Schema.String),
   error: Schema.optionalKey(Schema.String),
 })
+
 type Body = typeof Body.Type
+
 const decodeBody = Schema.decodeUnknownEffect(Body)
+
 const decodeJson = Schema.decodeUnknownEffect(Schema.Json)
 
 const isJsonObject = (json: Schema.Json): json is Schema.JsonObject =>
-  json !== null && typeof json === "object" && !Array.isArray(json)
+  Schema.is(Schema.Record(Schema.String, Schema.Json))(json)
 
 /** The vendor payload with the HTML stripped: forensics only (#13). */
 const withoutHtml = (json: Schema.Json): Schema.Json => {
   if (!isJsonObject(json)) return json
   const { solution, ...rest } = json
+
   if (solution === undefined || !isJsonObject(solution)) return json
   const { response: _html, ...kept } = solution
+
   return { ...rest, solution: kept }
 }
 
@@ -92,6 +98,7 @@ const VERIFICATION = new Set([
   "CODE-0035",
   "CODE-0037",
 ])
+
 const TRANSIENT = new Set([
   "CODE-0001",
   "CODE-0005",
@@ -105,32 +112,41 @@ const TRANSIENT = new Set([
   "CODE-0031",
   "CODE-10000",
 ])
+
 const NAVIGATION = new Set(["CODE-0006"])
 
 export const classifyError = (
   message: string,
-): { readonly code: ScrapeProviderErrorCode; readonly retryable: boolean } => {
+): Pick<ScrapeProviderError, "code" | "retryable"> => {
   const code = /CODE-\d+/.exec(message)?.[0]
+
   if (code !== undefined) {
     if (VERIFICATION.has(code)) return { code: "blocked", retryable: false }
+
     if (NAVIGATION.has(code))
       return { code: "navigation_failed", retryable: false }
+
     if (TRANSIENT.has(code)) return { code: "provider_error", retryable: true }
+
     return { code: "provider_error", retryable: false }
   }
+
   if (/invalid url|url is required|not a valid url/i.test(message))
     return { code: "invalid_url", retryable: false }
+
   if (/captcha|verification|blocked|forbidden/i.test(message))
     return { code: "blocked", retryable: false }
+
   if (/timeout|timed out|net::ERR_|could not load/i.test(message))
     return { code: "navigation_failed", retryable: false }
+
   return { code: "provider_error", retryable: false }
 }
 
 /** Scrappey's own transport status, not the target's. */
 export const classifyStatus = (
   status: number,
-): { readonly code: ScrapeProviderErrorCode; readonly retryable: boolean } => ({
+): Pick<ScrapeProviderError, "code" | "retryable"> => ({
   code: "provider_error",
   retryable: status === 408 || status === 429 || status >= 500,
 })
@@ -141,7 +157,7 @@ const providerError = (
     readonly retryable: boolean
   },
   message: string,
-  detail: unknown,
+  detail: Schema.Json,
 ) =>
   new ScrapeProviderError({
     ...classification,
@@ -214,9 +230,7 @@ export const fetchOnce = (options: {
           HttpClientRequest.bodyJsonUnsafe({
             cmd: "request.get",
             url: options.request.url,
-            ...(Option.isSome(options.request.country)
-              ? { proxyCountry: options.request.country.value }
-              : {}),
+            proxyCountry: Option.getOrUndefined(options.request.country),
           }),
         ),
       )
@@ -229,6 +243,7 @@ export const fetchOnce = (options: {
           ),
         ),
       )
+
     if (response.status < 200 || response.status >= 300)
       return yield* Effect.fail(
         providerError(
@@ -237,16 +252,20 @@ export const fetchOnce = (options: {
           { status: response.status },
         ),
       )
+
     const unread = providerError(
       { code: "provider_error", retryable: false },
       "Scrappey answered a body this client cannot read",
       null,
     )
+
     const json = yield* response.json.pipe(
       Effect.flatMap(decodeJson),
       Effect.mapError(() => unread),
     )
+
     const body = yield* decodeBody(json).pipe(Effect.mapError(() => unread))
+
     if (body.error !== undefined || body.data === "error")
       return yield* Effect.fail(
         providerError(
@@ -256,6 +275,7 @@ export const fetchOnce = (options: {
         ),
       )
     const solution = body.solution
+
     if (solution === undefined || solution.response === undefined)
       return yield* Effect.fail(
         providerError(
@@ -264,6 +284,7 @@ export const fetchOnce = (options: {
           null,
         ),
       )
+
     if (solution.statusCode === undefined)
       return yield* Effect.fail(
         providerError(
@@ -272,6 +293,7 @@ export const fetchOnce = (options: {
           null,
         ),
       )
+
     return {
       envelope: envelopeOf(
         options.request,

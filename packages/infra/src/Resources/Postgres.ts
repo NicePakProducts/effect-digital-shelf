@@ -12,6 +12,7 @@ export const parseOrigin = (value: string): Hyperdrive.PublicOrigin => {
   let user: string
   let password: string
   let database: string
+
   try {
     url = new URL(value)
     user = decodeURIComponent(url.username)
@@ -20,14 +21,18 @@ export const parseOrigin = (value: string): Hyperdrive.PublicOrigin => {
   } catch {
     throw new Error("DATABASE_URL must be a valid PostgreSQL URL")
   }
+
   if (url.protocol !== "postgres:" && url.protocol !== "postgresql:")
     throw new Error("DATABASE_URL must use postgres:// or postgresql://")
+
   if (!url.hostname || !user || !password || !database || url.hash)
     throw new Error(
       "DATABASE_URL requires a host, user, password and database, with no fragment",
     )
   const port = url.port === "" ? 5432 : Number(url.port)
+
   if (port < 1) throw new Error("DATABASE_URL port must be between 1 and 65535")
+
   return {
     scheme: url.protocol === "postgres:" ? "postgres" : "postgresql",
     host: url.hostname.replace(/^\[|\]$/g, ""),
@@ -47,6 +52,7 @@ export const make = ({
 }) =>
   Effect.gen(function* () {
     const origin = parseOrigin(Redacted.value(databaseUrl))
+
     return yield* Hyperdrive.Connection("Postgres", {
       name: stage === "prod" ? "digital-shelf" : "digital-shelf-dev",
       origin,

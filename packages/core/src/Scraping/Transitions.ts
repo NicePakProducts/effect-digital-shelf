@@ -75,20 +75,24 @@ export const transition = Effect.fn("Scrape.transition")(function* (
   patch: ScrapeUpdate,
 ) {
   const changed = yield* ScrapesRepo.transition(id, from, to, patch)
+
   const observed = Option.isSome(changed)
     ? changed
     : yield* ScrapesRepo.find(id)
+
   const result: TransitionResult = Option.isSome(changed)
     ? "applied"
     : classifyMissedTransition(
         to,
         Option.map(observed, (row) => row.status),
       )
+
   yield* Effect.annotateCurrentSpan({
     "shelf.transition": result,
     "shelf.transition.from": from,
     "shelf.transition.to": to,
   })
+
   if (result === "rejected" || Option.isNone(observed))
     return yield* Effect.fail(
       new TransitionRejected({
@@ -99,6 +103,7 @@ export const transition = Effect.fn("Scrape.transition")(function* (
         observed: Option.getOrNull(Option.map(observed, (row) => row.status)),
       }),
     )
+
   return { row: observed.value, result }
 })
 
@@ -110,20 +115,24 @@ export const transitionExtraction = Effect.fn("Extraction.transition")(
     patch: ExtractionUpdate,
   ) {
     const changed = yield* ExtractionsRepo.transition(id, from, to, patch)
+
     const observed = Option.isSome(changed)
       ? changed
       : yield* ExtractionsRepo.find(id)
+
     const result: TransitionResult = Option.isSome(changed)
       ? "applied"
       : classifyMissedTransition(
           to,
           Option.map(observed, (row) => row.status),
         )
+
     yield* Effect.annotateCurrentSpan({
       "shelf.transition": result,
       "shelf.transition.from": from,
       "shelf.transition.to": to,
     })
+
     if (result === "rejected" || Option.isNone(observed))
       return yield* new TransitionRejected({
         kind: "extraction",
@@ -132,6 +141,7 @@ export const transitionExtraction = Effect.fn("Extraction.transition")(
         to,
         observed: Option.getOrNull(Option.map(observed, (row) => row.status)),
       })
+
     return { row: observed.value, result }
   },
 )

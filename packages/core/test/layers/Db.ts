@@ -24,6 +24,7 @@ const boot = Effect.promise(async () => {
   const pglite = new PGlite()
   const { apply } = await pushSchema(Sql, drizzle({ client: pglite }))
   await apply()
+
   return pglite
 })
 

@@ -76,11 +76,13 @@ it.layer(
       Effect.gen(function* () {
         yield* reset
         const fixture = yield* seed()
+
         const row = yield* history(
           (yield* fixture.listing).parent,
           "pending",
           "25 hours",
         )
+
         yield* (yield* ExecutionsTest).setStatus("scrape", row.id, "errored")
         const report = yield* (yield* Cron).tick()
         expect(report.phases[2]).toMatchObject({
@@ -100,6 +102,7 @@ it.layer(
       Effect.gen(function* () {
         yield* reset
         const fixture = yield* seed()
+
         for (let i = 0; i < 60; i++)
           yield* history((yield* fixture.listing).parent, "pending", "1 hour")
         yield* fixture.listing
@@ -138,6 +141,7 @@ it.layer(
     Effect.gen(function* () {
       yield* reset
       const catalog = yield* seed()
+
       for (let i = 0; i < 4; i++)
         yield* extraction(
           (yield* successfulScrape((yield* catalog.listing).parent)).id,

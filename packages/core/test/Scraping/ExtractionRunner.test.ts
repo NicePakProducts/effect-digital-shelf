@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate"
 import * as OpenAiClient from "@effect/ai-openai-compat/OpenAiClient"
 import * as OpenAiLanguageModel from "@effect/ai-openai-compat/OpenAiLanguageModel"
 import * as Layer from "effect/Layer"
@@ -35,20 +36,25 @@ import {
 } from "../fixtures/Scraping.ts"
 
 const stringify = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
+
 const parse = Schema.decodeSync(Schema.fromJsonString(Schema.Json))
 
 const aiError = (reason: AiError.AiErrorReason) =>
   new AiError.AiError({ module: "test", method: "generateText", reason })
+
 const setup = Effect.gen(function* () {
   yield* reset
   const catalog = yield* seed()
+
   const scrape = yield* successfulScrape((yield* catalog.listing).parent, {
     html: '<p class="x">Hello</p><script>bad()</script>',
   })
+
   const row = yield* extraction(scrape.id, 1, "pending", {
     prompt: "Snapshot",
     model: "snapshot-model",
   })
+
   return {
     catalog,
     scrape,
@@ -57,10 +63,12 @@ const setup = Effect.gen(function* () {
     fake: yield* LanguageModelTest,
   }
 })
+
 const configured = (config: Record<string, number>) =>
   ExtractionRunner.make.pipe(
     Effect.provide(ConfigProvider.layer(ConfigProvider.fromUnknown(config))),
   )
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
   "ExtractionRunner",
   (it) => {
@@ -115,6 +123,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           const { row, runner, fake } = yield* setup
           const target = yield* runner.claim(row.id)
+
           for (const [text, finishReason, code] of [
             ['{"ok":true}', "length", "json_mode_unmet"],
             ["", "stop", "json_mode_unmet"],
@@ -125,12 +134,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           ] as const) {
             yield* fake.answer(text, { finishReason })
             expect(yield* runner.extract(row.id, target)).toMatchObject({
+              // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
               _tag: "failed",
               code,
             })
           }
+
           yield* fake.answer('{"a":1,', { usage: { input: 7, output: 3 } })
           expect(yield* runner.extract(row.id, target)).toMatchObject({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
             _tag: "extracted",
             data: { a: 1 },
             usage: { promptTokens: 7, completionTokens: 3, totalTokens: 10 },
@@ -145,6 +157,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const target = yield* runner.claim(row.id)
           yield* fake.fail(aiError(new AiError.RateLimitError({})))
           expect(yield* runner.extract(row.id, target)).toMatchObject({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
             _tag: "failed",
             code: "provider_error",
           })
@@ -157,6 +170,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             ),
           )
           expect(yield* runner.extract(row.id, target)).toMatchObject({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
             _tag: "failed",
             code: "context_overflow",
           })
@@ -175,13 +189,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             ),
           )
           yield* fake.answer('{"retry":true}')
+
           const fiber = yield* runner
             .extract(row.id, target)
             .pipe(Effect.forkChild)
+
           yield* TestClock.adjust("4 seconds")
           expect(yield* fake.calls).toHaveLength(1)
           yield* TestClock.adjust("1 second")
           expect(yield* Fiber.join(fiber)).toMatchObject({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
             _tag: "extracted",
             data: { retry: true },
           })
@@ -194,11 +211,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         const runner = yield* configured({ EXTRACTION_INPUT_CAP_BYTES: 3 })
         expect(
           yield* runner.extract(row.id, yield* runner.claim(row.id)),
-        ).toEqual({
-          _tag: "failed",
-          code: "context_overflow",
-          message: "Sanitised input of 12 bytes exceeds the cap of 3 bytes",
-        })
+        ).toEqual(
+          ExtractOutcome.members[1].make({
+            code: "context_overflow",
+            message: "Sanitised input of 12 bytes exceeds the cap of 3 bytes",
+          }),
+        )
         expect(yield* fake.calls).toHaveLength(0)
       }),
     )
@@ -209,11 +227,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const { row, runner, fake } = yield* setup
           const target = yield* runner.claim(row.id)
           yield* fake.delay("10 minutes")
+
           const fiber = yield* runner
             .extract(row.id, target)
             .pipe(Effect.forkChild)
+
           yield* TestClock.adjust("121 seconds")
           expect(yield* Fiber.join(fiber)).toMatchObject({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
             _tag: "failed",
             code: "llm_timeout",
           })
@@ -223,11 +244,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               new AiError.RateLimitError({ retryAfter: Duration.minutes(10) }),
             ),
           )
+
           const retried = yield* retrying
             .extract(row.id, target)
             .pipe(Effect.forkChild)
+
           yield* TestClock.adjust("121 seconds")
           expect(yield* Fiber.join(retried)).toMatchObject({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
             _tag: "failed",
             code: "llm_timeout",
           })
@@ -242,11 +266,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const target = yield* runner.claim(row.id)
           yield* (yield* R2BucketTest).service.delete([target.htmlKey])
           const outcome = yield* runner.extract(row.id, target)
-          expect(outcome).toEqual({
-            _tag: "failed",
-            code: "unknown",
-            message: "Scrape HTML object missing from storage",
-          })
+          expect(outcome).toEqual(
+            ExtractOutcome.members[1].make({
+              code: "unknown",
+              message: "Scrape HTML object missing from storage",
+            }),
+          )
           yield* runner.finish(row.id, outcome)
           const saved = yield* Repo.get(row.id)
           expect(saved).toMatchObject({
@@ -268,14 +293,17 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           yield* runner.fail(row.id, "unknown", "before claim")
           expect((yield* Repo.get(row.id)).status).toBe("failed")
           const next = yield* extraction(scrape.id, 2, "pending")
+
           const outcome = yield* runner.extract(
             next.id,
             yield* runner.claim(next.id),
           )
+
           yield* runner.fail(next.id, "llm_timeout", "swept")
           expect(
             yield* Effect.flip(runner.finish(next.id, outcome)),
           ).toMatchObject({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
             _tag: "TransitionRejected",
             kind: "extraction",
             observed: "failed",
@@ -288,9 +316,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           const { row } = yield* setup
           const requests: HttpClientRequest.HttpClientRequest[] = []
+
           const http = HttpClient.make((request) =>
             Effect.sync(() => {
               requests.push(request)
+
               return HttpClientResponse.fromWeb(
                 request,
                 new Response(
@@ -317,6 +347,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               )
             }),
           )
+
           const model = OpenAiLanguageModel.layer({
             model: "changed-global-model",
             config: { chat_template_kwargs: { enable_thinking: false } },
@@ -327,11 +358,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               ),
             ),
           )
+
           const runner = yield* ExtractionRunner.make.pipe(
             Effect.provide(model),
           )
+
           const target = yield* runner.claim(row.id)
           expect(yield* runner.extract(row.id, target)).toMatchObject({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
             _tag: "extracted",
             data: { ok: true },
             usage: { promptTokens: 12, completionTokens: 6, totalTokens: 18 },
@@ -349,7 +383,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             scrapeId: target.scrapeId,
           })
           expect(request.body._tag).toBe("Uint8Array")
-          if (request.body._tag === "Uint8Array")
+
+          if (Predicate.isTagged(request.body, "Uint8Array"))
             expect(
               parse(new TextDecoder().decode(request.body.body)),
             ).toMatchObject({
@@ -378,6 +413,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           const { row, runner, fake } = yield* setup
           const target = yield* runner.claim(row.id)
+
           for (const [description, code] of [
             ["invalid parameter context_id", "provider_error"],
             [
@@ -389,6 +425,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               aiError(new AiError.InvalidRequestError({ description })),
             )
             expect(yield* runner.extract(row.id, target)).toMatchObject({
+              // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
               _tag: "failed",
               code,
             })
@@ -406,6 +443,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           )
           expect(
             yield* runner.extract(row.id, yield* runner.claim(row.id)),
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
           ).toMatchObject({ _tag: "failed", code: "provider_error" })
           expect(yield* fake.calls).toHaveLength(1)
         }),

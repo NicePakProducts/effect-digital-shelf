@@ -9,12 +9,17 @@ export const VariantWire = Schema.Struct({
   createdAt: TimestampWire,
   updatedAt: TimestampWire,
 })
+
 export type VariantWire = typeof VariantWire.Type
+
 export const toWire = (entity: Variant): VariantWire => ({
   ...entity,
 })
+
 export const VariantList = Schema.Struct({ items: Schema.Array(VariantWire) })
+
 export const IdParams = Schema.Struct({ id: VariantId })
+
 export const VariantsQuery = Schema.Struct({
   productId: Schema.optionalKey(ProductId),
 })

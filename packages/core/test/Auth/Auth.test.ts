@@ -1,3 +1,4 @@
+import * as Result from "effect/Result"
 import { isAPIError } from "better-auth/api"
 import * as Context from "effect/Context"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -27,8 +28,10 @@ const prepare = Effect.gen(function* () {
   yield* DbTest.resetAuth
   const emails = yield* EmailSenderTest
   yield* emails.clear
+
   return { auth: yield* Auth, emails, db: yield* Db }
 })
+
 const requestLink = (
   auth: Auth["Service"],
   email = "someone@npbrands.com.au",
@@ -39,8 +42,10 @@ const requestLink = (
       body: { email, callbackURL: "/" },
     }),
   )
+
 const tokenFrom = (text: string) =>
   new URL(text.trim().split("\n").at(-1)!).searchParams.get("token")!
+
 const verify = (auth: Auth["Service"], token: string) =>
   auth.api.magicLinkVerify({
     query: { token },
@@ -77,17 +82,22 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
         yield* requestLink(auth, "someone@example.com")
         const tokens = yield* query(db.select().from(Sql.verification))
         expect(tokens).toHaveLength(1)
+
         const result = yield* Effect.tryPromise(() =>
           verify(auth, tokens[0]!.identifier),
         ).pipe(Effect.result)
+
         expect(result._tag).toBe("Failure")
-        if (result._tag === "Failure") {
+
+        if (Result.isFailure(result)) {
           expect(isAPIError(result.failure.cause)).toBe(true)
+
           if (isAPIError(result.failure.cause))
             expect(
               new Headers(result.failure.cause.headers).get("location"),
             ).toContain("error=failed_to_create_user")
         }
+
         expect(yield* query(db.select().from(Sql.user))).toEqual([])
         expect(yield* query(db.select().from(Sql.session))).toEqual([])
       }),
@@ -100,10 +110,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
         yield* requestLink(auth)
         const token = tokenFrom((yield* emails.sent)[0]!.text)
         const verified = yield* Effect.promise(() => verify(auth, token))
+
         const cookies = verified.headers
           .getSetCookie()
           .map((cookie) => cookie.split(";")[0])
           .join("; ")
+
         expect(cookies).toContain("better-auth.session_token=")
         const users = yield* query(db.select().from(Sql.user))
         expect(users).toHaveLength(1)
@@ -116,17 +128,22 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
             new Headers({ cookie: "better-auth.session_token=garbage" }),
           ),
         ).toEqual(Option.none())
+
         const replay = yield* Effect.tryPromise(() => verify(auth, token)).pipe(
           Effect.result,
         )
+
         expect(replay._tag).toBe("Failure")
-        if (replay._tag === "Failure") {
+
+        if (Result.isFailure(replay)) {
           expect(isAPIError(replay.failure.cause)).toBe(true)
+
           if (isAPIError(replay.failure.cause))
             expect(
               new Headers(replay.failure.cause.headers).get("location"),
             ).toContain("error=INVALID_TOKEN")
         }
+
         yield* emails.clear
         yield* requestLink(auth)
         const nextToken = tokenFrom((yield* emails.sent)[0]!.text)
@@ -140,6 +157,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
       // PGlite has one connection: rollback alone cannot prove queries joined the transaction.
       const sqlClient = yield* SqlClient.SqlClient
       const queryContexts: Array<Context.Context<never>> = []
+
       const observedDb = yield* PgDrizzle.make().pipe(
         Effect.provideService(EffectLogger, {
           logQuery: () =>
@@ -149,11 +167,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
         }),
         Effect.provide(PgDrizzle.DefaultServices),
       )
+
       const context = yield* Effect.context<Db>()
       expect(
         Context.getOption(context, sqlClient.transactionService)._tag,
       ).toBe("None")
       const adapter = makeAdapter(observedDb, context)({})
+
       const result = yield* Effect.tryPromise(() =>
         adapter.transaction(async (tx) => {
           await tx.create({
@@ -172,6 +192,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
             }),
           ).toMatchObject({ name: "Rollback" })
           expect(queryContexts).toHaveLength(2)
+
           for (const inner of queryContexts)
             expect(
               Context.getOption(inner, sqlClient.transactionService)._tag,
@@ -179,10 +200,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
           throw new Error("boom")
         }),
       ).pipe(Effect.result)
+
       expect(result._tag).toBe("Failure")
-      if (result._tag === "Failure")
+
+      if (Result.isFailure(result))
         expect(result.failure.cause).toMatchObject({ message: "boom" })
       expect(queryContexts).toHaveLength(2)
+
       for (const inner of queryContexts)
         expect(
           Context.getOption(inner, sqlClient.transactionService)._tag,
@@ -206,6 +230,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
               data: { name, email, emailVerified: false },
             })
           }
+
           expect(
             await adapter.count({
               model: "user",
@@ -258,6 +283,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
                 emailVerified: false,
               },
             }),
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
           ).rejects.toMatchObject({ _tag: "SqlError" })
           expect(
             await adapter.deleteMany({
@@ -278,12 +304,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
     Effect.gen(function* () {
       const { auth, emails } = yield* prepare
       yield* emails.fail
+
       const result = yield* Effect.tryPromise(() =>
         auth.api.signInMagicLink({
           headers: new Headers(),
           body: { email: "someone@npbrands.com.au", callbackURL: "/" },
         }),
       ).pipe(Effect.result)
+
       expect(result._tag).toBe("Failure")
       expect(yield* emails.sent).toEqual([])
     }),

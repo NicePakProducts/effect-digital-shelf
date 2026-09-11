@@ -32,15 +32,17 @@ export type RowOf<S extends Schema.Constraint> = {
  * from one definition, so a mismatch can only be a bug.
  */
 export const decode = <S extends Schema.Constraint>(schema: S) => {
-  const decodeRow = Schema.decodeEffect(schema)
+  const decodeRow = Schema.decodeUnknownEffect(schema)
+
   return (
     row: RowOf<S>,
   ): Effect.Effect<S["Type"], never, S["DecodingServices"]> =>
-    Effect.orDie(decodeRow(row as S["Encoded"]))
+    Effect.orDie(decodeRow(row))
 }
 
 export const decodeAll = <S extends Schema.Constraint>(schema: S) => {
   const decodeRow = decode(schema)
+
   return (
     rows: ReadonlyArray<RowOf<S>>,
   ): Effect.Effect<ReadonlyArray<S["Type"]>, never, S["DecodingServices"]> =>
@@ -50,10 +52,12 @@ export const decodeAll = <S extends Schema.Constraint>(schema: S) => {
 /** The one row a lookup by key returns, or none. */
 export const decodeOptional = <S extends Schema.Constraint>(schema: S) => {
   const decodeRow = decode(schema)
+
   return (
     rows: ReadonlyArray<RowOf<S>>,
   ): Effect.Effect<Option.Option<S["Type"]>, never, S["DecodingServices"]> => {
     const row = rows[0]
+
     return row === undefined
       ? Effect.succeedNone
       : Effect.asSome(decodeRow(row))
@@ -63,10 +67,12 @@ export const decodeOptional = <S extends Schema.Constraint>(schema: S) => {
 /** The one row a write with `returning()` must produce. */
 export const decodeOne = <S extends Schema.Constraint>(schema: S) => {
   const decodeRow = decode(schema)
+
   return (
     rows: ReadonlyArray<RowOf<S>>,
   ): Effect.Effect<S["Type"], never, S["DecodingServices"]> => {
     const row = rows[0]
+
     return row === undefined
       ? Effect.die(new Error("expected the write to return one row"))
       : decodeRow(row)

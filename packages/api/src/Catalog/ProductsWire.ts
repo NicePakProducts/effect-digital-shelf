@@ -9,12 +9,17 @@ export const ProductWire = Schema.Struct({
   createdAt: TimestampWire,
   updatedAt: TimestampWire,
 })
+
 export type ProductWire = typeof ProductWire.Type
+
 export const toWire = (entity: Product): ProductWire => ({
   ...entity,
 })
+
 export const ProductList = Schema.Struct({ items: Schema.Array(ProductWire) })
+
 export const IdParams = Schema.Struct({ id: ProductId })
+
 export const ProductsQuery = Schema.Struct({
   brandId: Schema.optionalKey(BrandId),
 })

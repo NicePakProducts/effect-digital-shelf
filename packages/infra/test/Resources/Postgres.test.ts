@@ -9,6 +9,7 @@ describe("Hyperdrive origin", () => {
       const origin = parseOrigin(
         `${scheme}://postgres.branch:p%40ss%3Aword@db.example.com:5432/postgres?sslmode=verify-full`,
       )
+
       expect(origin).toEqual({
         scheme,
         host: "db.example.com",
@@ -27,6 +28,7 @@ describe("Hyperdrive origin", () => {
     const origin = parseOrigin(
       "postgres://test%2Euser:pw@localhost/shelf%2Dtest",
     )
+
     expect(origin).toMatchObject({
       port: 5432,
       user: "test.user",

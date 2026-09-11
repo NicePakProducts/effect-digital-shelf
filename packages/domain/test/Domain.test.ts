@@ -9,11 +9,12 @@ import { CreateListing } from "@digital-shelf/domain/Catalog/ListingManagement"
 import { BrandNotFound } from "@digital-shelf/domain/Catalog/Errors"
 import { Retailer } from "@digital-shelf/domain/Catalog/Retailer"
 import * as Scrape from "@digital-shelf/domain/Scraping/Scrape"
-import { BrandId } from "@digital-shelf/domain/Shared/Ids"
+import { BrandId, ListingId, PageId } from "@digital-shelf/domain/Shared/Ids"
 import { brands, scrapes } from "@digital-shelf/domain/Sql/index"
 
 const uuid = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
+
 const epoch = DateTime.toDate(DateTime.makeUnsafe(0))
 
 // Compile-time proof that the derived entity's encoded side is the row
@@ -21,19 +22,24 @@ const epoch = DateTime.toDate(DateTime.makeUnsafe(0))
 // valid insert value), so a refine that drifts from its table fails
 // `vp check` here rather than at runtime.
 type Mutable<T> = { -readonly [K in keyof T]: T[K] }
+
 type Assignable<From, To> = [From] extends [To] ? true : false
+
 const rowsDecodeAsBrand: Assignable<
   typeof brands.$inferSelect,
   typeof Brand.Encoded
 > = true
+
 const brandKeysMatchRow: Assignable<
   Mutable<typeof Brand.Encoded>,
   typeof brands.$inferSelect
 > = true
+
 const brandInsertsAreRows: Assignable<
   typeof BrandInsert.Encoded,
   typeof brands.$inferInsert
 > = true
+
 // Scrape's error code is a `text` column narrowed by a CHECK, so the row type
 // is wider than the entity: only the keys-match direction holds statically.
 const scrapeKeysMatchRow: Assignable<
@@ -46,6 +52,7 @@ describe("derived entities", () => {
     expect(rowsDecodeAsBrand && brandKeysMatchRow && brandInsertsAreRows).toBe(
       true,
     )
+
     const brand = Schema.decodeUnknownSync(Brand)({
       id: uuid(1),
       name: "Gaia",
@@ -53,6 +60,7 @@ describe("derived entities", () => {
       createdAt: epoch,
       updatedAt: epoch,
     })
+
     expect(brand.id).toBe(Schema.decodeUnknownSync(BrandId)(uuid(1)))
     expect(DateTime.isDateTime(brand.createdAt)).toBe(true)
   })
@@ -90,6 +98,7 @@ describe("derived entities", () => {
       createdAt: epoch,
       updatedAt: epoch,
     })
+
     expect(
       Schema.decodeUnknownSync(Retailer)(row("chemistwarehouse.com.au")).domain,
     ).toBe("chemistwarehouse.com.au")
@@ -136,12 +145,15 @@ describe("Scrape", () => {
     expect(scrapeKeysMatchRow).toBe(true)
     const scrape = Schema.decodeUnknownSync(Scrape.Scrape)(row(uuid(4), null))
     expect(Option.isNone(scrape.startedAt)).toBe(true)
-    expect(Scrape.parent(scrape)).toEqual({
-      _tag: "Listing",
-      listingId: uuid(4),
-    })
+    expect(Scrape.parent(scrape)).toEqual(
+      Scrape.ScrapeParent.members[0].make({
+        listingId: ListingId.make(uuid(4)),
+      }),
+    )
     const page = Schema.decodeUnknownSync(Scrape.Scrape)(row(null, uuid(5)))
-    expect(Scrape.parent(page)).toEqual({ _tag: "Page", pageId: uuid(5) })
+    expect(Scrape.parent(page)).toEqual(
+      Scrape.ScrapeParent.members[1].make({ pageId: PageId.make(uuid(5)) }),
+    )
     expect(Scrape.parentKind(Scrape.parent(page))).toBe("page")
   })
 
@@ -173,27 +185,34 @@ describe("commands and errors", () => {
         url: "not a url",
       }),
     ).toThrow(/absolute URL/)
+
     const command = Schema.decodeUnknownSync(CreateListing)({
       productId: uuid(6),
       retailerId: uuid(7),
       url: "https://chemistwarehouse.com.au/bath-wash",
       variantIds: [uuid(8)],
     })
+
     expect(command.variantIds).toEqual([uuid(8)])
   })
 
   it.effect("raises a business error core can catch by tag", () =>
     Effect.gen(function* () {
       const brandId = Schema.decodeUnknownSync(BrandId)(uuid(1))
+
       const recovered = yield* Effect.fail(new BrandNotFound({ brandId })).pipe(
         Effect.catchTag("BrandNotFound", (error) =>
           Effect.succeed(error.brandId),
         ),
       )
+
       expect(recovered).toBe(brandId)
+
       const encoded = Schema.encodeSync(BrandNotFound)(
         new BrandNotFound({ brandId }),
       )
+
+      // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Check the encoded wire tag independently of the error constructor.
       expect(encoded).toEqual({ _tag: "BrandNotFound", brandId })
     }),
   )

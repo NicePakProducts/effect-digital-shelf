@@ -3,11 +3,13 @@ import { readdirSync, readFileSync } from "node:fs"
 import { dirname, relative, resolve } from "node:path"
 
 const src = resolve(import.meta.dirname, "../src")
-const edges = readdirSync(src, { recursive: true })
-  .filter((file) => typeof file === "string" && file.endsWith(".ts"))
+
+const edges = readdirSync(src, { recursive: true, encoding: "utf8" })
+  .filter((file) => file.endsWith(".ts"))
   .flatMap((entry) => {
-    const file = resolve(src, String(entry))
+    const file = resolve(src, entry)
     const source = readFileSync(file, "utf8")
+
     const imports = [
       ...Array.from(
         source.matchAll(
@@ -20,6 +22,7 @@ const edges = readdirSync(src, { recursive: true })
         (match) => match[1]!,
       ),
     ]
+
     return imports.map((specifier) => ({
       file: relative(src, file),
       specifier: specifier.startsWith(".")
@@ -36,8 +39,10 @@ describe("server composition boundary (ADR 0006)", () => {
           /(?:^@digital-shelf\/api(?:\/|$)|packages\/api\/src\/)(.*)/.exec(
             specifier,
           )
+
         if (!match) return false
         const module = match[1]!.replace(/\.ts$/, "")
+
         return !(
           /(?:^|\/)[^/]+(?:Api|Wire)$/.test(module) ||
           /^(?:Api|RootApi|Auth\/AuthRoutes|Auth\/Security|(?:Catalog|Scraping)\/Errors)$/.test(
