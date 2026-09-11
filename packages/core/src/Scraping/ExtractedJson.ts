@@ -1,3 +1,4 @@
+import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import type { ExtractionErrorCode } from "@digital-shelf/domain/Scraping/Vocabulary"
 import * as Data from "effect/Data"
@@ -31,27 +32,34 @@ export const parseExtractedJson = (
       code: "json_mode_unmet",
       message: "Model returned empty or truncated content",
     })
-  let value: unknown
 
+  return decode(text).pipe(
+    Option.orElse(() => repaired(text).pipe(Option.flatMap(decode))),
+    Option.match({
+      onNone: () =>
+        ParseResult.failed({
+          code: "invalid_json",
+          message: "Model content is not valid JSON after repair",
+        }),
+      onSome: (value) =>
+        isJsonObject(value)
+          ? ParseResult.object({ value })
+          : ParseResult.failed({
+              code: "invalid_json",
+              message: "Model content must be a JSON object",
+            }),
+    }),
+  )
+}
+
+const decode = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))
+
+const repaired = (text: string): Option.Option<string> => {
   try {
-    value = JSON.parse(text)
+    return Option.some(jsonrepair(text))
   } catch {
-    try {
-      value = JSON.parse(jsonrepair(text))
-    } catch {
-      return ParseResult.failed({
-        code: "invalid_json",
-        message: "Model content is not valid JSON after repair",
-      })
-    }
+    return Option.none()
   }
-
-  return isJsonObject(value)
-    ? ParseResult.object({ value })
-    : ParseResult.failed({
-        code: "invalid_json",
-        message: "Model content must be a JSON object",
-      })
 }
 
 type ExtractionFailure = { code: ExtractionErrorCode; message: string }
@@ -77,6 +85,6 @@ export const classifyExtractionError = (cause: unknown): ExtractionFailure => {
 
   return {
     code: "unknown",
-    message: cause instanceof Error ? cause.message : String(cause),
+    message: Predicate.isError(cause) ? cause.message : String(cause),
   }
 }

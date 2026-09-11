@@ -102,27 +102,24 @@ export class ExtractionRunner extends Context.Service<
     const transitions = yield* Transitions
     const bucket = yield* R2Bucket
     const model = yield* LanguageModel.LanguageModel
-    const gatewayId = yield* aiGatewayId.pipe(Effect.orDie)
+    const gatewayId = yield* aiGatewayId
     yield* Executions
 
     const deadline = yield* Config.duration("EXTRACTION_DEADLINE").pipe(
       Config.withDefault(Duration.seconds(120)),
-      Effect.orDie,
     )
 
     const retries = yield* Config.int("EXTRACTION_RETRIES").pipe(
       Config.withDefault(0),
-      Effect.orDie,
     )
 
     const cap = yield* Config.int("EXTRACTION_INPUT_CAP_BYTES").pipe(
       Config.withDefault(300000),
-      Effect.orDie,
     )
 
     const maxOutputTokens = yield* Config.int(
       "EXTRACTION_MAX_OUTPUT_TOKENS",
-    ).pipe(Config.withDefault(8192), Effect.orDie)
+    ).pipe(Config.withDefault(8192))
 
     const claim = Effect.fn("ExtractionRunner.claim")(function* (
       id: ExtractionId,
@@ -180,6 +177,7 @@ export class ExtractionRunner extends Context.Service<
                 string
               >
             > = {
+            // SAFETY: Encoding this locally built struct of strings can fail only on a bug.
             "cf-aig-metadata": yield* Schema.encodeEffect(
               Schema.fromJsonString(
                 Schema.Struct({

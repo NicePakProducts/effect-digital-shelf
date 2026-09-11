@@ -29,7 +29,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           yield* reset
           const fixture = yield* seed()
-          const { parent } = yield* fixture.listing
+          const listing2 = yield* fixture.listing
+          const parent = listing2.parent
           const base = yield* Tracer.Tracer
           const spans: Tracer.Span[] = []
 
@@ -58,7 +59,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             yield* runner.claim(row.id)
             yield* runner.fail(row.id, "unknown", "test")
             yield* Effect.flip(runner.claim(row.id))
-            yield* (yield* Cron).tick()
+            const cron = yield* Cron
+            yield* cron.tick()
 
             return row
           }).pipe(
@@ -172,17 +174,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             parent: (yield* fixture.listing).parent,
           })
 
-          yield* (yield* ScrapeRunner).claim(running.id)
+          const scrapeRunner = yield* ScrapeRunner
+          yield* scrapeRunner.claim(running.id)
 
           const pending = yield* scrapes.trigger({
             parent: (yield* fixture.listing).parent,
           })
 
-          yield* (yield* ExecutionsTest).setStatus(
-            "scrape",
-            pending.id,
-            "errored",
-          )
+          const executionsTest2 = yield* ExecutionsTest
+          yield* executionsTest2.setStatus("scrape", pending.id, "errored")
 
           const extractedScrape = yield* successfulScrape(
             (yield* fixture.listing).parent,
@@ -204,7 +204,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             context: base.context,
           })
 
-          yield* (yield* Cron).tick().pipe(Effect.withTracer(tracer))
+          const cron = yield* Cron
+          yield* cron.tick().pipe(Effect.withTracer(tracer))
 
           const tick = spans.find((span) => span.name === "Cron.tick")!
 
@@ -230,7 +231,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
                   link.span.traceId === traceIdOf(row.id),
               ),
             ).toBe(true)
-            expect((yield* scrapes.get(row.id)).status).toBe("failed")
+            expect((yield* scrapes.get({ scrapeId: row.id })).status).toBe(
+              "failed",
+            )
           }
 
           const dispatches = spans.filter(
@@ -260,14 +263,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             extractionTransition.attributes.get("shelf.extraction.id"),
           ).toBe(extracting.id)
           expect(extractionTransition.attributes.get("shelf.attempt")).toBe(1)
-          expect((yield* (yield* Extractions).get(extracting.id)).status).toBe(
-            "failed",
-          )
+          const extractions = yield* Extractions
           expect(
-            yield* (yield* ExecutionsTest).service.status(
-              "extraction",
-              extracting.id,
-            ),
+            (yield* extractions.get({ extractionId: extracting.id })).status,
+          ).toBe("failed")
+          const executionsTest = yield* ExecutionsTest
+          expect(
+            yield* executionsTest.service.status("extraction", extracting.id),
           ).toEqual(Option.some("terminated"))
           expect(
             extractionTransition.links.some(
@@ -291,13 +293,17 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           yield* reset
-          const { parent } = yield* (yield* seed()).listing
+          const seededCatalog = yield* seed()
+          const listing2 = yield* seededCatalog.listing
+          const parent = listing2.parent
 
           const plain = Tracer.make({
             span: (options) => new Tracer.NativeSpan(options),
           })
 
-          const result = yield* (yield* Scrapes)
+          const scrapes = yield* Scrapes
+
+          const result = yield* scrapes
             .trigger({ parent })
             .pipe(Effect.withTracer(plain), Effect.exit)
 
@@ -311,7 +317,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           }
 
           expect(
-            (yield* (yield* Scrapes).list({
+            (yield* scrapes.list({
               listingId: parent.listingId,
               limit: 10,
             })).items,
@@ -324,8 +330,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           yield* reset
 
+          const seededCatalog = yield* seed()
+
           const scrape = yield* successfulScrape(
-            (yield* (yield* seed()).listing).parent,
+            (yield* seededCatalog.listing).parent,
           )
 
           const base = yield* Tracer.Tracer
@@ -341,16 +349,18 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           })
 
           const row = yield* Effect.gen(function* () {
-            const row = yield* (yield* Extractions).trigger(
+            const extractions = yield* Extractions
+
+            const row = yield* extractions.trigger(
               TriggerExtraction.members[0].make({
                 scrapeId: scrape.id,
               }),
             )
 
             const runner = yield* ExtractionRunner
-            expect(yield* (yield* Extractions).redispatch(row.id)).toBe(
-              "already-active",
-            )
+            expect(
+              yield* extractions.redispatch({ extractionId: row.id }),
+            ).toBe("already-active")
             const target = yield* runner.claim(row.id)
             yield* runner.claim(row.id)
             yield* runner.finish(row.id, yield* runner.extract(row.id, target))
@@ -438,8 +448,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           Effect.gen(function* () {
             yield* reset
 
+            const seededCatalog = yield* seed()
+
             const scrape = yield* successfulScrape(
-              (yield* (yield* seed()).listing).parent,
+              (yield* seededCatalog.listing).parent,
             )
 
             const row = yield* extraction(scrape.id, 1, "pending")

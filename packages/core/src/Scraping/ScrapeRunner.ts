@@ -82,15 +82,18 @@ const capText = (text: string, cap: number) => {
   const encoded = new TextEncoder().encode(text)
 
   if (encoded.length <= cap) return { text, truncated: false }
-  let end = Math.max(0, cap)
-
-  while (end > 0 && (encoded[end]! & 0xc0) === 0x80) end--
+  const end = utf8Boundary(encoded, Math.max(0, cap))
 
   return {
     text: new TextDecoder().decode(encoded.subarray(0, end)),
     truncated: true,
   }
 }
+
+const utf8Boundary = (encoded: Uint8Array, end: number): number =>
+  end > 0 && (encoded[end]! & 0xc0) === 0x80
+    ? utf8Boundary(encoded, end - 1)
+    : end
 
 const jsonDetail = Schema.is(Schema.Json)
 
@@ -137,15 +140,13 @@ export class ScrapeRunner extends Context.Service<
 
     const deadline = yield* Config.duration("SCRAPE_DEADLINE").pipe(
       Config.withDefault(Duration.seconds(180)),
-      Effect.orDie,
     )
 
     const cap = yield* Config.int("INNER_TEXT_CAP_BYTES").pipe(
       Config.withDefault(262144),
-      Effect.orDie,
     )
 
-    const model = yield* extractionModel.pipe(Effect.orDie)
+    const model = yield* extractionModel
 
     const claim = Effect.fn("ScrapeRunner.claim")(function* (id: ScrapeId) {
       const now = yield* DateTime.now

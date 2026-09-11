@@ -81,10 +81,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         const scrapes = yield* Scrapes
 
         for (const row of [recent])
-          expect((yield* scrapes.get(row.id)).status).toBe("running")
+          expect((yield* scrapes.get({ scrapeId: row.id })).status).toBe(
+            "running",
+          )
 
         for (const row of [terminal, active, missing, unknown])
-          expect((yield* scrapes.get(row.id)).errorCode).toEqual(
+          expect((yield* scrapes.get({ scrapeId: row.id })).errorCode).toEqual(
             Option.some("timeout"),
           )
 

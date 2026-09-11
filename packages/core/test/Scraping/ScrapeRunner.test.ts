@@ -89,16 +89,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           )
 
           yield* runner.finish(row.id, fetched)
-          const successful = yield* scrapes.get(row.id)
+          const successful = yield* scrapes.get({ scrapeId: row.id })
           yield* TestClock.adjust("1 second")
           yield* runner.fail(row.id, "unknown", "after commit")
-          expect(yield* scrapes.get(row.id)).toEqual(successful)
+          expect(yield* scrapes.get({ scrapeId: row.id })).toEqual(successful)
           const next = yield* scrapes.trigger({ parent: target.parent })
           yield* runner.fail(next.id, "timeout", "first failure")
-          const failed = yield* scrapes.get(next.id)
+          const failed = yield* scrapes.get({ scrapeId: next.id })
           yield* TestClock.adjust("1 second")
           yield* runner.fail(next.id, "unknown", "later failure")
-          expect(yield* scrapes.get(next.id)).toEqual(failed)
+          expect(yield* scrapes.get({ scrapeId: next.id })).toEqual(failed)
         }),
     )
     it.effect(
@@ -134,10 +134,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const scrapes = setupResult.scrapes
           const target = setupResult.target
           const claimed = yield* runner.claim(row.id)
-          const firstStartedAt = (yield* scrapes.get(row.id)).startedAt
+
+          const firstStartedAt = (yield* scrapes.get({ scrapeId: row.id }))
+            .startedAt
+
           yield* TestClock.adjust("1 second")
           expect(yield* runner.claim(row.id)).toEqual(claimed)
-          expect((yield* scrapes.get(row.id)).startedAt).toEqual(firstStartedAt)
+          expect((yield* scrapes.get({ scrapeId: row.id })).startedAt).toEqual(
+            firstStartedAt,
+          )
           const outcome = yield* runner.fetch(row.id, claimed)
           expect(
             Schema.is(FetchOutcome)(JSON.parse(JSON.stringify(outcome))),
@@ -145,7 +150,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const result = yield* runner.finish(row.id, outcome)
           expect(result.extractionId).not.toBeNull()
           expect(yield* runner.finish(row.id, outcome)).toEqual(result)
-          expect((yield* scrapes.get(row.id)).status).toBe("success")
+          expect((yield* scrapes.get({ scrapeId: row.id })).status).toBe(
+            "success",
+          )
           const db = yield* Db
           const rows = yield* query(db.select().from(extractions))
           expect(rows).toHaveLength(1)
@@ -218,7 +225,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         expect(
           yield* Effect.flip(runner.finish(row.id, outcome)),
         ).toBeInstanceOf(TransitionRejected)
-        expect((yield* scrapes.get(row.id)).status).toBe("failed")
+        expect((yield* scrapes.get({ scrapeId: row.id })).status).toBe("failed")
         const bucketTest = yield* R2BucketTest
         const objects = yield* bucketTest.inspect
         expect(objects.has(`html/${row.id}.html`)).toBe(false)
@@ -313,7 +320,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         expect(yield* runner.finish(row.id, outcome)).toEqual({
           extractionId: null,
         })
-        const saved = yield* scrapes.get(row.id)
+        const saved = yield* scrapes.get({ scrapeId: row.id })
         expect(saved.errorCode).toEqual(Option.some("blocked"))
         expect(saved.attempts).toEqual(Option.some(2))
       }),
@@ -327,7 +334,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const runner = setupResult.runner
           const scrapes = setupResult.scrapes
           yield* runner.fail(row.id, "unknown", "before claim")
-          expect((yield* scrapes.get(row.id)).status).toBe("failed")
+          expect((yield* scrapes.get({ scrapeId: row.id })).status).toBe(
+            "failed",
+          )
           expect(yield* Effect.flip(runner.claim(row.id))).toBeInstanceOf(
             TransitionRejected,
           )
@@ -361,7 +370,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             updatedAt: now,
           })
           yield* Effect.flip(runner.finish(row.id, outcome))
-          expect((yield* scrapes.get(row.id)).status).toBe("running")
+          expect((yield* scrapes.get({ scrapeId: row.id })).status).toBe(
+            "running",
+          )
           const db = yield* Db
           expect(
             (yield* query(db.select().from(scrapeTable)))[0]?.finishedAt,

@@ -31,11 +31,11 @@ export const layer = HttpApiBuilder.group(RootApi, "scrapes", (handlers) =>
       )
       .handle("get", ({ params }) =>
         scrapes
-          .get(params.id)
+          .get({ scrapeId: params.id })
           .pipe(Effect.map(toWire), Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("content", ({ params }) =>
-        scrapes.content(params.id).pipe(
+        scrapes.content({ scrapeId: params.id }).pipe(
           Effect.flatMap(
             Option.match({
               onNone: () =>

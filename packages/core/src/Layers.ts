@@ -1,3 +1,4 @@
+import type { ConfigError } from "effect/Config"
 import * as Layer from "effect/Layer"
 import { Auth } from "./Auth/Auth.ts"
 import { EmailSender } from "./Auth/EmailSender.ts"
@@ -42,7 +43,7 @@ export const Catalog: Layer.Layer<
 /** The scraping features the API's dispatch and read endpoints sit on. */
 export const Scraping: Layer.Layer<
   Scrapes | Extractions,
-  never,
+  ConfigError,
   Db | R2Bucket | Executions
 > = Layer.mergeAll(Scrapes.layer, Extractions.layer)
 

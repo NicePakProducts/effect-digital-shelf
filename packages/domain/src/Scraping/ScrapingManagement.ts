@@ -1,5 +1,11 @@
 import * as Schema from "effect/Schema"
-import { BrandId, ProductId, RetailerId, ScrapeId } from "../Shared/Ids.ts"
+import {
+  BrandId,
+  ProductId,
+  RetailerId,
+  ScrapeId,
+  ExtractionId,
+} from "../Shared/Ids.ts"
 import { ScrapeParent } from "./Scrape.ts"
 import { PromptKind, ScrapeMode } from "./Vocabulary.ts"
 
@@ -42,3 +48,55 @@ export const BulkReExtract = Schema.Struct({
 })
 
 export type BulkReExtract = typeof BulkReExtract.Type
+
+export const GetScrapeInput = Schema.Struct({ scrapeId: ScrapeId })
+
+export type GetScrapeInput = typeof GetScrapeInput.Type
+
+export const ScrapeContentInput = Schema.Struct({ scrapeId: ScrapeId })
+
+export type ScrapeContentInput = typeof ScrapeContentInput.Type
+
+export const DrainPendingScrapesInput = Schema.Struct({ limit: Schema.Int })
+
+export type DrainPendingScrapesInput = typeof DrainPendingScrapesInput.Type
+
+export const DispatchDueScrapesInput = Schema.Struct({
+  now: Schema.DateTimeUtc,
+  limit: Schema.Int,
+})
+
+export type DispatchDueScrapesInput = typeof DispatchDueScrapesInput.Type
+
+export const GetExtractionInput = Schema.Struct({ extractionId: ExtractionId })
+
+export type GetExtractionInput = typeof GetExtractionInput.Type
+
+export const RedispatchExtractionInput = Schema.Struct({
+  extractionId: ExtractionId,
+})
+
+export type RedispatchExtractionInput = typeof RedispatchExtractionInput.Type
+
+export const DrainPendingExtractionsInput = Schema.Struct({ limit: Schema.Int })
+
+export type DrainPendingExtractionsInput =
+  typeof DrainPendingExtractionsInput.Type
+
+export const ListExtractionsByScrapeInput = Schema.Struct({
+  scrapeId: ScrapeId,
+})
+
+export type ListExtractionsByScrapeInput =
+  typeof ListExtractionsByScrapeInput.Type
+
+export const LatestExtractedDataInput = Schema.Struct({ parent: ScrapeParent })
+
+export type LatestExtractedDataInput = typeof LatestExtractedDataInput.Type
+
+export const LatestExtractedDataForProductInput = Schema.Struct({
+  productId: ProductId,
+})
+
+export type LatestExtractedDataForProductInput =
+  typeof LatestExtractedDataForProductInput.Type

@@ -2,6 +2,7 @@ import type { Auth } from "@digital-shelf/core/Auth/Auth"
 import type { Executions } from "@digital-shelf/core/Scheduling/Executions"
 import type { Db } from "@digital-shelf/core/Sql/Db"
 import type { R2Bucket } from "@digital-shelf/core/Storage/R2Bucket"
+import type { ConfigError } from "effect/Config"
 import type { FileSystem } from "effect/FileSystem"
 import type { Path } from "effect/Path"
 import type * as Etag from "effect/unstable/http/Etag"
@@ -28,7 +29,7 @@ import * as ExtractionsHandlers from "./Scraping/ExtractionsHandlers.ts"
  * The app also mounts Auth/AuthRoutes.layer itself. */
 export const layer: Layer.Layer<
   never,
-  never,
+  ConfigError,
   | Db
   | R2Bucket
   | Executions

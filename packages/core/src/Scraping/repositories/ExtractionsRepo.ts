@@ -92,6 +92,7 @@ const dataQuery = (db: Db["Service"], condition: SQL) =>
     )
     .limit(1)
 
+// SAFETY: This database projection must satisfy its row schema; a mismatch can only be a bug.
 const decodeData = (
   parent: ScrapeParent,
   row: {
@@ -277,6 +278,7 @@ export class ExtractionsRepo extends Context.Service<
         attempt: 1,
         id:
           values.id ??
+          // SAFETY: A freshly generated UUID must satisfy ExtractionId; a mismatch can only be a bug.
           (yield* Schema.decodeEffect(ExtractionId)(crypto.randomUUID()).pipe(
             Effect.orDie,
           )),

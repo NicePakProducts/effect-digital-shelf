@@ -1,3 +1,10 @@
+import * as Array from "effect/Array"
+import type {
+  GetScrapeInput,
+  ScrapeContentInput,
+  DrainPendingScrapesInput,
+  DispatchDueScrapesInput,
+} from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import type { SqlError } from "effect/unstable/sql/SqlError"
 import * as Match from "effect/Match"
 import * as Predicate from "effect/Predicate"
@@ -85,10 +92,7 @@ export class Scrapes extends Context.Service<
       | SqlError
       | ExecutionsError
     >
-    readonly dispatchDue: (
-      now: DateTime.Utc,
-      limit: number,
-    ) => Effect.Effect<
+    readonly dispatchDue: (input: DispatchDueScrapesInput) => Effect.Effect<
       {
         readonly created: ReadonlyArray<ScrapeId>
         readonly skipped: ReadonlyArray<ScrapeParent>
@@ -96,7 +100,7 @@ export class Scrapes extends Context.Service<
       },
       SqlError | ExecutionsError
     >
-    readonly drainPending: (limit: number) => Effect.Effect<
+    readonly drainPending: (input: DrainPendingScrapesInput) => Effect.Effect<
       {
         readonly started: number
         readonly alreadyActive: number
@@ -106,7 +110,7 @@ export class Scrapes extends Context.Service<
       SqlError | ExecutionsError
     >
     readonly get: (
-      id: ScrapeId,
+      input: GetScrapeInput,
     ) => Effect.Effect<Scrape, ScrapeNotFound | SqlError>
     readonly list: (options: {
       readonly listingId?: ListingId | undefined
@@ -119,7 +123,7 @@ export class Scrapes extends Context.Service<
       SqlError
     >
     readonly content: (
-      id: ScrapeId,
+      input: ScrapeContentInput,
     ) => Effect.Effect<
       Option.Option<string>,
       ScrapeNotFound | SqlError | StorageError
@@ -136,7 +140,6 @@ export class Scrapes extends Context.Service<
 
     const retry = yield* Config.duration("FAILURE_RETRY_INTERVAL").pipe(
       Config.withDefault(Duration.days(1)),
-      Effect.orDie,
     )
 
     const insert = (
@@ -144,6 +147,7 @@ export class Scrapes extends Context.Service<
       trigger: "manual" | "bulk" | "cadence",
     ) =>
       Effect.gen(function* () {
+        // SAFETY: A freshly generated UUID must satisfy ScrapeId; a mismatch can only be a bug.
         const id = yield* Effect.sync(() =>
           Schema.decodeUnknownSync(ScrapeId)(crypto.randomUUID()),
         )
@@ -222,50 +226,54 @@ export class Scrapes extends Context.Service<
       rows: ReadonlyArray<Scrape>,
       caller: Option.Option<Tracer.Span>,
     ) {
-      let started = 0
-      const skipped: string[] = []
+      const reports = yield* Effect.forEach(
+        Array.chunksOf(rows, startBatchLimit),
+        (batch) =>
+          Effect.gen(function* () {
+            const report = yield* executions.start(
+              "scrape",
+              batch.map((row) => ({
+                id: row.id,
+                traceparent: traceparentOf(row.id, row.rootSpanId),
+              })),
+            )
 
-      for (let i = 0; i < rows.length; i += startBatchLimit) {
-        const batch = rows.slice(i, i + startBatchLimit)
+            for (const row of batch)
+              yield* Effect.void.pipe(
+                Effect.withSpan("Scrape.dispatch", {
+                  parent: Tracer.externalSpan({
+                    traceId: traceIdOf(row.id),
+                    spanId: row.rootSpanId,
+                  }),
+                  links:
+                    Option.isSome(caller) && caller.value.spanId !== "noop"
+                      ? [{ span: caller.value, attributes: {} }]
+                      : [],
+                  attributes: {
+                    "shelf.scrape.id": row.id,
+                    "shelf.execution.kind": "scrape",
+                    "shelf.dispatch.started": report.started.includes(row.id),
+                  },
+                }),
+              )
 
-        const report = yield* executions.start(
-          "scrape",
-          batch.map((row) => ({
-            id: row.id,
-            traceparent: traceparentOf(row.id, row.rootSpanId),
-          })),
-        )
+            return report
+          }),
+      )
 
-        for (const row of batch)
-          yield* Effect.void.pipe(
-            Effect.withSpan("Scrape.dispatch", {
-              parent: Tracer.externalSpan({
-                traceId: traceIdOf(row.id),
-                spanId: row.rootSpanId,
-              }),
-              links:
-                Option.isSome(caller) && caller.value.spanId !== "noop"
-                  ? [{ span: caller.value, attributes: {} }]
-                  : [],
-              attributes: {
-                "shelf.scrape.id": row.id,
-                "shelf.execution.kind": "scrape",
-                "shelf.dispatch.started": report.started.includes(row.id),
-              },
-            }),
-          )
-
-        started += report.started.length
-        skipped.push(...report.skipped)
+      return {
+        started: reports.reduce(
+          (total, report) => total + report.started.length,
+          0,
+        ),
+        skipped: reports.flatMap((report) => report.skipped),
       }
-
-      return { started, skipped }
     })
 
     const trigger = Effect.fn("Scrapes.trigger")(function* (
       command: TriggerScrape,
     ) {
-      const { parent } = command
+      const parent = command.parent
 
       // Classify after rollback: Postgres will not allow a lookup in the failed transaction.
       const attempt = Effect.gen(function* () {
@@ -293,28 +301,39 @@ export class Scrapes extends Context.Service<
           )
       })
 
-      for (let retry = 0; retry < 2; retry++) {
-        const created = yield* attempt.pipe(
-          Effect.asSome,
-          Effect.catchTag("InFlightConflict", () => Effect.succeedNone),
-        )
+      const created = yield* Effect.reduce(
+        [0, 1],
+        () => Option.none<Scrape>(),
+        (created) =>
+          Effect.gen(function* () {
+            if (Option.isSome(created)) return created
 
-        if (Option.isSome(created)) {
-          yield* start(
-            [created.value],
-            yield* Effect.currentSpan.pipe(Effect.option),
-          )
+            const inserted = yield* attempt.pipe(
+              Effect.asSome,
+              Effect.catchTag("InFlightConflict", () => Effect.succeedNone),
+            )
 
-          return created.value
-        }
+            if (Option.isSome(inserted)) {
+              yield* start(
+                [inserted.value],
+                yield* Effect.currentSpan.pipe(Effect.option),
+              )
 
-        const existing = yield* scrapesRepo.findInFlight(parent)
+              return inserted
+            }
 
-        if (Option.isSome(existing))
-          return yield* Effect.fail(
-            new ParentInFlight({ parent, scrapeId: existing.value.id }),
-          )
-      }
+            const existing = yield* scrapesRepo.findInFlight(parent)
+
+            if (Option.isSome(existing))
+              return yield* Effect.fail(
+                new ParentInFlight({ parent, scrapeId: existing.value.id }),
+              )
+
+            return Option.none<Scrape>()
+          }),
+      )
+
+      if (Option.isSome(created)) return created.value
 
       return yield* Effect.die(
         new Error(
@@ -397,11 +416,10 @@ export class Scrapes extends Context.Service<
     })
 
     const dispatchDue = Effect.fn("Scrapes.dispatchDue")(function* (
-      now: DateTime.Utc,
-      limit: number,
+      input: DispatchDueScrapesInput,
     ) {
       const report = yield* insertAll(
-        yield* parents.cadenceDue(now, retry, limit),
+        yield* parents.cadenceDue(input.now, retry, input.limit),
         "cadence",
       )
 
@@ -418,95 +436,93 @@ export class Scrapes extends Context.Service<
     })
 
     const drainPending = Effect.fn("Scrapes.drainPending")(function* (
-      limit: number,
+      input: DrainPendingScrapesInput,
     ) {
-      const rows = yield* scrapesRepo.listPending(limit)
+      const rows = yield* scrapesRepo.listPending(input.limit)
 
       const report = yield* start(
         rows,
         yield* Effect.currentSpan.pipe(Effect.option),
       )
 
-      let alreadyActive = 0
-      let recoveredFailed = 0
-      let unresolved = 0
+      const outcomes = yield* Effect.forEach(report.skipped, (id) =>
+        Effect.gen(function* () {
+          const row = rows.find((row) => row.id === id)
 
-      for (const id of report.skipped) {
-        const row = rows.find((row) => row.id === id)
+          if (row === undefined) return "unresolved" as const
 
-        if (row === undefined) {
-          unresolved++
-          continue
-        }
+          return yield* Effect.gen(function* () {
+            const status = yield* executions.status("scrape", id)
 
-        const outcome = yield* Effect.gen(function* () {
-          const status = yield* executions.status("scrape", id)
+            if (Option.isNone(status)) return "unresolved" as const
 
-          if (Option.isNone(status)) return "unresolved" as const
+            if (isActiveExecutionStatus(status.value))
+              return "already-active" as const satisfies DispatchOutcome
 
-          if (isActiveExecutionStatus(status.value))
-            return "already-active" as const satisfies DispatchOutcome
+            if (!isTerminalExecutionStatus(status.value))
+              return "unresolved" as const
+            const now = yield* DateTime.now
 
-          if (!isTerminalExecutionStatus(status.value))
-            return "unresolved" as const
-          const now = yield* DateTime.now
+            const result = yield* transitions
+              .scrape(row.id, "pending", "failed", {
+                errorCode: Option.some("unknown"),
+                errorMessage: Option.some(
+                  "Pending Scrape Execution is terminal",
+                ),
+                finishedAt: Option.some(now),
+                updatedAt: now,
+              })
+              .pipe(
+                Effect.catchTag("TransitionRejected", (error) =>
+                  Effect.succeed({
+                    result: "rejected" as const,
+                    observed: error.observed,
+                  }),
+                ),
+              )
 
-          const result = yield* transitions
-            .scrape(row.id, "pending", "failed", {
-              errorCode: Option.some("unknown"),
-              errorMessage: Option.some("Pending Scrape Execution is terminal"),
-              finishedAt: Option.some(now),
-              updatedAt: now,
-            })
-            .pipe(
-              Effect.catchTag("TransitionRejected", (error) =>
-                Effect.succeed({
-                  result: "rejected" as const,
-                  observed: error.observed,
-                }),
-              ),
+            if (
+              result.result === "applied" ||
+              result.result === "already_applied"
             )
+              return "recovered-failed" as const satisfies DispatchOutcome
 
-          if (
-            result.result === "applied" ||
-            result.result === "already_applied"
-          )
-            return "recovered-failed" as const satisfies DispatchOutcome
-
-          return "observed" in result && result.observed === "running"
-            ? ("already-active" as const)
-            : ("unresolved" as const)
-        }).pipe(
-          Effect.catchCause((cause) =>
-            Effect.as(
-              Effect.logError("Scrape reconcile failed", cause),
-              "unresolved" as const,
+            return "observed" in result && result.observed === "running"
+              ? ("already-active" as const)
+              : ("unresolved" as const)
+          }).pipe(
+            Effect.catchCause((cause) =>
+              Effect.as(
+                Effect.logError("Scrape reconcile failed", cause),
+                "unresolved" as const,
+              ),
             ),
-          ),
-          Effect.annotateSpans("shelf.scrape.id", row.id),
-          Effect.linkSpans(
-            Tracer.externalSpan({
-              traceId: traceIdOf(row.id),
-              spanId: row.rootSpanId,
-            }),
-          ),
-        )
-
-        if (outcome === "already-active") alreadyActive++
-        else if (outcome === "recovered-failed") recoveredFailed++
-        else unresolved++
-      }
+            Effect.annotateSpans("shelf.scrape.id", row.id),
+            Effect.linkSpans(
+              Tracer.externalSpan({
+                traceId: traceIdOf(row.id),
+                spanId: row.rootSpanId,
+              }),
+            ),
+          )
+        }),
+      )
 
       return {
         started: report.started,
-        alreadyActive,
-        recoveredFailed,
-        unresolved,
+        alreadyActive: outcomes.filter(
+          (outcome) => outcome === "already-active",
+        ).length,
+        recoveredFailed: outcomes.filter(
+          (outcome) => outcome === "recovered-failed",
+        ).length,
+        unresolved: outcomes.filter((outcome) => outcome === "unresolved")
+          .length,
       }
     })
 
-    const get = Effect.fn("Scrapes.get")(function* (id: ScrapeId) {
-      return yield* scrapesRepo.get(id)
+    const get = Effect.fn("Scrapes.get")(function* (input: GetScrapeInput) {
+      return yield* scrapesRepo.get(input.scrapeId)
     })
 
     /** One page of Scrapes, newest first; `hasMore` says whether to keep going. */
@@ -524,8 +540,10 @@ export class Scrapes extends Context.Service<
      * The Scrape's captured HTML. `None` once retention has taken the object,
      * whether or not the row still records the key (ADR 0001).
      */
-    const content = Effect.fn("Scrapes.content")(function* (id: ScrapeId) {
-      const row = yield* scrapesRepo.get(id)
+    const content = Effect.fn("Scrapes.content")(function* (
+      input: ScrapeContentInput,
+    ) {
+      const row = yield* scrapesRepo.get(input.scrapeId)
 
       if (Option.isNone(row.htmlR2Key)) return Option.none<string>()
 

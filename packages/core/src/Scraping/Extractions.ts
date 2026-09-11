@@ -1,3 +1,12 @@
+import * as Array from "effect/Array"
+import type {
+  GetExtractionInput,
+  RedispatchExtractionInput,
+  DrainPendingExtractionsInput,
+  ListExtractionsByScrapeInput,
+  LatestExtractedDataInput,
+  LatestExtractedDataForProductInput,
+} from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import type { LatestExtractedData } from "@digital-shelf/domain/Scraping/LatestExtractedData"
 import type {
   ListingNotFound,
@@ -24,11 +33,7 @@ import {
   isTerminalExecutionStatus,
 } from "@digital-shelf/domain/Scraping/Execution"
 import type { Extraction } from "@digital-shelf/domain/Scraping/Extraction"
-import {
-  parent,
-  parentKind,
-  type ScrapeParent,
-} from "@digital-shelf/domain/Scraping/Scrape"
+import { parent, parentKind } from "@digital-shelf/domain/Scraping/Scrape"
 import {
   BulkReExtract,
   TriggerExtraction,
@@ -38,11 +43,7 @@ import type {
   ExtractionStatus,
   PromptKind,
 } from "@digital-shelf/domain/Scraping/Vocabulary"
-import {
-  ExtractionId,
-  type ProductId,
-  type ScrapeId,
-} from "@digital-shelf/domain/Shared/Ids"
+import { ExtractionId, type ScrapeId } from "@digital-shelf/domain/Shared/Ids"
 import * as Tracer from "effect/Tracer"
 import * as Context from "effect/Context"
 import * as Data from "effect/Data"
@@ -92,7 +93,7 @@ export class Extractions extends Context.Service<
       RetailerNotFound | SqlError | ExecutionsError
     >
     readonly redispatch: (
-      id: ExtractionId,
+      input: RedispatchExtractionInput,
     ) => Effect.Effect<
       "created" | "already-active" | "recovered-failed" | "unresolved",
       | ExtractionNotFound
@@ -101,7 +102,9 @@ export class Extractions extends Context.Service<
       | SqlError
       | ExecutionsError
     >
-    readonly drainPending: (limit: number) => Effect.Effect<
+    readonly drainPending: (
+      input: DrainPendingExtractionsInput,
+    ) => Effect.Effect<
       {
         readonly started: number
         readonly alreadyActive: number
@@ -111,7 +114,7 @@ export class Extractions extends Context.Service<
       SqlError | ExecutionsError
     >
     readonly get: (
-      id: ExtractionId,
+      input: GetExtractionInput,
     ) => Effect.Effect<Extraction, ExtractionNotFound | SqlError>
     readonly list: (options: {
       readonly scrapeId?: ScrapeId | undefined
@@ -123,13 +126,13 @@ export class Extractions extends Context.Service<
       SqlError
     >
     readonly listByScrape: (
-      id: ScrapeId,
+      input: ListExtractionsByScrapeInput,
     ) => Effect.Effect<ReadonlyArray<Extraction>, SqlError>
     readonly latestExtractedData: (
-      parent: ScrapeParent,
+      input: LatestExtractedDataInput,
     ) => Effect.Effect<Option.Option<LatestExtractedData>, SqlError>
     readonly latestExtractedDataForProduct: (
-      id: ProductId,
+      input: LatestExtractedDataForProductInput,
     ) => Effect.Effect<
       ReadonlyArray<LatestExtractedData>,
       ProductNotFound | SqlError
@@ -143,7 +146,7 @@ export class Extractions extends Context.Service<
     const scrapesRepo = yield* ScrapesRepo
     const transitions = yield* Transitions
     const executions = yield* Executions
-    const model = yield* extractionModel.pipe(Effect.orDie)
+    const model = yield* extractionModel
 
     const insert = (
       scrapeId: ScrapeId,
@@ -157,6 +160,7 @@ export class Extractions extends Context.Service<
 
         const row = yield* extractionsRepo.allocate(
           {
+            // SAFETY: A freshly generated UUID must satisfy ExtractionId; a mismatch can only be a bug.
             id: yield* Schema.decodeEffect(ExtractionId)(
               crypto.randomUUID(),
             ).pipe(Effect.orDie),
@@ -196,47 +200,52 @@ export class Extractions extends Context.Service<
 
     const start = (rows: ReadonlyArray<DispatchRow>) =>
       Effect.gen(function* () {
-        let started = 0
-        const skipped: string[] = []
+        const reports = yield* Effect.forEach(
+          Array.chunksOf(rows, startBatchLimit),
+          (batch) =>
+            Effect.gen(function* () {
+              const caller = yield* Effect.currentSpan.pipe(Effect.option)
 
-        for (let i = 0; i < rows.length; i += startBatchLimit) {
-          const caller = yield* Effect.currentSpan.pipe(Effect.option)
-          const batch = rows.slice(i, i + startBatchLimit)
+              const report = yield* executions.start(
+                "extraction",
+                batch.map((row) => ({
+                  id: row.id,
+                  traceparent: traceparentOf(row.scrapeId, row.rootSpanId),
+                })),
+              )
 
-          const report = yield* executions.start(
-            "extraction",
-            batch.map((row) => ({
-              id: row.id,
-              traceparent: traceparentOf(row.scrapeId, row.rootSpanId),
-            })),
-          )
+              for (const row of batch)
+                yield* Effect.void.pipe(
+                  Effect.withSpan("Extraction.dispatch", {
+                    parent: Tracer.externalSpan({
+                      traceId: traceIdOf(row.scrapeId),
+                      spanId: row.rootSpanId,
+                    }),
+                    links:
+                      Option.isSome(caller) && caller.value.spanId !== "noop"
+                        ? [{ span: caller.value, attributes: {} }]
+                        : [],
+                    attributes: {
+                      "shelf.scrape.id": row.scrapeId,
+                      "shelf.extraction.id": row.id,
+                      "shelf.attempt": row.attempt,
+                      "shelf.execution.kind": "extraction",
+                      "shelf.dispatch.started": report.started.includes(row.id),
+                    },
+                  }),
+                )
 
-          for (const row of batch)
-            yield* Effect.void.pipe(
-              Effect.withSpan("Extraction.dispatch", {
-                parent: Tracer.externalSpan({
-                  traceId: traceIdOf(row.scrapeId),
-                  spanId: row.rootSpanId,
-                }),
-                links:
-                  Option.isSome(caller) && caller.value.spanId !== "noop"
-                    ? [{ span: caller.value, attributes: {} }]
-                    : [],
-                attributes: {
-                  "shelf.scrape.id": row.scrapeId,
-                  "shelf.extraction.id": row.id,
-                  "shelf.attempt": row.attempt,
-                  "shelf.execution.kind": "extraction",
-                  "shelf.dispatch.started": report.started.includes(row.id),
-                },
-              }),
-            )
+              return report
+            }),
+        )
 
-          started += report.started.length
-          skipped.push(...report.skipped)
+        return {
+          started: reports.reduce(
+            (total, report) => total + report.started.length,
+            0,
+          ),
+          skipped: reports.flatMap((report) => report.skipped),
         }
-
-        return { started, skipped }
       })
 
     const trigger = Effect.fn("Extractions.trigger")(function* (
@@ -291,24 +300,35 @@ export class Extractions extends Context.Service<
           Effect.catchTag("InFlightConflict", () => Effect.succeedNone),
         )
 
-      for (let retry = 0; retry < 2; retry++) {
-        const row = yield* attempt
+      const created = yield* Effect.reduce(
+        [0, 1],
+        () => Option.none<Extraction>(),
+        (created) =>
+          Effect.gen(function* () {
+            if (Option.isSome(created)) return created
 
-        if (Option.isSome(row)) {
-          yield* start([{ ...row.value, rootSpanId: scrape.rootSpanId }])
+            const row = yield* attempt
 
-          return row.value
-        }
+            if (Option.isSome(row)) {
+              yield* start([{ ...row.value, rootSpanId: scrape.rootSpanId }])
 
-        const existing = yield* extractionsRepo.findInFlight(scrape.id)
+              return row
+            }
 
-        if (Option.isSome(existing))
-          return yield* new ExtractionInFlight({
-            scrapeId: scrape.id,
-            promptKind: kind,
-            extractionId: existing.value.id,
-          })
-      }
+            const existing = yield* extractionsRepo.findInFlight(scrape.id)
+
+            if (Option.isSome(existing))
+              return yield* new ExtractionInFlight({
+                scrapeId: scrape.id,
+                promptKind: kind,
+                extractionId: existing.value.id,
+              })
+
+            return Option.none<Extraction>()
+          }),
+      )
+
+      if (Option.isSome(created)) return created.value
 
       return yield* Effect.die(
         new Error(
@@ -346,29 +366,29 @@ export class Extractions extends Context.Service<
             model,
           )
 
-          let skipped = 0
-          const created: DispatchRow[] = []
+          const results = yield* Effect.forEach(candidates, (candidate) =>
+            Effect.gen(function* () {
+              if (candidate.matching || !candidate.hasHtml)
+                return Option.none<DispatchRow>()
 
-          for (const candidate of candidates) {
-            if (candidate.matching || !candidate.hasHtml) {
-              skipped++
-              continue
-            }
+              const row = yield* insert(
+                candidate.scrapeId,
+                candidate.rootSpanId,
+                candidate.promptKind,
+                prompt.value,
+                "bulk",
+              )
 
-            const row = yield* insert(
-              candidate.scrapeId,
-              candidate.rootSpanId,
-              candidate.promptKind,
-              prompt.value,
-              "bulk",
-            )
+              return Option.map(row, (row) => ({
+                ...row,
+                rootSpanId: candidate.rootSpanId,
+              }))
+            }),
+          )
 
-            if (Option.isSome(row))
-              created.push({ ...row.value, rootSpanId: candidate.rootSpanId })
-            else skipped++
-          }
+          const created = Array.getSomes(results)
 
-          return { created, skipped }
+          return { created, skipped: candidates.length - created.length }
         }),
       )
 
@@ -434,14 +454,14 @@ export class Extractions extends Context.Service<
       )
 
     const redispatch = Effect.fn("Extractions.redispatch")(function* (
-      id: ExtractionId,
+      input: RedispatchExtractionInput,
     ) {
-      const row = yield* extractionsRepo.get(id)
+      const row = yield* extractionsRepo.get(input.extractionId)
 
       if (row.status !== "pending")
         return yield* new TransitionRejected({
           kind: "extraction",
-          id,
+          id: input.extractionId,
           from: "pending",
           to: "running",
           observed: row.status,
@@ -455,34 +475,38 @@ export class Extractions extends Context.Service<
     })
 
     const drainPending = Effect.fn("Extractions.drainPending")(function* (
-      limit: number,
+      input: DrainPendingExtractionsInput,
     ) {
-      const rows = yield* extractionsRepo.listPending(limit)
+      const rows = yield* extractionsRepo.listPending(input.limit)
       const report = yield* start(rows)
 
-      let alreadyActive = 0,
-        recoveredFailed = 0,
-        unresolved = 0
+      const outcomes = yield* Effect.forEach(report.skipped, (id) =>
+        Effect.gen(function* () {
+          const row = rows.find((row) => row.id === id)
 
-      for (const id of report.skipped) {
-        const row = rows.find((row) => row.id === id)
-        const outcome = row === undefined ? "unresolved" : yield* reconcile(row)
-
-        if (outcome === "already-active") alreadyActive++
-        else if (outcome === "recovered-failed") recoveredFailed++
-        else unresolved++
-      }
+          return row === undefined
+            ? ("unresolved" as const)
+            : yield* reconcile(row)
+        }),
+      )
 
       return {
         started: report.started,
-        alreadyActive,
-        recoveredFailed,
-        unresolved,
+        alreadyActive: outcomes.filter(
+          (outcome) => outcome === "already-active",
+        ).length,
+        recoveredFailed: outcomes.filter(
+          (outcome) => outcome === "recovered-failed",
+        ).length,
+        unresolved: outcomes.filter((outcome) => outcome === "unresolved")
+          .length,
       }
     })
 
-    const get = Effect.fn("Extractions.get")(function* (id: ExtractionId) {
-      return yield* extractionsRepo.get(id)
+    const get = Effect.fn("Extractions.get")(function* (
+      input: GetExtractionInput,
+    ) {
+      return yield* extractionsRepo.get(input.extractionId)
     })
 
     /** One page of Extractions, newest first; `hasMore` says whether to keep going. */
@@ -496,28 +520,30 @@ export class Extractions extends Context.Service<
     })
 
     const listByScrape = Effect.fn("Extractions.listByScrape")(function* (
-      id: ScrapeId,
+      input: ListExtractionsByScrapeInput,
     ) {
-      return yield* extractionsRepo.listByScrape(id)
+      return yield* extractionsRepo.listByScrape(input.scrapeId)
     })
 
     const latestExtractedData = Effect.fn("Extractions.latestExtractedData")(
-      function* (parent: ScrapeParent) {
-        return yield* extractionsRepo.latestExtractedData(parent)
+      function* (input: LatestExtractedDataInput) {
+        return yield* extractionsRepo.latestExtractedData(input.parent)
       },
     )
 
     const latestExtractedDataForProduct = Effect.fn(
       "Extractions.latestExtractedDataForProduct",
-    )(function* (id: ProductId) {
+    )(function* (input: LatestExtractedDataForProductInput) {
       if (
         !(yield* parents.containerExists(
-          BulkScrape.members[1].make({ productId: id }),
+          BulkScrape.members[1].make({ productId: input.productId }),
         ))
       )
-        return yield* new ProductNotFound({ productId: id })
+        return yield* new ProductNotFound({ productId: input.productId })
 
-      return yield* extractionsRepo.latestExtractedDataForProduct(id)
+      return yield* extractionsRepo.latestExtractedDataForProduct(
+        input.productId,
+      )
     })
 
     return {

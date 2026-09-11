@@ -1,68 +1,56 @@
+import { pipe } from "effect/Function"
 import * as Schema from "effect/Schema"
 
 export function sanitise(raw: string): string {
   if (!Schema.is(Schema.String)(raw) || raw.length === 0) return ""
-  let out = raw
 
-  // ── 1. Quote out JSON-LD <script> blocks before any <script> strip ──
-  // We replace each JSON-LD block with a placeholder token, run the
-  // remaining strip rules (which include "remove all <script> blocks"),
-  // then restore the placeholders verbatim. The token uses an
-  // unguessable suffix so it cannot collide with content in the input.
+  // Preserve JSON-LD through generic script stripping, then restore it before attribute stripping.
   const jsonLdBlocks: string[] = []
   const PLACEHOLDER_PREFIX = "__SANITISE_HTML_JSONLD__"
-  out = out.replace(
-    /<script\b[^>]*\btype\s*=\s*["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script\s*>/gi,
-    (match) => {
-      const idx = jsonLdBlocks.length
-      jsonLdBlocks.push(match)
-
-      return `${PLACEHOLDER_PREFIX}${idx}__`
-    },
-  )
-
-  // ── 2. Strip HTML comments ─────────────────────────────────────────
-  out = out.replace(/<!--[\s\S]*?-->/g, "")
-
-  // ── 3. Strip <style>, <noscript>, <svg>, remaining <script> blocks ──
-  out = stripBlock(out, "style")
-  out = stripBlock(out, "noscript")
-  out = stripBlock(out, "svg")
-  out = stripBlock(out, "script")
-
-  // ── 4. Restore JSON-LD placeholders ────────────────────────────────
-  out = out.replace(
-    new RegExp(`${PLACEHOLDER_PREFIX}(\\d+)__`, "g"),
-    (_, idx) => jsonLdBlocks[Number(idx)] ?? "",
-  )
-
-  // ── 5. Strip `class` and inline `style` attributes ─────────────────
-  // Match the attribute on any tag — leading whitespace + name + `=` +
-  // single/double-quoted value. We strip the leading whitespace as
-  // well so the resulting tag does not carry a dangling space.
-  out = out.replace(/\s+class\s*=\s*"[^"]*"/gi, "")
-  out = out.replace(/\s+class\s*=\s*'[^']*'/gi, "")
-  out = out.replace(/\s+style\s*=\s*"[^"]*"/gi, "")
-  out = out.replace(/\s+style\s*=\s*'[^']*'/gi, "")
-
-  // ── 6. Strip tracking data-* attributes ────────────────────────────
-  // Allow-list strip — any of the five known tracking prefixes. Any
-  // other `data-*` (including `data-product-id`, `data-variant`,
-  // domain-specific attributes the LLM may want) passes through.
-  // The pattern matches attribute name + optional value; we accept
-  // both quoted and bare values for robustness.
   const trackingPrefixes = ["ga", "gtm", "track", "analytics", "tealium"]
 
-  for (const prefix of trackingPrefixes) {
-    const re = new RegExp(
-      `\\s+data-${prefix}(?:-[\\w-]+)?\\s*(?:=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+))?`,
-      "gi",
-    )
+  return pipe(
+    raw,
+    (html) =>
+      html.replace(
+        /<script\b[^>]*\btype\s*=\s*["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script\s*>/gi,
+        (match) => {
+          const idx = jsonLdBlocks.length
+          jsonLdBlocks.push(match)
 
-    out = out.replace(re, "")
-  }
-
-  return out
+          return `${PLACEHOLDER_PREFIX}${idx}__`
+        },
+      ),
+    (html) => html.replace(/<!--[\s\S]*?-->/g, ""),
+    (html) => stripBlock(html, "style"),
+    (html) => stripBlock(html, "noscript"),
+    (html) => stripBlock(html, "svg"),
+    (html) => stripBlock(html, "script"),
+    (html) =>
+      html.replace(
+        new RegExp(`${PLACEHOLDER_PREFIX}(\\d+)__`, "g"),
+        (_, idx) => jsonLdBlocks[Number(idx)] ?? "",
+      ),
+    (html) =>
+      html
+        .replace(/\s+class\s*=\s*"[^"]*"/gi, "")
+        .replace(/\s+class\s*=\s*'[^']*'/gi, "")
+        .replace(/\s+style\s*=\s*"[^"]*"/gi, "")
+        .replace(/\s+style\s*=\s*'[^']*'/gi, ""),
+    // Strip only known tracking prefixes; retain product and retailer-specific data attributes.
+    (html) =>
+      trackingPrefixes.reduce(
+        (html, prefix) =>
+          html.replace(
+            new RegExp(
+              `\\s+data-${prefix}(?:-[\\w-]+)?\\s*(?:=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+))?`,
+              "gi",
+            ),
+            "",
+          ),
+        html,
+      ),
+  )
 }
 
 /**
