@@ -3,9 +3,20 @@
   "extends": "./tsconfig.base.json",
   "include": [],
   "references": [
-    { "path": "packages/api" },
-    { "path": "packages/core" },
-    { "path": "packages/domain" },
-    { "path": "packages/infra" }
+    {
+      "path": "apps/server"
+    },
+    {
+      "path": "packages/api"
+    },
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/domain"
+    },
+    {
+      "path": "packages/infra"
+    }
   ]
 }
