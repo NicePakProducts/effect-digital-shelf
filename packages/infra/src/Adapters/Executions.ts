@@ -2,7 +2,9 @@ import {
   Executions,
   ExecutionsError,
   startBatchLimit,
-  type ExecutionInstance,
+  type StartExecutionsInput,
+  type ExecutionStatusInput,
+  type TerminateExecutionInput,
   type StartReport,
 } from "@digital-shelf/core/Scheduling/Executions"
 import {
@@ -161,35 +163,34 @@ export const layer = (handles: {
     Executions,
     Executions.of({
       start: Effect.fn("Executions.start")(function* (
-        kind: ExecutionKind,
-        instances: ReadonlyArray<ExecutionInstance>,
+        input: StartExecutionsInput,
       ) {
-        yield* Effect.annotateCurrentSpan("shelf.execution.kind", kind)
+        yield* Effect.annotateCurrentSpan("shelf.execution.kind", input.kind)
 
-        if (instances.length > startBatchLimit)
+        if (input.instances.length > startBatchLimit)
           return yield* Effect.fail(
             new ExecutionsError({
               operation: "start",
-              kind,
+              kind: input.kind,
               cause: `At most ${startBatchLimit} instances may be started in one batch`,
             }),
           )
 
-        if (instances.length === 0) return { started: [], skipped: [] }
+        if (input.instances.length === 0) return { started: [], skipped: [] }
         // Report by id, matching the single-use identity contract even if an input
         // contains an id twice. Keep the first trace context for that id.
         const seen = new Set<string>()
 
-        const unique = instances.filter(({ id }) => {
+        const unique = input.instances.filter(({ id }) => {
           if (seen.has(id)) return false
           seen.add(id)
 
           return true
         })
 
-        return yield* kind === "scrape"
+        return yield* input.kind === "scrape"
           ? start(
-              kind,
+              input.kind,
               handles.scrape,
               unique.map(({ id, traceparent }) => ({
                 id,
@@ -197,7 +198,7 @@ export const layer = (handles: {
               })),
             )
           : start(
-              kind,
+              input.kind,
               handles.extraction,
               unique.map(({ id, traceparent }) => ({
                 id,
@@ -206,13 +207,12 @@ export const layer = (handles: {
             )
       }),
       status: Effect.fn("Executions.status")(function* (
-        kind: ExecutionKind,
-        id: string,
+        input: ExecutionStatusInput,
       ) {
-        yield* Effect.annotateCurrentSpan("shelf.execution.kind", kind)
+        yield* Effect.annotateCurrentSpan("shelf.execution.kind", input.kind)
 
         return yield* Effect.gen(function* () {
-          const instance = yield* handles[kind].get(id)
+          const instance = yield* handles[input.kind].get(input.id)
           const report = yield* instance.status()
 
           return Option.some(
@@ -226,26 +226,33 @@ export const layer = (handles: {
             notFound(cause)
               ? Effect.succeed(Option.none())
               : Effect.fail(
-                  new ExecutionsError({ operation: "status", kind, cause }),
+                  new ExecutionsError({
+                    operation: "status",
+                    kind: input.kind,
+                    cause,
+                  }),
                 ),
           ),
         )
       }),
       terminate: Effect.fn("Executions.terminate")(function* (
-        kind: ExecutionKind,
-        id: string,
+        input: TerminateExecutionInput,
       ) {
-        yield* Effect.annotateCurrentSpan("shelf.execution.kind", kind)
+        yield* Effect.annotateCurrentSpan("shelf.execution.kind", input.kind)
 
         return yield* Effect.gen(function* () {
-          const instance = yield* handles[kind].get(id)
+          const instance = yield* handles[input.kind].get(input.id)
           yield* instance.terminate()
         }).pipe(
           Effect.catchDefect((cause) =>
             notFound(cause) || terminal(cause)
               ? Effect.void
               : Effect.fail(
-                  new ExecutionsError({ operation: "terminate", kind, cause }),
+                  new ExecutionsError({
+                    operation: "terminate",
+                    kind: input.kind,
+                    cause,
+                  }),
                 ),
           ),
         )

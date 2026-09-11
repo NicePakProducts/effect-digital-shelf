@@ -11,9 +11,14 @@ export const layer = Layer.unwrap(
 
     const handle = (request: HttpServerRequest.HttpServerRequest) =>
       HttpServerRequest.toWeb(request).pipe(
-        Effect.orDie,
-        Effect.flatMap(auth.handle),
-        Effect.map(HttpServerResponse.fromWeb),
+        Effect.matchEffect({
+          onFailure: (error) =>
+            Effect.logWarning("Auth request conversion failed", error).pipe(
+              Effect.as(HttpServerResponse.empty({ status: 400 })),
+            ),
+          onSuccess: (web) =>
+            auth.handle(web).pipe(Effect.map(HttpServerResponse.fromWeb)),
+        }),
       )
 
     return Layer.mergeAll(

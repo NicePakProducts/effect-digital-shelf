@@ -332,12 +332,15 @@ export class ScrapeRunner extends Context.Service<
     const startExtraction = Effect.fn("ScrapeRunner.startExtraction")(
       function* (extractionId: ExtractionId, scrapeId: ScrapeId) {
         const row = yield* scrapesRepo.get(scrapeId)
-        yield* executions.start("extraction", [
-          {
-            id: extractionId,
-            traceparent: traceparentOf(scrapeId, row.rootSpanId),
-          },
-        ])
+        yield* executions.start({
+          kind: "extraction",
+          instances: [
+            {
+              id: extractionId,
+              traceparent: traceparentOf(scrapeId, row.rootSpanId),
+            },
+          ],
+        })
       },
     )
 

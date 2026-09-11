@@ -37,16 +37,12 @@ const make = Effect.gen(function* () {
 
   const extractionCap = yield* Config.int("EXTRACTION_DRAIN_CAP").pipe(
     Config.withDefault(100),
-    Effect.orDie,
   )
 
   const scrapes = yield* Scrapes
   const sweeps = yield* Sweeps
 
-  const cap = yield* Config.int("CRON_START_CAP").pipe(
-    Config.withDefault(50),
-    Effect.orDie,
-  )
+  const cap = yield* Config.int("CRON_START_CAP").pipe(Config.withDefault(50))
 
   const phase = <E>(
     name: TickPhase,
@@ -75,7 +71,7 @@ const make = Effect.gen(function* () {
     function* (): Effect.fn.Return<TickReport> {
       const now = yield* DateTime.now
       const phases: PhaseReport[] = []
-      phases.push(yield* phase("stuck", sweeps.stuck(now)))
+      phases.push(yield* phase("stuck", sweeps.stuck({ now })))
       phases.push(
         yield* phase(
           "extractionDrain",
@@ -110,7 +106,7 @@ const make = Effect.gen(function* () {
               ),
         ),
       )
-      phases.push(yield* phase("retention", sweeps.retention(now)))
+      phases.push(yield* phase("retention", sweeps.retention({ now })))
 
       for (const entry of phases) {
         yield* Effect.annotateCurrentSpan(
@@ -133,9 +129,9 @@ const make = Effect.gen(function* () {
   return { tick }
 })
 
-export class Cron extends Context.Service<Cron, Effect.Success<typeof make>>()(
-  "@digital-shelf/core/Scheduling/Cron",
-  { make },
-) {
+export class Cron extends Context.Service<
+  Cron,
+  { readonly tick: () => Effect.Effect<TickReport> }
+>()("@digital-shelf/core/Scheduling/Cron", { make }) {
   static readonly layer = Layer.effect(this, this.make)
 }

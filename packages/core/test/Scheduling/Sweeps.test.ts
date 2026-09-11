@@ -5,6 +5,7 @@ import { Sweeps } from "@digital-shelf/core/Scheduling/Sweeps"
 import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
 import { R2Bucket } from "@digital-shelf/core/Storage/R2Bucket"
 import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
+import * as Array from "effect/Array"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
@@ -70,7 +71,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         }
 
         const sweeps = yield* Sweeps
-        expect(yield* sweeps.stuck(yield* DateTime.now)).toEqual({
+        expect(yield* sweeps.stuck({ now: yield* DateTime.now })).toEqual({
           examined: 4,
           failed: 4,
           alreadyTerminal: 0,
@@ -91,9 +92,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           )
 
         for (const row of [terminal, active, missing, unknown])
-          expect(yield* executions.service.status("scrape", row.id)).toEqual(
-            Option.some("terminated"),
-          )
+          expect(
+            yield* executions.service.status({ kind: "scrape", id: row.id }),
+          ).toEqual(Option.some("terminated"))
         const bucketTest = yield* R2BucketTest
         expect((yield* bucketTest.inspect).size).toBe(0)
       }),
@@ -110,7 +111,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         const parent = (yield* fixture.listing).parent
         const bucket = yield* R2Bucket
 
-        for (let i = 0; i < 52; i++) {
+        for (const i of Array.range(0, 51)) {
           const row = yield* history(parent, "success", `${100 + i} days`)
           yield* bucket.put(`html/${row.id}.html`, "html", "text/html")
           yield* bucket.put(`raw/${row.id}.json`, "{}", "application/json")
@@ -118,7 +119,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
 
         const pending = yield* history(parent, "pending", "200 days")
         const sweeps = yield* Sweeps
-        const report = yield* sweeps.retention(yield* DateTime.now)
+        const report = yield* sweeps.retention({ now: yield* DateTime.now })
         expect(report.deleted).toBe(50)
         expect(report.remaining).toBe(2)
         expect(report.oldestCreatedAt).toBe(
@@ -129,7 +130,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         const bucketTest = yield* R2BucketTest
         expect((yield* bucketTest.inspect).size).toBe(4)
         expect(Option.isSome(yield* scrapesRepo.find(pending.id))).toBe(true)
-        expect(yield* sweeps.retention(yield* DateTime.now)).toEqual({
+        expect(yield* sweeps.retention({ now: yield* DateTime.now })).toEqual({
           deleted: 2,
           remaining: 0,
           oldestCreatedAt: null,
@@ -151,7 +152,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         const bucketTest = yield* R2BucketTest
         yield* bucketTest.failNextDelete
         const sweeps = yield* Sweeps
-        expect(yield* sweeps.retention(yield* DateTime.now)).toEqual({
+        expect(yield* sweeps.retention({ now: yield* DateTime.now })).toEqual({
           deleted: 1,
           remaining: 0,
           oldestCreatedAt: null,
@@ -168,17 +169,18 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
 
         yield* reset
         const fixture = yield* seed()
-        const rows = []
 
-        for (let i = 0; i < 3; i++)
-          rows.push(
-            yield* history(
+        const rows = yield* Effect.forEach(Array.range(0, 2), () =>
+          Effect.gen(function* () {
+            return yield* history(
               (yield* fixture.listing).parent,
               "running",
               "7 minutes",
               "6 minutes",
-            ),
-          )
+            )
+          }),
+        )
+
         const executions = yield* ExecutionsTest
 
         for (const row of rows) {
@@ -191,7 +193,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         const bucketTest = yield* R2BucketTest
         yield* bucketTest.failNextDelete
         const sweeps = yield* Sweeps
-        expect(yield* sweeps.stuck(yield* DateTime.now)).toEqual({
+        expect(yield* sweeps.stuck({ now: yield* DateTime.now })).toEqual({
           examined: 3,
           failed: 3,
           alreadyTerminal: 0,
@@ -202,9 +204,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
 
         for (const row of rows)
           expect((yield* scrapesRepo.get(row.id)).status).toBe("failed")
-        expect(yield* executions.service.status("scrape", rows[0]!.id)).toEqual(
-          Option.some("running"),
-        )
+        expect(
+          yield* executions.service.status({ kind: "scrape", id: rows[0]!.id }),
+        ).toEqual(Option.some("running"))
         expect((yield* bucketTest.inspect).size).toBe(1)
       }).pipe(Effect.provide([ScrapesRepo.layer])),
   )
@@ -236,7 +238,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           "6 minutes",
         )
         const sweeps = yield* Sweeps
-        const report = yield* sweeps.stuck(yield* DateTime.now)
+        const report = yield* sweeps.stuck({ now: yield* DateTime.now })
         expect(report).toEqual({
           examined: 1,
           failed: 1,
@@ -253,7 +255,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         expect((yield* extractionsRepo.get(recent.id)).status).toBe("running")
         const executionsTest = yield* ExecutionsTest
         expect(
-          yield* executionsTest.service.status("extraction", overdue.id),
+          yield* executionsTest.service.status({
+            kind: "extraction",
+            id: overdue.id,
+          }),
         ).toEqual(Option.some("terminated"))
         const bucketTest = yield* R2BucketTest
         expect(

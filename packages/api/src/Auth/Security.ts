@@ -11,5 +11,5 @@ export class CurrentUserMiddleware extends HttpApiMiddleware.Service<
   CurrentUserMiddleware,
   { provides: CurrentUser }
 >()("@digital-shelf/api/Auth/CurrentUserMiddleware", {
-  error: HttpApiError.Unauthorized,
+  error: [HttpApiError.Unauthorized, HttpApiError.InternalServerError],
 }) {}

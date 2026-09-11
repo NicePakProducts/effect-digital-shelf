@@ -3,6 +3,7 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Option from "effect/Option"
+import * as Predicate from "effect/Predicate"
 import type { BrowserBinding } from "./BrowserRendering.ts"
 import {
   ScrapeProviderError,
@@ -94,7 +95,7 @@ export const launchOnWorkerd: Launch = async (binding) => {
 }
 
 const messageOf = (cause: unknown) =>
-  cause instanceof Error ? cause.message : String(cause)
+  Predicate.isError(cause) ? cause.message : String(cause)
 
 type Phase = "session" | "navigate" | "capture"
 

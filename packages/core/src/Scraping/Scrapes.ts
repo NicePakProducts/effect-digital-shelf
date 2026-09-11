@@ -230,13 +230,13 @@ export class Scrapes extends Context.Service<
         Array.chunksOf(rows, startBatchLimit),
         (batch) =>
           Effect.gen(function* () {
-            const report = yield* executions.start(
-              "scrape",
-              batch.map((row) => ({
+            const report = yield* executions.start({
+              kind: "scrape",
+              instances: batch.map((row) => ({
                 id: row.id,
                 traceparent: traceparentOf(row.id, row.rootSpanId),
               })),
-            )
+            })
 
             for (const row of batch)
               yield* Effect.void.pipe(
@@ -453,7 +453,7 @@ export class Scrapes extends Context.Service<
           if (row === undefined) return "unresolved" as const
 
           return yield* Effect.gen(function* () {
-            const status = yield* executions.status("scrape", id)
+            const status = yield* executions.status({ kind: "scrape", id })
 
             if (Option.isNone(status)) return "unresolved" as const
 

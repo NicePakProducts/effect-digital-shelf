@@ -268,7 +268,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             (yield* extractions.get({ extractionId: extracting.id })).status,
           ).toBe("failed")
           expect(
-            yield* executionsTest.service.status("extraction", extracting.id),
+            yield* executionsTest.service.status({
+              kind: "extraction",
+              id: extracting.id,
+            }),
           ).toEqual(Option.some("terminated"))
           expect(
             extractionTransition.links.some(
@@ -503,12 +506,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               expect(work.attributes.get("shelf.extraction.id")).toBe(row.id)
               expect(work.attributes.get("shelf.scrape.id")).toBe(scrape.id)
 
-              if (sameTrace) expect(Option.getOrThrow(work.parent)).toBe(step)
-              else
-                expect(Option.getOrThrow(work.parent)).toMatchObject({
-                  traceId: traceIdOf(scrape.id),
-                  spanId: scrape.rootSpanId,
-                })
+              if (sameTrace) {
+                expect(Option.getOrThrow(work.parent)).toBe(step)
+                continue
+              }
+
+              expect(Option.getOrThrow(work.parent)).toMatchObject({
+                traceId: traceIdOf(scrape.id),
+                spanId: scrape.rootSpanId,
+              })
             }
 
             const llm = spans.find((span) => span.name === "Extraction.llm")!

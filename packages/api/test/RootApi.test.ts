@@ -55,20 +55,25 @@ describe("RootApi", () => {
     ] as const) {
       const collection = spec.paths[`/api/v1/${group}`]!
       const item = spec.paths[`/api/v1/${group}/{id}`]!
-      expect(codesOf(collection.get!.responses)).toEqual(["200", "401"])
+      expect(codesOf(collection.get!.responses)).toEqual(["200", "401", "500"])
       expect(codesOf(collection.post!.responses)).toEqual(
-        ["201", "401", ...createErrors.map(String)].sort(),
+        ["201", "401", "500", ...createErrors.map(String)].sort(),
       )
-      expect(codesOf(item.get!.responses)).toEqual(["200", "401", "404"])
+      expect(codesOf(item.get!.responses)).toEqual(["200", "401", "404", "500"])
       expect(codesOf(item.patch!.responses)).toEqual(
-        ["200", "401", ...updateErrors.map(String)].sort(),
+        ["200", "401", "500", ...updateErrors.map(String)].sort(),
       )
-      expect(codesOf(item.delete!.responses)).toEqual(["200", "401", "404"])
+      expect(codesOf(item.delete!.responses)).toEqual([
+        "200",
+        "401",
+        "404",
+        "500",
+      ])
 
       if (group !== "variants")
         expect(
           codesOf(spec.paths[`/api/v1/${group}/{id}/impact`]!.get!.responses),
-        ).toEqual(["200", "401", "404"])
+        ).toEqual(["200", "401", "404", "500"])
     }
 
     expect(JSON.stringify(spec)).not.toContain("SqlError")
@@ -79,21 +84,22 @@ describe("RootApi", () => {
       "401",
       "404",
       "409",
+      "500",
     ])
     expect(
       codesOf(spec.paths["/api/v1/scrapes/bulk"]!.post!.responses),
-    ).toEqual(["202", "401", "404"])
+    ).toEqual(["202", "401", "404", "500"])
     expect(codesOf(spec.paths["/api/v1/extractions"]!.post!.responses)).toEqual(
-      ["202", "401", "404", "409", "422"],
+      ["202", "401", "404", "409", "422", "500"],
     )
     expect(
       codesOf(spec.paths["/api/v1/extractions/bulk"]!.post!.responses),
-    ).toEqual(["202", "401", "404"])
+    ).toEqual(["202", "401", "404", "500"])
     expect(
       codesOf(
         spec.paths["/api/v1/products/{id}/latest-extractions"]!.get!.responses,
       ),
-    ).toEqual(["200", "401", "404"])
+    ).toEqual(["200", "401", "404", "500"])
     // DispatchOutcome is core's own vocabulary and never reaches the wire.
     expect(JSON.stringify(spec)).not.toContain("in-flight-skip")
     expect(JSON.stringify(spec)).not.toContain("SqlError")
@@ -114,7 +120,7 @@ describe("RootApi", () => {
     ).not.toContain("text/html")
     expect(
       codesOf(spec.paths["/api/v1/scrapes/{id}/content"]!.get!.responses),
-    ).toEqual(["200", "401", "404"])
+    ).toEqual(["200", "401", "404", "500"])
   })
   it("offers optional cursor and limit on the paginated lists", () => {
     expect(spec.components!.schemas!["Limit"]).toMatchObject({
