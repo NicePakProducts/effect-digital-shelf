@@ -14,6 +14,7 @@ export const databaseStep = {
 
 export const parentSpan = (traceparent: string) =>
   Option.match(HttpTraceContext.w3c(Headers.fromInput({ traceparent })), {
+    // SAFETY: this codebase encodes Workflow traceparents; malformed context is a bug.
     onNone: () => Effect.die(new Error("Malformed Workflow traceparent")),
     onSome: (span) => Effect.succeed(Tracer.externalSpan(span)),
   })
@@ -35,6 +36,11 @@ export const step = <A, E, R>(
         Effect.catchIf(Predicate.isTagged("TransitionRejected"), () =>
           Effect.succeed({ _tag: "stopped" as const }),
         ),
+        // Workflows.task takes E = never: TransitionRejected is the one failure a step
+        // handles as a value (the stop above); every other typed failure, a SqlError, a
+        // provider failure or a ConfigError from building the step's layer inside this
+        // body, crosses into the Workflow runtime as the step's error, where
+        // config.retries governs it and an exhausted step errors the instance.
         Effect.orDie,
         Effect.scoped,
         Effect.withParentSpan(parent),

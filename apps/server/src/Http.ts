@@ -1,6 +1,7 @@
 import * as Api from "@digital-shelf/api/Api"
 import * as AuthRoutes from "@digital-shelf/api/Auth/AuthRoutes"
 import { Db } from "@digital-shelf/core/Sql/Db"
+import { query } from "@digital-shelf/core/Sql/Errors"
 import type { Stage } from "@digital-shelf/infra/Resources/Names"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
@@ -15,6 +16,8 @@ const platform = Layer.mergeAll(
   Etag.layer,
   Path.layer,
   FileSystem.layerNoop({}),
+  // SAFETY: no route serves files or negotiates compression; reaching one of
+  // these is a routing bug, not a request the platform could fail on.
   Layer.succeed(HttpPlatform.HttpPlatform, {
     platform: "web",
     compression: {
@@ -40,6 +43,9 @@ export const fetch = <A, E, R, T, R2>(
 
     return yield* Effect.gen(function* () {
       const handler = yield* HttpRouter.toHttpEffect(appLayer).pipe(
+        // SAFETY: a construction failure here is a misconfigured deployment (a ConfigError
+        // or a connection failure from a core layer); no request can be served, so it is
+        // reported as a defect once, at the root, and Alchemy logs it.
         Effect.orDie,
       )
 
@@ -62,10 +68,21 @@ export const layer = (stage: Stage) =>
           "GET",
           "/health",
           Effect.gen(function* () {
-            yield* db.execute("select 1").pipe(Effect.orDie)
+            yield* query(db.execute("select 1"))
 
             return yield* HttpServerResponse.json({ ok: true, stage, db: "ok" })
-          }),
+          }).pipe(
+            // The SqlError message can carry the DSN, so only its reason tag is logged.
+            Effect.tapError((error) =>
+              Effect.logWarning("Health query failed", error.reason._tag),
+            ),
+            Effect.catchTag("SqlError", () =>
+              HttpServerResponse.json(
+                { ok: false, stage, db: "unavailable" },
+                { status: 503 },
+              ),
+            ),
+          ),
         )
       }),
     ),

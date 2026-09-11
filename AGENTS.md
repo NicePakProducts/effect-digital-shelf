@@ -31,7 +31,7 @@ A scrape management system for a digital shelf, built on Effect v4 and Cloudflar
 - Shared private helpers that need a repository or a client are a `Context.Service` each consumer yields in `make` and provides in its own `layer`, never a service value passed as a parameter (ADR 0009); public peers such as `Cascade` remain composed in `Layers.ts` (ADR 0008).
 - Guard with `Predicate.isError`, never `instanceof Error`.
 - Read time through `DateTime.now` or `Clock` wherever an Effect seam exists; Drizzle column defaults (`defaultNow()`, `$onUpdate`) stay as they are.
-- `orDie` only where a failure can only be a bug, marked with a `SAFETY:` comment: row decoding in `Sql/Rows.ts` and the decoding of Workflow parameters this codebase encoded in `apps/server`. Configuration and provider setup failures stay in the layer's `E`; operational provider failures stay in the method's `E` (ADR 0008).
+- `orDie` only where a failure can only be a bug, marked with a `SAFETY:` comment: row decoding in `Sql/Rows.ts` and the decoding of Workflow parameters this codebase encoded in `apps/server`; plus one boundary, the Workflow step body in `apps/server/src/WorkflowSupport.ts`, where Alchemy's `Workflows.task` takes `E = never` and the step's retry configuration is the handler (ADR 0008). Configuration and provider setup failures stay in the layer's `E`; operational provider failures stay in the method's `E` (ADR 0008).
 - Make the smallest correct change and follow existing repository patterns.
 
 ## Code style
