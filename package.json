@@ -8,7 +8,7 @@
     "check:types": "tsc -b tsconfig.json",
     "test": "vp test --run",
     "prepare": "effect-tsgo patch",
-    "dev": "alchemy dev --stage dev",
+    "dev": "alchemy dev --stage dev --env-file .env.dev",
     "deploy": "alchemy deploy",
     "db:migrate": "pnpm --filter @digital-shelf/infra db:migrate"
   },

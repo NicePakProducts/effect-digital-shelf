@@ -1,0 +1,102 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dev:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: dev
+    timeout-minutes: 30
+    concurrency:
+      group: digital-shelf-deploy-dev
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Apply pending migrations
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Deploy dev
+        run: pnpm deploy --stage dev --yes
+        env:
+          CI: "true"
+          AI_GATEWAY_ACCOUNT_ID: ${{ vars.AI_GATEWAY_ACCOUNT_ID }}
+          AI_GATEWAY_ID: ${{ vars.AI_GATEWAY_ID }}
+          AI_GATEWAY_TOKEN: ${{ secrets.AI_GATEWAY_TOKEN }}
+          AUTH_ALLOWED_EMAIL_DOMAINS: ${{ vars.AUTH_ALLOWED_EMAIL_DOMAINS }}
+          AUTH_BASE_URL: ${{ vars.AUTH_BASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          AXIOM_DOMAIN: ${{ vars.AXIOM_DOMAIN }}
+          AXIOM_TOKEN: ${{ secrets.AXIOM_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          HYPERDRIVE_CONFIG_ID: ${{ vars.HYPERDRIVE_CONFIG_ID }}
+          POSTMARK_FROM: ${{ vars.POSTMARK_FROM }}
+          POSTMARK_MESSAGE_STREAM: ${{ vars.POSTMARK_MESSAGE_STREAM }}
+          POSTMARK_SERVER_TOKEN: ${{ secrets.POSTMARK_SERVER_TOKEN }}
+          SCRAPPEY_API_KEY: ${{ secrets.SCRAPPEY_API_KEY }}
+          SERVER_HOSTNAME: ${{ vars.SERVER_HOSTNAME }}
+          # Optional overrides are not provisioned by the wizard; keep core's defaults.
+          SCRAPPEY_ENDPOINT: ${{ vars.SCRAPPEY_ENDPOINT || 'https://publisher.scrappey.com/api/v1' }}
+          EXTRACTION_MODEL: ${{ vars.EXTRACTION_MODEL || '@cf/zai-org/glm-4.7-flash' }}
+
+  prod:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: prod
+    timeout-minutes: 30
+    concurrency:
+      group: digital-shelf-deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Apply pending migrations
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Deploy prod
+        run: pnpm deploy --stage prod --yes
+        env:
+          CI: "true"
+          AI_GATEWAY_ACCOUNT_ID: ${{ vars.AI_GATEWAY_ACCOUNT_ID }}
+          AI_GATEWAY_ID: ${{ vars.AI_GATEWAY_ID }}
+          AI_GATEWAY_TOKEN: ${{ secrets.AI_GATEWAY_TOKEN }}
+          AUTH_ALLOWED_EMAIL_DOMAINS: ${{ vars.AUTH_ALLOWED_EMAIL_DOMAINS }}
+          AUTH_BASE_URL: ${{ vars.AUTH_BASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          AXIOM_DOMAIN: ${{ vars.AXIOM_DOMAIN }}
+          AXIOM_TOKEN: ${{ secrets.AXIOM_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          HYPERDRIVE_CONFIG_ID: ${{ vars.HYPERDRIVE_CONFIG_ID }}
+          POSTMARK_FROM: ${{ vars.POSTMARK_FROM }}
+          POSTMARK_MESSAGE_STREAM: ${{ vars.POSTMARK_MESSAGE_STREAM }}
+          POSTMARK_SERVER_TOKEN: ${{ secrets.POSTMARK_SERVER_TOKEN }}
+          SCRAPPEY_API_KEY: ${{ secrets.SCRAPPEY_API_KEY }}
+          SERVER_HOSTNAME: ${{ vars.SERVER_HOSTNAME }}
+          # Optional overrides are not provisioned by the wizard; keep core's defaults.
+          SCRAPPEY_ENDPOINT: ${{ vars.SCRAPPEY_ENDPOINT || 'https://publisher.scrappey.com/api/v1' }}
+          EXTRACTION_MODEL: ${{ vars.EXTRACTION_MODEL || '@cf/zai-org/glm-4.7-flash' }}

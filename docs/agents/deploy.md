@@ -1,0 +1,113 @@
+# Develop and deploy the server
+
+`apps/server` composes one Worker per stage: the API, Better Auth, the
+one-minute cron, and the Scrape and Extraction Workflows. `alchemy.run.ts`
+declares its Hyperdrive connection, R2 bucket and AI Gateway through infra.
+Only `dev` and `prod` are accepted. Always supply the stage when deploying.
+
+## Local development
+
+Run `pnpm install --frozen-lockfile`, then `pnpm dev` from the repository root.
+The dev script supplies `--stage dev --env-file .env.dev`. Stage credentials
+live in gitignored `.env.<stage>` files; `scripts/provision-stage.sh` writes
+the local file and the matching GitHub environment (`dev` or `prod`).
+Re-run that wizard after the first deploy to configure the gateway's OTel
+export. Worker telemetry export itself belongs to ticket #40.
+
+Under `alchemy dev`, Browser Rendering drives local headless Chrome. This
+composition leaves it local; `Alchemy.remote()` is the explicit opt-in for
+the cloud browser when a separately authorised smoke needs it. Local browser
+success does not prove the deployed browser binding. Hyperdrive's dev origin
+points directly at the stage database, so the dev server uses real dev data.
+Auth's configured base URL is the stage host; a localhost session needs an
+intentional local `AUTH_BASE_URL` override. Follow the URL printed by Alchemy.
+
+API handlers, cron ticks and individual Workflow steps each build and close
+their own database pool. Keep that lifetime when adding entrypoints. Put new
+core config keys in `apps/server/src/ConfigKeys.ts`: reads during Worker init
+register secrets with Alchemy, even for `Config.string`. Missing optional
+keys are skipped; core then applies its defaults at runtime. Provider retry
+keys are also covered, including those assembled from a prefix.
+
+## Schema changes and deployment
+
+Generate a migration in the infra workspace:
+
+```sh
+pnpm --filter @digital-shelf/infra db:generate --name <change>
+```
+
+Commit Drizzle Kit's generated `migration.sql` and `snapshot.json`. Migrations
+are append-only: preserve the initial migration, generate a new one for each
+schema change, and never hand-edit either generated file.
+
+For a local deploy, apply pending migrations over the stage's **direct**
+`DATABASE_URL`, then deploy. Node's env-file loader supplies the migration
+environment; Alchemy loads its own stage file for deployment:
+
+```sh
+node --env-file=.env.dev --run db:migrate
+CI=true pnpm deploy --stage dev --env-file .env.dev --yes
+scripts/smoke.sh https://shelf-dev.apps.npbrands.au
+```
+
+`pnpm db:migrate` is the equivalent migration command when `DATABASE_URL`
+is already exported. Never run migrations through Hyperdrive. Use `.env.prod`
+and `--stage prod` for an authorised local production deploy. `CI=true` selects
+noninteractive authentication; `--yes` accepts the deployment and state-store
+bootstrap/upgrade. Cloudflare state uses an account-level state Worker and
+Secrets Store; the provisioned token includes the needed permissions.
+
+`SERVER_HOSTNAME`, when present, attaches a custom domain on `npbrands.au`.
+Dev uses `shelf-dev.apps.npbrands.au`. Prod stays on the printed `workers.dev`
+URL until its cutover sets `shelf.apps.npbrands.au`; align `AUTH_BASE_URL` with
+the public host at cutover. The stable `workers.dev` URL remains enabled.
+
+## GitHub deployment
+
+`.github/workflows/ci.yml` stays verification-only, including its disposable
+Postgres service. `.github/workflows/deploy.yml` deploys dev on pushes to
+`main`; manually dispatching that workflow deploys prod. Each job selects
+the matching GitHub environment, installs the lockfile, runs `pnpm db:migrate`
+with the environment's database secret, then deploys with `CI=true` and
+`--stage <stage> --yes`. It supplies environment secrets and variables directly,
+without an env file. Deployments are serialised per stage and have a 30-minute
+timeout; an in-progress migration/deploy is not cancelled by a later push.
+
+The exact secrets/variables split is in the deploy workflow and provisioner.
+Optional `SCRAPPEY_ENDPOINT` and `EXTRACTION_MODEL` overrides fall back to
+core's defaults because the wizard does not provision them. Axiom values
+are passed through for the deployment environment; this app adds no exporter.
+
+## Smoke and diagnosis
+
+`scripts/smoke.sh <base-url>` exits nonzero unless all three checks pass:
+
+```sh
+curl --fail https://<host>/health
+curl --fail https://<host>/api/docs
+curl --silent --output /dev/null --write-out '%{http_code}\n' https://<host>/api/v1/brands
+```
+
+Health must return `{ "ok": true, "stage": "dev", "db": "ok" }` (or `prod`)
+after a `select 1` through the invocation's Hyperdrive-backed Db. Docs must
+serve Scalar; the unauthenticated brands endpoint must return `401`.
+The script requires Bash, curl and the repository's supported Node version.
+
+These checks do not launch a Scrape. During deploy review, also trigger an
+authorised basic-mode Scrape through the API and follow its Scrape and
+Extraction records to exercise Browser Rendering, R2 and both Workflows.
+Unexpected platform failures run a compensating `fail` step; provider outcomes
+and transition rules remain in core. Rejected transitions stop the Workflow
+without compensation; successful transition replays are handled by core.
+
+The standalone research projects remain on their research branches:
+
+- [Hyperdrive/Postgres smoke](https://github.com/NicePakProducts/effect-digital-shelf/tree/research/drizzle-effect-postgres-hyperdrive/docs/research)
+- [Playwright inside a Workflow](https://github.com/NicePakProducts/effect-digital-shelf/blob/research/playwright-browser-workflow/docs/research/playwright-browser-workflow.md)
+
+The Node-import regression protects deployment-time module evaluation, where
+a static Playwright import would fail. It does not replace deployed binding
+smokes. Run the repository's checks and tests before deployment; real-Postgres
+tests use only `DIGITAL_SHELF_TEST_POSTGRES_URL` against a disposable server,
+never the stage's database.

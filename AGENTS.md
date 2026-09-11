@@ -45,6 +45,8 @@ production database.
 
 ## Agent skills
 
+For local development, migrations, deployment or deploy smokes, read `docs/agents/deploy.md`.
+
 ### Issue tracker
 
 Issues live in this repo's GitHub Issues; the wayfinder map is issue #1. See `docs/agents/issue-tracker.md`.
