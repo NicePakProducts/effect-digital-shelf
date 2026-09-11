@@ -2,7 +2,7 @@ import { BulkScrape } from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import * as Option from "effect/Option"
 import * as Exit from "effect/Exit"
 import * as Cause from "effect/Cause"
-import * as ScrapesRepo from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
+import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
 import { expect, it } from "@effect/vitest"
 import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
 import { ParentInFlight } from "@digital-shelf/domain/Scraping/Errors"
@@ -26,12 +26,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
     () =>
       Effect.gen(function* () {
         yield* reset
-        const { parent } = yield* (yield* seed({ paused: true })).listing
+        const seededCatalog = yield* seed({ paused: true })
+        const listing2 = yield* seededCatalog.listing
+        const parent = listing2.parent
         const service = yield* Scrapes
         const row = yield* service.trigger({ parent })
         expect(row.status).toBe("pending")
         expect(row.rootSpanId).toMatch(/^[0-9a-f]{16}$/)
-        const calls = yield* (yield* ExecutionsTest).calls
+        const executionsTest = yield* ExecutionsTest
+        const calls = yield* executionsTest.calls
         expect(calls[0]?.instances).toEqual([
           {
             id: row.id,
@@ -74,9 +77,18 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         yield* TestClock.setTime(Date.UTC(2026, 8, 9))
         const fixture = yield* cadenceFixture
         const service = yield* Scrapes
-        const report = yield* service.dispatchDue(yield* DateTime.now, 50)
+
+        const report = yield* service.dispatchDue({
+          now: yield* DateTime.now,
+          limit: 50,
+        })
+
         expect(report.created).toHaveLength(3)
-        const rows = yield* Effect.forEach(report.created, service.get)
+
+        const rows = yield* Effect.forEach(report.created, (scrapeId) =>
+          service.get({ scrapeId }),
+        )
+
         expect(rows.map((row) => row.requestUrl).sort()).toEqual(
           [
             fixture.never.url,
@@ -95,13 +107,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         const service = yield* Scrapes
         yield* service.trigger({ parent: (yield* fixture.listing).parent })
         yield* history((yield* fixture.listing).parent, "pending", "1 hour")
-        expect(yield* service.drainPending(100)).toEqual({
+        expect(yield* service.drainPending({ limit: 100 })).toEqual({
           started: 1,
           alreadyActive: 1,
           recoveredFailed: 0,
           unresolved: 0,
         })
-        expect(yield* service.drainPending(100)).toEqual({
+        expect(yield* service.drainPending({ limit: 100 })).toEqual({
           started: 0,
           alreadyActive: 2,
           recoveredFailed: 0,
@@ -125,13 +137,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
 
       expect(report.created).toHaveLength(102)
       expect(report.started).toBe(100)
-      expect(yield* service.drainPending(102)).toEqual({
+      expect(yield* service.drainPending({ limit: 102 })).toEqual({
         started: 2,
         alreadyActive: 100,
         recoveredFailed: 0,
         unresolved: 0,
       })
-      const calls = yield* (yield* ExecutionsTest).calls
+      const executionsTest = yield* ExecutionsTest
+      const calls = yield* executionsTest.calls
       expect(calls.every((call) => call.instances.length <= 100)).toBe(true)
     }),
   )
@@ -169,19 +182,21 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         yield* executions.setStatus("scrape", unknown.id, "unknown")
         yield* executions.failStatus("scrape", broken.id)
         const service = yield* Scrapes
-        expect(yield* service.drainPending(50)).toEqual({
+        expect(yield* service.drainPending({ limit: 50 })).toEqual({
           started: 0,
           alreadyActive: 1,
           recoveredFailed: 1,
           unresolved: 2,
         })
-        const failed = yield* service.get(terminal.id)
+        const failed = yield* service.get({ scrapeId: terminal.id })
         expect(failed.status).toBe("failed")
         expect(failed.errorCode).toEqual(Option.some("unknown"))
         expect(failed.finishedAt).toEqual(Option.some(yield* DateTime.now))
 
         for (const row of [active, broken, unknown])
-          expect((yield* service.get(row.id)).status).toBe("pending")
+          expect((yield* service.get({ scrapeId: row.id })).status).toBe(
+            "pending",
+          )
         expect(
           (yield* service.trigger({ parent: terminalParent })).status,
         ).toBe("pending")
@@ -230,7 +245,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
   it.effect("manual Page trigger classifies its own partial index", () =>
     Effect.gen(function* () {
       yield* reset
-      const { parent } = yield* (yield* seed()).page
+      const seededCatalog = yield* seed()
+      const page2 = yield* seededCatalog.page
+      const parent = page2.parent
       const service = yield* Scrapes
       const row = yield* service.trigger({ parent })
       expect(yield* Effect.flip(service.trigger({ parent }))).toEqual(
@@ -240,8 +257,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
   )
   it.effect("disabled tracing fails clearly before creating a row", () =>
     Effect.gen(function* () {
+      const scrapesRepo = yield* ScrapesRepo
+
       yield* reset
-      const { parent } = yield* (yield* seed()).listing
+      const seededCatalog = yield* seed()
+      const listing2 = yield* seededCatalog.listing
+      const parent = listing2.parent
       const service = yield* Scrapes
 
       const exit = yield* service
@@ -254,14 +275,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         expect(Cause.pretty(exit.cause)).toContain(
           "Scrape.created needs a real span; tracing is disabled",
         )
-      expect(yield* ScrapesRepo.listPending(10)).toEqual([])
-    }),
+      expect(yield* scrapesRepo.listPending(10)).toEqual([])
+    }).pipe(Effect.provide([ScrapesRepo.layer])),
   )
 
   it.effect(
     "bulk counts effectively paused Parents instead of dispatching them",
     () =>
       Effect.gen(function* () {
+        const scrapesRepo = yield* ScrapesRepo
+
         yield* reset
         const fixture = yield* seed({ paused: true })
         const paused = yield* fixture.listing
@@ -278,8 +301,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         expect(report.skipped).toEqual([])
         expect(report.skippedPaused).toEqual([paused.parent, pausedPage.parent])
         expect(report.started).toBe(0)
-        expect(yield* ScrapesRepo.listPending(10)).toEqual([])
-      }),
+        expect(yield* scrapesRepo.listPending(10)).toEqual([])
+      }).pipe(Effect.provide([ScrapesRepo.layer])),
   )
   it.effect("list pages newest first and breaks created-at ties by id", () =>
     Effect.gen(function* () {
@@ -350,19 +373,24 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
     () =>
       Effect.gen(function* () {
         yield* reset
-        const { parent } = yield* (yield* seed()).listing
+        const seededCatalog = yield* seed()
+        const listing2 = yield* seededCatalog.listing
+        const parent = listing2.parent
         const service = yield* Scrapes
         const scrape = yield* successfulScrape(parent, { html: "<p>Kept</p>" })
-        expect(yield* service.content(scrape.id)).toEqual(
+        expect(yield* service.content({ scrapeId: scrape.id })).toEqual(
           Option.some("<p>Kept</p>"),
         )
         // Retention removes the object; the row keeps its key until it expires too.
-        yield* (yield* R2BucketTest).service.delete([
-          Option.getOrThrow(scrape.htmlR2Key),
-        ])
-        expect(yield* service.content(scrape.id)).toEqual(Option.none())
+        const bucketTest = yield* R2BucketTest
+        yield* bucketTest.service.delete([Option.getOrThrow(scrape.htmlR2Key)])
+        expect(yield* service.content({ scrapeId: scrape.id })).toEqual(
+          Option.none(),
+        )
         const pending = yield* service.trigger({ parent })
-        expect(yield* service.content(pending.id)).toEqual(Option.none())
+        expect(yield* service.content({ scrapeId: pending.id })).toEqual(
+          Option.none(),
+        )
       }),
   )
 })

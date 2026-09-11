@@ -1,3 +1,10 @@
+import * as Context from "effect/Context"
+import * as Layer from "effect/Layer"
+import type { SqlError } from "effect/unstable/sql/SqlError"
+import {
+  ListingNotFound,
+  PageNotFound,
+} from "@digital-shelf/domain/Catalog/Errors"
 import * as Match from "effect/Match"
 import * as Predicate from "effect/Predicate"
 import { Cadence, Cadences } from "@digital-shelf/domain/Catalog/Cadence"
@@ -157,78 +164,6 @@ const pageNotInFlight = notExists(
   sql`(SELECT 1 FROM ${scrapes} WHERE ${scrapes.pageId} = ${pages.id} AND ${scrapes.status} IN ('pending', 'running'))`,
 )
 
-export const findTarget = Effect.fn("ParentsRepo.findTarget", {
-  level: "Debug",
-})(function* (parent: ScrapeParent) {
-  const db = yield* Db
-
-  const rows = Predicate.isTagged(parent, "Listing")
-    ? yield* query(
-        listingBase(db).select.where(eq(listings.id, parent.listingId)),
-      )
-    : yield* query(pageBase(db).select.where(eq(pages.id, parent.pageId)))
-
-  const targets = yield* decodeTargets(rows)
-
-  return Option.fromUndefinedOr(targets[0])
-})
-
-/**
- * Cadence-due Parents that are not effectively paused and not in flight,
- * never-scraped first, then oldest anchor first, at most `limit`. Two
- * queries (Listings, Pages) merged in memory: each is bounded by `limit`,
- * so the merge sees at most `2 * limit` rows.
- */
-export const cadenceDue = Effect.fn("ParentsRepo.cadenceDue", {
-  level: "Debug",
-})(function* (
-  now: DateTime.Utc,
-  failureRetryInterval: Duration.Duration,
-  limit: number,
-) {
-  if (limit <= 0) return []
-  const db = yield* Db
-
-  const due = (
-    last: { readonly createdAt: unknown; readonly status: unknown },
-    cadence: AnyPgColumn,
-  ): SQL =>
-    sql`(${last.createdAt} IS NULL OR ${last.createdAt} + (CASE WHEN ${last.status} = 'failed' THEN LEAST(${cadenceIntervalSql(cadence)}, ${interval(failureRetryInterval)}) ELSE ${cadenceIntervalSql(cadence)} END) <= ${tsz(now)})`
-
-  const l = listingBase(db)
-  const p = pageBase(db)
-
-  const listingRows = yield* query(
-    l.select
-      .where(
-        and(
-          sql`NOT (${brands.paused} OR ${products.paused} OR ${retailers.paused})`,
-          listingNotInFlight,
-          due(l.last, listings.cadence),
-        ),
-      )
-      .orderBy(sql`${l.last.createdAt} ASC NULLS FIRST`, asc(listings.id))
-      .limit(limit),
-  )
-
-  const pageRows = yield* query(
-    p.select
-      .where(
-        and(
-          sql`NOT (${brands.paused} OR ${retailers.paused} OR ${pages.paused})`,
-          pageNotInFlight,
-          due(p.last, pages.cadence),
-        ),
-      )
-      .orderBy(sql`${p.last.createdAt} ASC NULLS FIRST`, asc(pages.id))
-      .limit(limit),
-  )
-
-  const targets = yield* decodeTargets([...listingRows, ...pageRows])
-
-  return [...targets].sort(byAnchor).slice(0, limit)
-})
-
 /** Never-scraped first, then oldest anchor first; ids break ties. */
 const byAnchor = (a: ScrapeTarget, b: ScrapeTarget): number => {
   const aAt = Option.map(a.anchorAt, DateTime.toEpochMillis)
@@ -247,103 +182,219 @@ const byAnchor = (a: ScrapeTarget, b: ScrapeTarget): number => {
 const idOf = (target: ScrapeTarget): string =>
   Option.getOrElse(target.listingId, () => Option.getOrThrow(target.pageId))
 
-/**
- * Every Parent under a bulk scope, cadence ignored, each carrying its
- * effective pause. Paused and in-flight candidates reach the caller so bulk
- * can report both as skipped. A Product scope has no Pages.
- */
-export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates", {
-  level: "Debug",
-})(function* (scope: BulkScrape) {
-  const db = yield* Db
-  const l = listingBase(db)
-  const p = pageBase(db)
+export class ParentsRepo extends Context.Service<
+  ParentsRepo,
+  {
+    readonly findTarget: (
+      parent: ScrapeParent,
+    ) => Effect.Effect<Option.Option<ScrapeTarget>, SqlError>
+    readonly getTarget: (
+      parent: ScrapeParent,
+    ) => Effect.Effect<ScrapeTarget, ListingNotFound | PageNotFound | SqlError>
+    readonly cadenceDue: (
+      now: DateTime.Utc,
+      failureRetryInterval: Duration.Duration,
+      limit: number,
+    ) => Effect.Effect<ReadonlyArray<ScrapeTarget>, SqlError>
+    readonly bulkCandidates: (
+      scope: BulkScrape,
+    ) => Effect.Effect<ReadonlyArray<ScrapeTarget>, SqlError>
+    readonly containerExists: (
+      scope: BulkScrape,
+    ) => Effect.Effect<boolean, SqlError>
+    readonly markScraped: (
+      parent: ScrapeParent,
+      at: DateTime.Utc,
+    ) => Effect.Effect<void, SqlError>
+  }
+>()("@digital-shelf/core/Scraping/repositories/ParentsRepo", {
+  make: Effect.gen(function* () {
+    const db = yield* Db
 
-  const listingScope = Match.value(scope).pipe(
-    Match.tag("Brand", (scope) => eq(brands.id, scope.brandId)),
-    Match.tag("Product", (scope) => eq(products.id, scope.productId)),
-    Match.tag("Retailer", (scope) => eq(retailers.id, scope.retailerId)),
-    Match.exhaustive,
-  )
-
-  const listingRows = yield* query(
-    l.select
-      .where(listingScope)
-      .orderBy(asc(listings.createdAt), asc(listings.id)),
-  )
-
-  const pageRows = Predicate.isTagged(scope, "Product")
-    ? []
-    : yield* query(
-        p.select
-          .where(
-            Predicate.isTagged(scope, "Brand")
-              ? eq(brands.id, scope.brandId)
-              : eq(retailers.id, scope.retailerId),
+    const findTarget = Effect.fn("ParentsRepo.findTarget", {
+      level: "Debug",
+    })(function* (parent: ScrapeParent) {
+      const rows = Predicate.isTagged(parent, "Listing")
+        ? yield* query(
+            listingBase(db).select.where(eq(listings.id, parent.listingId)),
           )
-          .orderBy(asc(pages.createdAt), asc(pages.id)),
+        : yield* query(pageBase(db).select.where(eq(pages.id, parent.pageId)))
+
+      const targets = yield* decodeTargets(rows)
+
+      return Option.fromUndefinedOr(targets[0])
+    })
+
+    const getTarget = Effect.fn("ParentsRepo.getTarget", { level: "Debug" })(
+      function* (parent: ScrapeParent) {
+        const target = yield* findTarget(parent)
+
+        if (Option.isSome(target)) return target.value
+
+        return yield* Effect.fail(
+          Predicate.isTagged(parent, "Listing")
+            ? new ListingNotFound({ listingId: parent.listingId })
+            : new PageNotFound({ pageId: parent.pageId }),
+        )
+      },
+    )
+
+    /**
+     * Cadence-due Parents that are not effectively paused and not in flight,
+     * never-scraped first, then oldest anchor first, at most `limit`. Two
+     * queries (Listings, Pages) merged in memory: each is bounded by `limit`,
+     * so the merge sees at most `2 * limit` rows.
+     */
+    const cadenceDue = Effect.fn("ParentsRepo.cadenceDue", {
+      level: "Debug",
+    })(function* (
+      now: DateTime.Utc,
+      failureRetryInterval: Duration.Duration,
+      limit: number,
+    ) {
+      if (limit <= 0) return []
+
+      const due = (
+        last: { readonly createdAt: unknown; readonly status: unknown },
+        cadence: AnyPgColumn,
+      ): SQL =>
+        sql`(${last.createdAt} IS NULL OR ${last.createdAt} + (CASE WHEN ${last.status} = 'failed' THEN LEAST(${cadenceIntervalSql(cadence)}, ${interval(failureRetryInterval)}) ELSE ${cadenceIntervalSql(cadence)} END) <= ${tsz(now)})`
+
+      const l = listingBase(db)
+      const p = pageBase(db)
+
+      const listingRows = yield* query(
+        l.select
+          .where(
+            and(
+              sql`NOT (${brands.paused} OR ${products.paused} OR ${retailers.paused})`,
+              listingNotInFlight,
+              due(l.last, listings.cadence),
+            ),
+          )
+          .orderBy(sql`${l.last.createdAt} ASC NULLS FIRST`, asc(listings.id))
+          .limit(limit),
       )
 
-  return yield* decodeTargets([...listingRows, ...pageRows])
-})
+      const pageRows = yield* query(
+        p.select
+          .where(
+            and(
+              sql`NOT (${brands.paused} OR ${retailers.paused} OR ${pages.paused})`,
+              pageNotInFlight,
+              due(p.last, pages.cadence),
+            ),
+          )
+          .orderBy(sql`${p.last.createdAt} ASC NULLS FIRST`, asc(pages.id))
+          .limit(limit),
+      )
 
-/** Whether the bulk scope's container row exists. */
-export const containerExists = Effect.fn("ParentsRepo.containerExists", {
-  level: "Debug",
-})(function* (scope: BulkScrape) {
-  const db = yield* Db
+      const targets = yield* decodeTargets([...listingRows, ...pageRows])
 
-  const rows = yield* Match.value(scope).pipe(
-    Match.tag("Brand", (scope) =>
-      query(
+      return [...targets].sort(byAnchor).slice(0, limit)
+    })
+
+    /**
+     * Every Parent under a bulk scope, cadence ignored, each carrying its
+     * effective pause. Paused and in-flight candidates reach the caller so bulk
+     * can report both as skipped. A Product scope has no Pages.
+     */
+    const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates", {
+      level: "Debug",
+    })(function* (scope: BulkScrape) {
+      const l = listingBase(db)
+      const p = pageBase(db)
+
+      const listingScope = Match.value(scope).pipe(
+        Match.tag("Brand", (scope) => eq(brands.id, scope.brandId)),
+        Match.tag("Product", (scope) => eq(products.id, scope.productId)),
+        Match.tag("Retailer", (scope) => eq(retailers.id, scope.retailerId)),
+        Match.exhaustive,
+      )
+
+      const listingRows = yield* query(
+        l.select
+          .where(listingScope)
+          .orderBy(asc(listings.createdAt), asc(listings.id)),
+      )
+
+      const pageRows = Predicate.isTagged(scope, "Product")
+        ? []
+        : yield* query(
+            p.select
+              .where(
+                Predicate.isTagged(scope, "Brand")
+                  ? eq(brands.id, scope.brandId)
+                  : eq(retailers.id, scope.retailerId),
+              )
+              .orderBy(asc(pages.createdAt), asc(pages.id)),
+          )
+
+      return yield* decodeTargets([...listingRows, ...pageRows])
+    })
+
+    /** Whether the bulk scope's container row exists. */
+    const containerExists = Effect.fn("ParentsRepo.containerExists", {
+      level: "Debug",
+    })(function* (scope: BulkScrape) {
+      const rows = yield* Match.value(scope).pipe(
+        Match.tag("Brand", (scope) =>
+          query(
+            db
+              .select({ id: brands.id })
+              .from(brands)
+              .where(eq(brands.id, scope.brandId)),
+          ),
+        ),
+        Match.tag("Product", (scope) =>
+          query(
+            db
+              .select({ id: products.id })
+              .from(products)
+              .where(eq(products.id, scope.productId)),
+          ),
+        ),
+        Match.tag("Retailer", (scope) =>
+          query(
+            db
+              .select({ id: retailers.id })
+              .from(retailers)
+              .where(eq(retailers.id, scope.retailerId)),
+          ),
+        ),
+        Match.exhaustive,
+      )
+
+      return rows.length > 0
+    })
+
+    /** Last scraped at advances only on fetch success (CONTEXT.md). */
+    const markScraped = Effect.fn("ParentsRepo.markScraped", {
+      level: "Debug",
+    })(function* (parent: ScrapeParent, at: DateTime.Utc) {
+      const lastScrapedAt = DateTime.toDateUtc(at)
+
+      const target = Predicate.isTagged(parent, "Listing")
+        ? { table: listings, where: eq(listings.id, parent.listingId) }
+        : { table: pages, where: eq(pages.id, parent.pageId) }
+
+      yield* query(
         db
-          .select({ id: brands.id })
-          .from(brands)
-          .where(eq(brands.id, scope.brandId)),
-      ),
-    ),
-    Match.tag("Product", (scope) =>
-      query(
-        db
-          .select({ id: products.id })
-          .from(products)
-          .where(eq(products.id, scope.productId)),
-      ),
-    ),
-    Match.tag("Retailer", (scope) =>
-      query(
-        db
-          .select({ id: retailers.id })
-          .from(retailers)
-          .where(eq(retailers.id, scope.retailerId)),
-      ),
-    ),
-    Match.exhaustive,
-  )
+          .update(target.table)
+          .set({ lastScrapedAt, updatedAt: lastScrapedAt })
+          .where(target.where),
+      )
+    })
 
-  return rows.length > 0
-})
-
-/** Last scraped at advances only on fetch success (CONTEXT.md). */
-export const markScraped = Effect.fn("ParentsRepo.markScraped", {
-  level: "Debug",
-})(function* (parent: ScrapeParent, at: DateTime.Utc) {
-  const db = yield* Db
-  const lastScrapedAt = DateTime.toDateUtc(at)
-
-  if (Predicate.isTagged(parent, "Listing")) {
-    yield* query(
-      db
-        .update(listings)
-        .set({ lastScrapedAt, updatedAt: lastScrapedAt })
-        .where(eq(listings.id, parent.listingId)),
-    )
-  } else {
-    yield* query(
-      db
-        .update(pages)
-        .set({ lastScrapedAt, updatedAt: lastScrapedAt })
-        .where(eq(pages.id, parent.pageId)),
-    )
-  }
-})
+    return {
+      findTarget,
+      cadenceDue,
+      bulkCandidates,
+      containerExists,
+      markScraped,
+      getTarget,
+    } as const
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}

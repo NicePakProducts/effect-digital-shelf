@@ -1,5 +1,5 @@
 import { LanguageModelTest } from "../layers/LanguageModel.ts"
-import * as ExtractionsRepo from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
+import { ExtractionsRepo } from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
 import { htmlKey } from "@digital-shelf/core/Scraping/R2Keys"
 import { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
 import type { ExtractionStatus } from "@digital-shelf/domain/Scraping/Vocabulary"
@@ -24,7 +24,7 @@ import {
 } from "@digital-shelf/domain/Sql/Catalog"
 import { Db } from "@digital-shelf/core/Sql/Db"
 import { query } from "@digital-shelf/core/Sql/Errors"
-import * as ScrapesRepo from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
+import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
 import {
   parentColumns,
   ScrapeParent,
@@ -40,11 +40,15 @@ import { ScrapeProvidersTest } from "../layers/ScrapeProviders.ts"
 import { R2BucketTest } from "../layers/R2Bucket.ts"
 
 export const reset = Effect.gen(function* () {
-  yield* (yield* LanguageModelTest).reset
+  const languageModelTest = yield* LanguageModelTest
+  yield* languageModelTest.reset
   yield* DbTest.reset
-  yield* (yield* ExecutionsTest).reset
-  yield* (yield* ScrapeProvidersTest).reset
-  yield* (yield* R2BucketTest).reset
+  const executionsTest = yield* ExecutionsTest
+  yield* executionsTest.reset
+  const scrapeProvidersTest = yield* ScrapeProvidersTest
+  yield* scrapeProvidersTest.reset
+  const bucketTest = yield* R2BucketTest
+  yield* bucketTest.reset
 })
 
 export const seed = Effect.fn("fixture.seed")(function* (
@@ -138,45 +142,51 @@ export const seed = Effect.fn("fixture.seed")(function* (
   return { brandId, productId, retailerId, listing, page }
 })
 
-export const history = Effect.fn("fixture.history")(function* (
-  parent: ScrapeParent,
-  status: ScrapeStatus,
-  age: Duration.Input,
-  startedAge?: Duration.Input,
-) {
-  const now = yield* DateTime.now
+export const history = Effect.fn("fixture.history")(
+  function* (
+    parent: ScrapeParent,
+    status: ScrapeStatus,
+    age: Duration.Input,
+    startedAge?: Duration.Input,
+  ) {
+    const scrapesRepo = yield* ScrapesRepo
 
-  const createdAt = DateTime.subtractDuration(
-    now,
-    Duration.fromInputUnsafe(age),
-  )
+    const now = yield* DateTime.now
 
-  return Option.getOrThrow(
-    yield* ScrapesRepo.insertUnlessInFlight({
-      ...parentColumns(parent),
-      status,
-      requestUrl: "https://example.com/snapshot",
-      mode: "basic",
-      rootSpanId: "0123456789abcdef",
-      createdAt,
-      updatedAt: createdAt,
-      startedAt:
-        startedAge === undefined
-          ? Option.none()
-          : Option.some(
-              DateTime.subtractDuration(
-                now,
-                Duration.fromInputUnsafe(startedAge),
+    const createdAt = DateTime.subtractDuration(
+      now,
+      Duration.fromInputUnsafe(age),
+    )
+
+    return Option.getOrThrow(
+      yield* scrapesRepo.insertUnlessInFlight({
+        ...parentColumns(parent),
+        status,
+        requestUrl: "https://example.com/snapshot",
+        mode: "basic",
+        rootSpanId: "0123456789abcdef",
+        createdAt,
+        updatedAt: createdAt,
+        startedAt:
+          startedAge === undefined
+            ? Option.none()
+            : Option.some(
+                DateTime.subtractDuration(
+                  now,
+                  Duration.fromInputUnsafe(startedAge),
+                ),
               ),
-            ),
-    }),
-  )
-})
+      }),
+    )
+  },
+  Effect.provide([ScrapesRepo.layer]),
+)
 
 export const cadenceFixture = Effect.gen(function* () {
   const catalog = yield* seed()
   const duePage = yield* catalog.page
-  const pausedPage = yield* (yield* seed({ paused: true })).page
+  const pausedPageCatalog = yield* seed({ paused: true })
+  const pausedPage = yield* pausedPageCatalog.page
   const never = yield* catalog.listing
   const recentSuccess = yield* catalog.listing
   yield* history(recentSuccess.parent, "success", "2 hours")
@@ -186,7 +196,8 @@ export const cadenceFixture = Effect.gen(function* () {
   yield* history(recentFailure.parent, "failed", "1 hour")
   const inFlight = yield* catalog.listing
   yield* history(inFlight.parent, "running", "2 hours", "1 minute")
-  const paused = yield* (yield* seed({ paused: true })).listing
+  const pausedListingCatalog = yield* seed({ paused: true })
+  const paused = yield* pausedListingCatalog.listing
 
   return {
     catalog,
@@ -206,12 +217,14 @@ export const successfulScrape = Effect.fn("fixture.successfulScrape")(
     parent: ScrapeParent,
     options: { age?: Duration.Input; html?: string } = {},
   ) {
+    const scrapesRepo = yield* ScrapesRepo
+
     const now = yield* DateTime.now
     const at = DateTime.subtractDuration(now, options.age ?? "0 seconds")
     const id = Schema.decodeUnknownSync(ScrapeId)(crypto.randomUUID())
     const key = htmlKey(id)
 
-    const row = yield* ScrapesRepo.insert({
+    const row = yield* scrapesRepo.insert({
       id,
       ...parentColumns(parent),
       status: "success",
@@ -224,7 +237,8 @@ export const successfulScrape = Effect.fn("fixture.successfulScrape")(
       updatedAt: at,
     })
 
-    yield* (yield* R2BucketTest).service.put(
+    const bucketTest = yield* R2BucketTest
+    yield* bucketTest.service.put(
       key,
       options.html ?? "<p>Hello</p>",
       "text/html",
@@ -232,36 +246,43 @@ export const successfulScrape = Effect.fn("fixture.successfulScrape")(
 
     return row
   },
+  Effect.provide([ScrapesRepo.layer]),
 )
 
-export const extraction = Effect.fn("fixture.extraction")(function* (
-  scrapeId: ScrapeId,
-  attempt: number,
-  status: ExtractionStatus,
-  options: { prompt?: string; model?: string; age?: Duration.Input } = {},
-) {
-  const at = DateTime.subtractDuration(
-    yield* DateTime.now,
-    options.age ?? "0 seconds",
-  )
+export const extraction = Effect.fn("fixture.extraction")(
+  function* (
+    scrapeId: ScrapeId,
+    attempt: number,
+    status: ExtractionStatus,
+    options: { prompt?: string; model?: string; age?: Duration.Input } = {},
+  ) {
+    const scrapesRepo = yield* ScrapesRepo
+    const extractionsRepo = yield* ExtractionsRepo
 
-  const scrape = yield* ScrapesRepo.get(scrapeId)
+    const at = DateTime.subtractDuration(
+      yield* DateTime.now,
+      options.age ?? "0 seconds",
+    )
 
-  return yield* ExtractionsRepo.insert({
-    scrapeId,
-    attempt,
-    status,
-    promptKind: Option.isSome(scrape.listingId) ? "listing" : "page",
-    promptSnapshot: options.prompt ?? "Extract listing",
-    model: options.model ?? "@cf/zai-org/glm-4.7-flash",
-    createdAt: at,
-    updatedAt: at,
-    startedAt: status === "pending" ? Option.none() : Option.some(at),
-    finishedAt:
-      status === "success" || status === "failed"
-        ? Option.some(at)
-        : Option.none(),
-    extractedJson:
-      status === "success" ? Option.some({ attempt }) : Option.none(),
-  })
-})
+    const scrape = yield* scrapesRepo.get(scrapeId)
+
+    return yield* extractionsRepo.insert({
+      scrapeId,
+      attempt,
+      status,
+      promptKind: Option.isSome(scrape.listingId) ? "listing" : "page",
+      promptSnapshot: options.prompt ?? "Extract listing",
+      model: options.model ?? "@cf/zai-org/glm-4.7-flash",
+      createdAt: at,
+      updatedAt: at,
+      startedAt: status === "pending" ? Option.none() : Option.some(at),
+      finishedAt:
+        status === "success" || status === "failed"
+          ? Option.some(at)
+          : Option.none(),
+      extractedJson:
+        status === "success" ? Option.some({ attempt }) : Option.none(),
+    })
+  },
+  Effect.provide([ScrapesRepo.layer, ExtractionsRepo.layer]),
+)

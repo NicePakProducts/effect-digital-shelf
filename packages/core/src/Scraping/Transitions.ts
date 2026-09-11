@@ -1,7 +1,16 @@
-import type { ExtractionUpdate } from "@digital-shelf/domain/Scraping/Extraction"
+import * as Context from "effect/Context"
+import * as Layer from "effect/Layer"
+import type { SqlError } from "effect/unstable/sql/SqlError"
+import type {
+  Extraction,
+  ExtractionUpdate,
+} from "@digital-shelf/domain/Scraping/Extraction"
 import type { ExtractionId } from "@digital-shelf/domain/Shared/Ids"
-import * as ExtractionsRepo from "./repositories/ExtractionsRepo.ts"
-import type { ScrapeUpdate } from "@digital-shelf/domain/Scraping/Scrape"
+import { ExtractionsRepo } from "./repositories/ExtractionsRepo.ts"
+import type {
+  Scrape,
+  ScrapeUpdate,
+} from "@digital-shelf/domain/Scraping/Scrape"
 import type {
   ScrapeStatus,
   ExtractionStatus,
@@ -9,7 +18,7 @@ import type {
 import type { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
 import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
-import * as ScrapesRepo from "./repositories/ScrapesRepo.ts"
+import { ScrapesRepo } from "./repositories/ScrapesRepo.ts"
 
 import type { LifecycleStatuses } from "@digital-shelf/domain/Scraping/Vocabulary"
 import * as Option from "effect/Option"
@@ -68,80 +77,115 @@ export class TransitionRejected extends Data.TaggedError("TransitionRejected")<{
   readonly observed: LifecycleStatus | null
 }> {}
 
-export const transition = Effect.fn("Scrape.transition")(function* (
-  id: ScrapeId,
-  from: ScrapeStatus,
-  to: ScrapeStatus,
-  patch: ScrapeUpdate,
-) {
-  const changed = yield* ScrapesRepo.transition(id, from, to, patch)
+export class Transitions extends Context.Service<
+  Transitions,
+  {
+    readonly scrape: (
+      id: ScrapeId,
+      from: ScrapeStatus,
+      to: ScrapeStatus,
+      patch: ScrapeUpdate,
+    ) => Effect.Effect<
+      { readonly row: Scrape; readonly result: TransitionResult },
+      TransitionRejected | SqlError
+    >
+    readonly extraction: (
+      id: ExtractionId,
+      from: ExtractionStatus,
+      to: ExtractionStatus,
+      patch: ExtractionUpdate,
+    ) => Effect.Effect<
+      { readonly row: Extraction; readonly result: TransitionResult },
+      TransitionRejected | SqlError
+    >
+  }
+>()("@digital-shelf/core/Scraping/Transitions", {
+  make: Effect.gen(function* () {
+    const scrapesRepo = yield* ScrapesRepo
+    const extractionsRepo = yield* ExtractionsRepo
 
-  const observed = Option.isSome(changed)
-    ? changed
-    : yield* ScrapesRepo.find(id)
+    const scrape = Effect.fn("Scrape.transition")(function* (
+      id: ScrapeId,
+      from: ScrapeStatus,
+      to: ScrapeStatus,
+      patch: ScrapeUpdate,
+    ) {
+      const changed = yield* scrapesRepo.transition(id, from, to, patch)
 
-  const result: TransitionResult = Option.isSome(changed)
-    ? "applied"
-    : classifyMissedTransition(
-        to,
-        Option.map(observed, (row) => row.status),
-      )
+      const observed = Option.isSome(changed)
+        ? changed
+        : yield* scrapesRepo.find(id)
 
-  yield* Effect.annotateCurrentSpan({
-    "shelf.transition": result,
-    "shelf.transition.from": from,
-    "shelf.transition.to": to,
-  })
+      const result: TransitionResult = Option.isSome(changed)
+        ? "applied"
+        : classifyMissedTransition(
+            to,
+            Option.map(observed, (row) => row.status),
+          )
 
-  if (result === "rejected" || Option.isNone(observed))
-    return yield* Effect.fail(
-      new TransitionRejected({
-        kind: "scrape",
-        id,
-        from,
-        to,
-        observed: Option.getOrNull(Option.map(observed, (row) => row.status)),
-      }),
-    )
-
-  return { row: observed.value, result }
-})
-
-export const transitionExtraction = Effect.fn("Extraction.transition")(
-  function* (
-    id: ExtractionId,
-    from: ExtractionStatus,
-    to: ExtractionStatus,
-    patch: ExtractionUpdate,
-  ) {
-    const changed = yield* ExtractionsRepo.transition(id, from, to, patch)
-
-    const observed = Option.isSome(changed)
-      ? changed
-      : yield* ExtractionsRepo.find(id)
-
-    const result: TransitionResult = Option.isSome(changed)
-      ? "applied"
-      : classifyMissedTransition(
-          to,
-          Option.map(observed, (row) => row.status),
-        )
-
-    yield* Effect.annotateCurrentSpan({
-      "shelf.transition": result,
-      "shelf.transition.from": from,
-      "shelf.transition.to": to,
-    })
-
-    if (result === "rejected" || Option.isNone(observed))
-      return yield* new TransitionRejected({
-        kind: "extraction",
-        id,
-        from,
-        to,
-        observed: Option.getOrNull(Option.map(observed, (row) => row.status)),
+      yield* Effect.annotateCurrentSpan({
+        "shelf.transition": result,
+        "shelf.transition.from": from,
+        "shelf.transition.to": to,
       })
 
-    return { row: observed.value, result }
-  },
-)
+      if (result === "rejected" || Option.isNone(observed))
+        return yield* Effect.fail(
+          new TransitionRejected({
+            kind: "scrape",
+            id,
+            from,
+            to,
+            observed: Option.getOrNull(
+              Option.map(observed, (row) => row.status),
+            ),
+          }),
+        )
+
+      return { row: observed.value, result }
+    })
+
+    const extraction = Effect.fn("Extraction.transition")(function* (
+      id: ExtractionId,
+      from: ExtractionStatus,
+      to: ExtractionStatus,
+      patch: ExtractionUpdate,
+    ) {
+      const changed = yield* extractionsRepo.transition(id, from, to, patch)
+
+      const observed = Option.isSome(changed)
+        ? changed
+        : yield* extractionsRepo.find(id)
+
+      const result: TransitionResult = Option.isSome(changed)
+        ? "applied"
+        : classifyMissedTransition(
+            to,
+            Option.map(observed, (row) => row.status),
+          )
+
+      yield* Effect.annotateCurrentSpan({
+        "shelf.transition": result,
+        "shelf.transition.from": from,
+        "shelf.transition.to": to,
+      })
+
+      if (result === "rejected" || Option.isNone(observed))
+        return yield* new TransitionRejected({
+          kind: "extraction",
+          id,
+          from,
+          to,
+          observed: Option.getOrNull(Option.map(observed, (row) => row.status)),
+        })
+
+      return { row: observed.value, result }
+    })
+
+    return { scrape, extraction }
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide([ScrapesRepo.layer, ExtractionsRepo.layer]),
+  )
+}

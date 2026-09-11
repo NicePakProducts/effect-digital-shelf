@@ -1,3 +1,5 @@
+import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
+import { Transitions } from "@digital-shelf/core/Scraping/Transitions"
 import * as Predicate from "effect/Predicate"
 import * as OpenAiClient from "@effect/ai-openai-compat/OpenAiClient"
 import * as OpenAiLanguageModel from "@effect/ai-openai-compat/OpenAiLanguageModel"
@@ -11,7 +13,7 @@ import {
   ExtractOutcome,
   ExtractTarget,
 } from "@digital-shelf/core/Scraping/ExtractionRunner"
-import * as Repo from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
+import { ExtractionsRepo } from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
 import { Db } from "@digital-shelf/core/Sql/Db"
 import { query } from "@digital-shelf/core/Sql/Errors"
 import { retailers } from "@digital-shelf/domain/Sql/Catalog"
@@ -67,6 +69,11 @@ const setup = Effect.gen(function* () {
 const configured = (config: Record<string, number>) =>
   ExtractionRunner.make.pipe(
     Effect.provide(ConfigProvider.layerAdd(ConfigProvider.fromUnknown(config))),
+    Effect.provide([
+      ExtractionsRepo.layer,
+      ScrapesRepo.layer,
+      Transitions.layer,
+    ]),
   )
 
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
@@ -76,9 +83,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "claim uses snapshots and replays without changing start time; extract and finish store JSON-safe data and usage",
       () =>
         Effect.gen(function* () {
-          const { catalog, row, runner, fake } = yield* setup
+          const extractionsRepo = yield* ExtractionsRepo
+
+          const setupResult = yield* setup
+          const catalog = setupResult.catalog
+          const row = setupResult.row
+          const runner = setupResult.runner
+          const fake = setupResult.fake
+          const db = yield* Db
           yield* query(
-            (yield* Db)
+            db
               .update(retailers)
               .set({ listingExtractPrompt: "Changed after creation" })
               .where(eq(retailers.id, catalog.retailerId)),
@@ -89,10 +103,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             model: "snapshot-model",
           })
           expect(Schema.is(ExtractTarget)(parse(stringify(target)))).toBe(true)
-          const started = (yield* Repo.get(row.id)).startedAt
+          const started = (yield* extractionsRepo.get(row.id)).startedAt
           yield* TestClock.adjust("1 second")
           expect(yield* runner.claim(row.id)).toEqual(target)
-          expect((yield* Repo.get(row.id)).startedAt).toEqual(started)
+          expect((yield* extractionsRepo.get(row.id)).startedAt).toEqual(
+            started,
+          )
           const outcome = yield* runner.extract(row.id, target)
           expect(Schema.is(ExtractOutcome)(parse(stringify(outcome)))).toBe(
             true,
@@ -101,7 +117,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             { system: "Snapshot", user: "<p>Hello</p>", maxOutputTokens: 8192 },
           ])
           yield* runner.finish(row.id, outcome)
-          const saved = yield* Repo.get(row.id)
+          const saved = yield* extractionsRepo.get(row.id)
           expect(saved).toMatchObject({
             status: "success",
             extractedJson: Option.some({ title: "Hello" }),
@@ -112,16 +128,19 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           })
           yield* TestClock.adjust("1 second")
           yield* runner.finish(row.id, outcome)
-          expect(yield* Repo.get(row.id)).toEqual(saved)
+          expect(yield* extractionsRepo.get(row.id)).toEqual(saved)
           yield* runner.fail(row.id, "unknown", "late failure")
-          expect(yield* Repo.get(row.id)).toEqual(saved)
-        }),
+          expect(yield* extractionsRepo.get(row.id)).toEqual(saved)
+        }).pipe(Effect.provide([ExtractionsRepo.layer])),
     )
     it.effect(
       "empty and length replies fail JSON mode; one repair accepts an object and rejects invalid roots",
       () =>
         Effect.gen(function* () {
-          const { row, runner, fake } = yield* setup
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
+          const fake = setupResult.fake
           const target = yield* runner.claim(row.id)
 
           for (const [text, finishReason, code] of [
@@ -153,7 +172,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "default retry count makes one call and context rejection maps separately",
       () =>
         Effect.gen(function* () {
-          const { row, runner, fake } = yield* setup
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
+          const fake = setupResult.fake
           const target = yield* runner.claim(row.id)
           yield* fake.fail(aiError(new AiError.RateLimitError({})))
           expect(yield* runner.extract(row.id, target)).toMatchObject({
@@ -180,7 +202,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "configured retries honour retryAfter and recover from retryable errors",
       () =>
         Effect.gen(function* () {
-          const { row, fake } = yield* setup
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const fake = setupResult.fake
           const runner = yield* configured({ EXTRACTION_RETRIES: 1 })
           const target = yield* runner.claim(row.id)
           yield* fake.fail(
@@ -207,7 +231,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
     )
     it.effect("input cap fails without a model call and never truncates", () =>
       Effect.gen(function* () {
-        const { row, fake } = yield* setup
+        const setupResult = yield* setup
+        const row = setupResult.row
+        const fake = setupResult.fake
         const runner = yield* configured({ EXTRACTION_INPUT_CAP_BYTES: 3 })
         expect(
           yield* runner.extract(row.id, yield* runner.claim(row.id)),
@@ -224,7 +250,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "one TestClock deadline bounds the model call and retry backoff",
       () =>
         Effect.gen(function* () {
-          const { row, runner, fake } = yield* setup
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
+          const fake = setupResult.fake
           const target = yield* runner.claim(row.id)
           yield* fake.delay("10 minutes")
 
@@ -262,9 +291,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "missing storage produces unknown and a replay-safe failed finish",
       () =>
         Effect.gen(function* () {
-          const { row, runner } = yield* setup
+          const extractionsRepo = yield* ExtractionsRepo
+
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
           const target = yield* runner.claim(row.id)
-          yield* (yield* R2BucketTest).service.delete([target.htmlKey])
+          const bucketTest = yield* R2BucketTest
+          yield* bucketTest.service.delete([target.htmlKey])
           const outcome = yield* runner.extract(row.id, target)
           expect(outcome).toEqual(
             ExtractOutcome.members[1].make({
@@ -273,7 +307,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             }),
           )
           yield* runner.finish(row.id, outcome)
-          const saved = yield* Repo.get(row.id)
+          const saved = yield* extractionsRepo.get(row.id)
           expect(saved).toMatchObject({
             status: "failed",
             errorCode: Option.some("unknown"),
@@ -282,16 +316,21 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             ),
           })
           yield* runner.finish(row.id, outcome)
-          expect(yield* Repo.get(row.id)).toEqual(saved)
-        }),
+          expect(yield* extractionsRepo.get(row.id)).toEqual(saved)
+        }).pipe(Effect.provide([ExtractionsRepo.layer])),
     )
     it.effect(
       "compensation fails pending and a late successful finish cannot resurrect swept rows",
       () =>
         Effect.gen(function* () {
-          const { row, runner, scrape } = yield* setup
+          const extractionsRepo = yield* ExtractionsRepo
+
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
+          const scrape = setupResult.scrape
           yield* runner.fail(row.id, "unknown", "before claim")
-          expect((yield* Repo.get(row.id)).status).toBe("failed")
+          expect((yield* extractionsRepo.get(row.id)).status).toBe("failed")
           const next = yield* extraction(scrape.id, 2, "pending")
 
           const outcome = yield* runner.extract(
@@ -308,13 +347,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             kind: "extraction",
             observed: "failed",
           })
-        }),
+        }).pipe(Effect.provide([ExtractionsRepo.layer])),
     )
     it.effect(
       "real compat requests use snapshot model, JSON mode, output budget and gateway trace headers",
       () =>
         Effect.gen(function* () {
-          const { row } = yield* setup
+          const setupResult = yield* setup
+          const row = setupResult.row
           const requests: HttpClientRequest.HttpClientRequest[] = []
 
           const http = HttpClient.make((request) =>
@@ -361,6 +401,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
 
           const runner = yield* ExtractionRunner.make.pipe(
             Effect.provide(model),
+            Effect.provide([
+              ExtractionsRepo.layer,
+              ScrapesRepo.layer,
+              Transitions.layer,
+            ]),
           )
 
           const target = yield* runner.claim(row.id)
@@ -412,7 +457,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "context_id validation is a provider error, while Cloudflare context-window rejection is overflow",
       () =>
         Effect.gen(function* () {
-          const { row, runner, fake } = yield* setup
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
+          const fake = setupResult.fake
           const target = yield* runner.claim(row.id)
 
           for (const [description, code] of [
@@ -437,7 +485,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "non-retryable authentication errors make one call even with two configured retries",
       () =>
         Effect.gen(function* () {
-          const { row, fake } = yield* setup
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const fake = setupResult.fake
           const runner = yield* configured({ EXTRACTION_RETRIES: 2 })
           yield* fake.fail(
             aiError(new AiError.AuthenticationError({ kind: "InvalidKey" })),

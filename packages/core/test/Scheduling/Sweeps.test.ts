@@ -1,10 +1,10 @@
-import * as ExtractionsRepo from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
+import { ExtractionsRepo } from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
 import { successfulScrape, extraction } from "../fixtures/Scraping.ts"
 import { expect, it } from "@effect/vitest"
 import { Sweeps } from "@digital-shelf/core/Scheduling/Sweeps"
 import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
 import { R2Bucket } from "@digital-shelf/core/Storage/R2Bucket"
-import * as ScrapesRepo from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
+import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
@@ -81,10 +81,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         const scrapes = yield* Scrapes
 
         for (const row of [recent])
-          expect((yield* scrapes.get(row.id)).status).toBe("running")
+          expect((yield* scrapes.get({ scrapeId: row.id })).status).toBe(
+            "running",
+          )
 
         for (const row of [terminal, active, missing, unknown])
-          expect((yield* scrapes.get(row.id)).errorCode).toEqual(
+          expect((yield* scrapes.get({ scrapeId: row.id })).errorCode).toEqual(
             Option.some("timeout"),
           )
 
@@ -92,13 +94,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           expect(yield* executions.service.status("scrape", row.id)).toEqual(
             Option.some("terminated"),
           )
-        expect((yield* (yield* R2BucketTest).inspect).size).toBe(0)
+        const bucketTest = yield* R2BucketTest
+        expect((yield* bucketTest.inspect).size).toBe(0)
       }),
   )
   it.effect(
     "retention deletes oldest terminal rows up to its cap, objects after rows, and reports backlog",
     () =>
       Effect.gen(function* () {
+        const scrapesRepo = yield* ScrapesRepo
+
         yield* reset
         yield* TestClock.setTime(Date.UTC(2026, 8, 9))
         const fixture = yield* seed()
@@ -121,37 +126,46 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
             DateTime.subtractDuration(yield* DateTime.now, "101 days"),
           ),
         )
-        expect((yield* (yield* R2BucketTest).inspect).size).toBe(4)
-        expect(Option.isSome(yield* ScrapesRepo.find(pending.id))).toBe(true)
+        const bucketTest = yield* R2BucketTest
+        expect((yield* bucketTest.inspect).size).toBe(4)
+        expect(Option.isSome(yield* scrapesRepo.find(pending.id))).toBe(true)
         expect(yield* sweeps.retention(yield* DateTime.now)).toEqual({
           deleted: 2,
           remaining: 0,
           oldestCreatedAt: null,
         })
-      }),
+      }).pipe(Effect.provide([ScrapesRepo.layer])),
   )
   it.effect(
     "object deletion failures leave rows deleted and are swallowed",
     () =>
       Effect.gen(function* () {
+        const scrapesRepo = yield* ScrapesRepo
+
         yield* reset
-        const parent = (yield* (yield* seed()).listing).parent
+        const seededCatalog = yield* seed()
+        const parent = (yield* seededCatalog.listing).parent
         const row = yield* history(parent, "failed", "100 days")
-        yield* (yield* R2Bucket).put(`html/${row.id}.html`, "html", "text/html")
-        yield* (yield* R2BucketTest).failNextDelete
-        expect(yield* (yield* Sweeps).retention(yield* DateTime.now)).toEqual({
+        const bucket = yield* R2Bucket
+        yield* bucket.put(`html/${row.id}.html`, "html", "text/html")
+        const bucketTest = yield* R2BucketTest
+        yield* bucketTest.failNextDelete
+        const sweeps = yield* Sweeps
+        expect(yield* sweeps.retention(yield* DateTime.now)).toEqual({
           deleted: 1,
           remaining: 0,
           oldestCreatedAt: null,
         })
-        expect(Option.isNone(yield* ScrapesRepo.find(row.id))).toBe(true)
-        expect((yield* (yield* R2BucketTest).inspect).size).toBe(1)
-      }),
+        expect(Option.isNone(yield* scrapesRepo.find(row.id))).toBe(true)
+        expect((yield* bucketTest.inspect).size).toBe(1)
+      }).pipe(Effect.provide([ScrapesRepo.layer])),
   )
   it.effect(
     "termination and storage failures do not undo failure or stop the remaining rows",
     () =>
       Effect.gen(function* () {
+        const scrapesRepo = yield* ScrapesRepo
+
         yield* reset
         const fixture = yield* seed()
         const rows = []
@@ -169,16 +183,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
 
         for (const row of rows) {
           yield* executions.setStatus("scrape", row.id, "running")
-          yield* (yield* R2Bucket).put(
-            `html/${row.id}.html`,
-            "html",
-            "text/html",
-          )
+          const bucket = yield* R2Bucket
+          yield* bucket.put(`html/${row.id}.html`, "html", "text/html")
         }
 
         yield* executions.failTerminate("scrape", rows[0]!.id)
-        yield* (yield* R2BucketTest).failNextDelete
-        expect(yield* (yield* Sweeps).stuck(yield* DateTime.now)).toEqual({
+        const bucketTest = yield* R2BucketTest
+        yield* bucketTest.failNextDelete
+        const sweeps = yield* Sweeps
+        expect(yield* sweeps.stuck(yield* DateTime.now)).toEqual({
           examined: 3,
           failed: 3,
           alreadyTerminal: 0,
@@ -188,17 +201,19 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         })
 
         for (const row of rows)
-          expect((yield* ScrapesRepo.get(row.id)).status).toBe("failed")
+          expect((yield* scrapesRepo.get(row.id)).status).toBe("failed")
         expect(yield* executions.service.status("scrape", rows[0]!.id)).toEqual(
           Option.some("running"),
         )
-        expect((yield* (yield* R2BucketTest).inspect).size).toBe(1)
-      }),
+        expect((yield* bucketTest.inspect).size).toBe(1)
+      }).pipe(Effect.provide([ScrapesRepo.layer])),
   )
   it.effect(
     "one stuck sweep covers Scrapes and Extractions without deleting Extraction HTML",
     () =>
       Effect.gen(function* () {
+        const extractionsRepo = yield* ExtractionsRepo
+
         yield* reset
         const catalog = yield* seed()
         const scrape = yield* successfulScrape((yield* catalog.listing).parent)
@@ -220,7 +235,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           "7 minutes",
           "6 minutes",
         )
-        const report = yield* (yield* Sweeps).stuck(yield* DateTime.now)
+        const sweeps = yield* Sweeps
+        const report = yield* sweeps.stuck(yield* DateTime.now)
         expect(report).toEqual({
           examined: 1,
           failed: 1,
@@ -229,23 +245,20 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           extractionsFailed: 1,
           extractionsAlreadyTerminal: 0,
         })
-        expect(yield* ExtractionsRepo.get(overdue.id)).toMatchObject({
+        expect(yield* extractionsRepo.get(overdue.id)).toMatchObject({
           status: "failed",
           errorCode: Option.some("llm_timeout"),
           errorMessage: Option.some("Extraction exceeded the stuck bound"),
         })
-        expect((yield* ExtractionsRepo.get(recent.id)).status).toBe("running")
+        expect((yield* extractionsRepo.get(recent.id)).status).toBe("running")
+        const executionsTest = yield* ExecutionsTest
         expect(
-          yield* (yield* ExecutionsTest).service.status(
-            "extraction",
-            overdue.id,
-          ),
+          yield* executionsTest.service.status("extraction", overdue.id),
         ).toEqual(Option.some("terminated"))
+        const bucketTest = yield* R2BucketTest
         expect(
-          (yield* (yield* R2BucketTest).inspect).has(
-            Option.getOrThrow(scrape.htmlR2Key),
-          ),
+          (yield* bucketTest.inspect).has(Option.getOrThrow(scrape.htmlR2Key)),
         ).toBe(true)
-      }),
+      }).pipe(Effect.provide([ExtractionsRepo.layer])),
   )
 })

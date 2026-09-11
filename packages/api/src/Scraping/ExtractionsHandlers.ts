@@ -14,7 +14,7 @@ export const layer = HttpApiBuilder.group(RootApi, "extractions", (handlers) =>
 
     /** The latest reads answer 404 when the Parent has no successful Extraction. */
     const latest = (parent: ScrapeParent) =>
-      extractions.latestExtractedData(parent).pipe(
+      extractions.latestExtractedData({ parent }).pipe(
         Effect.flatMap(
           Option.match({
             onNone: () => Effect.fail(new NoExtractedData({ parent })),
@@ -43,7 +43,7 @@ export const layer = HttpApiBuilder.group(RootApi, "extractions", (handlers) =>
       )
       .handle("get", ({ params }) =>
         extractions
-          .get(params.id)
+          .get({ extractionId: params.id })
           .pipe(Effect.map(toWire), Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("trigger", ({ payload }) =>
@@ -76,10 +76,12 @@ export const layer = HttpApiBuilder.group(RootApi, "extractions", (handlers) =>
         latest(ScrapeParent.members[1].make({ pageId: params.id })),
       )
       .handle("latestForProduct", ({ params }) =>
-        extractions.latestExtractedDataForProduct(params.id).pipe(
-          Effect.map((rows) => ({ items: rows.map(toLatestWire) })),
-          Effect.catchTag("SqlError", Effect.die),
-        ),
+        extractions
+          .latestExtractedDataForProduct({ productId: params.id })
+          .pipe(
+            Effect.map((rows) => ({ items: rows.map(toLatestWire) })),
+            Effect.catchTag("SqlError", Effect.die),
+          ),
       )
   }),
 )

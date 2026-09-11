@@ -79,10 +79,15 @@ const make = Effect.gen(function* () {
       phases.push(
         yield* phase(
           "extractionDrain",
-          extractions.drainPending(extractionCap),
+          extractions.drainPending({ limit: extractionCap }),
         ),
       )
-      const drain = yield* phase("scrapeDrain", scrapes.drainPending(cap))
+
+      const drain = yield* phase(
+        "scrapeDrain",
+        scrapes.drainPending({ limit: cap }),
+      )
+
       phases.push(drain)
 
       const drainStarted =
@@ -96,7 +101,7 @@ const make = Effect.gen(function* () {
           "cadenceDue",
           remaining === 0
             ? Effect.succeed({ created: 0, skipped: 0, started: 0 })
-            : scrapes.dispatchDue(now, remaining).pipe(
+            : scrapes.dispatchDue({ now, limit: remaining }).pipe(
                 Effect.map((report) => ({
                   created: report.created.length,
                   skipped: report.skipped.length,
