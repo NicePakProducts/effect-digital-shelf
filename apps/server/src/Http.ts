@@ -27,13 +27,25 @@ const platform = Layer.mergeAll(
   }),
 )
 
-/** Build and close the application layers inside each Worker request. */
-export const fetch = <A, E, R>(appLayer: Layer.Layer<A, E, R>) =>
+/** Alchemy closes the request Scope after the response, inside waitUntil. */
+export const fetch = <A, E, R, T, R2>(
+  appLayer: Layer.Layer<A, E, R>,
+  telemetry: Layer.Layer<T, never, R2>,
+) =>
   Effect.gen(function* () {
-    const handler = yield* HttpRouter.toHttpEffect(appLayer).pipe(Effect.orDie)
+    const context = yield* Layer.build(telemetry)
 
-    return yield* handler
-  }).pipe(Effect.scoped, Effect.withSpan("Server.fetch", { root: true }))
+    return yield* Effect.gen(function* () {
+      const handler = yield* HttpRouter.toHttpEffect(appLayer).pipe(
+        Effect.orDie,
+      )
+
+      return yield* handler
+    }).pipe(
+      Effect.withSpan("Server.fetch", { root: true }),
+      Effect.provideContext(context),
+    )
+  })
 
 export const layer = (stage: Stage) =>
   Layer.mergeAll(

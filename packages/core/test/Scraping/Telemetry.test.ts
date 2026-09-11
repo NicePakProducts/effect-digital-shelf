@@ -138,7 +138,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           ]) {
             const phase = spans.find((span) => span.name === `Cron.${name}`)
             expect(phase).toBeDefined()
-            expect(phase?.sampled).toBe(false)
+            expect(phase?.sampled).toBe(true)
           }
 
           const repositories = spans.filter((span) =>

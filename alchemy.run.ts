@@ -17,13 +17,18 @@ export default Alchemy.Stack(
     const stage = stageOf(yield* Alchemy.Stage)
     const databaseUrl = yield* Config.redacted("DATABASE_URL")
 
+    const axiom = Option.all({
+      domain: yield* Config.option(Config.string("AXIOM_DOMAIN")),
+      token: yield* Config.option(Config.redacted("AXIOM_TOKEN")),
+    })
+
     const hostname = (yield* Config.option(
       Config.string("SERVER_HOSTNAME"),
     )).pipe(Option.filter((name) => name !== ""))
 
     const hyperdrive = yield* Postgres.make({ stage, databaseUrl })
     const bucket = yield* Bucket.make(stage)
-    yield* AiGateway.make(stage)
+    yield* AiGateway.make(stage, axiom)
     const server = yield* makeServer({ stage, hostname, hyperdrive, bucket })
 
     return { url: server.url }

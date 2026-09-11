@@ -8,6 +8,8 @@ import {
   configKeys,
   requiredKeys,
   secretKeys,
+  optionalKeys,
+  optionalSecretKeys,
 } from "../src/ConfigKeys.ts"
 
 const core = resolve(import.meta.dirname, "../../../packages/core/src")
@@ -20,6 +22,11 @@ const sources = readdirSync(core, {
 )
 
 describe("config binding coverage", () => {
+  it("registers Axiom domain and redacted token as optional bindings", () => {
+    expect(optionalKeys).toContain("AXIOM_DOMAIN")
+    expect(optionalSecretKeys).toEqual(["AXIOM_TOKEN"])
+    expect(configKeys).toContain("AXIOM_TOKEN")
+  })
   it("includes every literal core Config key, including multiline calls", () => {
     const keys = sources.flatMap((source) =>
       Array.from(

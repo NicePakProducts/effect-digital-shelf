@@ -11,8 +11,8 @@ Run `pnpm install --frozen-lockfile`, then `pnpm dev` from the repository root.
 The dev script supplies `--stage dev --env-file .env.dev`. Stage credentials
 live in gitignored `.env.<stage>` files; `scripts/provision-stage.sh` writes
 the local file and the matching GitHub environment (`dev` or `prod`).
-Re-run that wizard after the first deploy to configure the gateway's OTel
-export. Worker telemetry export itself belongs to ticket #40.
+The Worker and gateway exporters use the same `AXIOM_DOMAIN` and `AXIOM_TOKEN`
+values; deployment declares the gateway's OTel configuration automatically.
 
 Under `alchemy dev`, Browser Rendering drives local headless Chrome. This
 composition leaves it local; `Alchemy.remote()` is the explicit opt-in for
@@ -22,9 +22,11 @@ points directly at the stage database, so the dev server uses real dev data.
 Auth's configured base URL is the stage host; a localhost session needs an
 intentional local `AUTH_BASE_URL` override. Follow the URL printed by Alchemy.
 
-API handlers, cron ticks and individual Workflow steps each build and close
-their own database pool. Keep that lifetime when adding entrypoints. Put new
-core config keys in `apps/server/src/ConfigKeys.ts`: reads during Worker init
+API handlers, cron ticks and individual Workflow steps each build their own
+database pool and telemetry exporters. Request resources close in Alchemy's
+`ctx.waitUntil` after the response; cron and Workflow steps await scope closure
+and telemetry flushing inline. Keep those lifetimes when adding entrypoints.
+Put new core config keys in `apps/server/src/ConfigKeys.ts`: reads during Worker init
 register secrets with Alchemy, even for `Config.string`. Missing optional
 keys are skipped; core then applies its defaults at runtime. Provider retry
 keys are also covered, including those assembled from a prefix.
@@ -76,8 +78,29 @@ timeout; an in-progress migration/deploy is not cancelled by a later push.
 
 The exact secrets/variables split is in the deploy workflow and provisioner.
 Optional `SCRAPPEY_ENDPOINT` and `EXTRACTION_MODEL` overrides fall back to
-core's defaults because the wizard does not provision them. Axiom values
-are passed through for the deployment environment; this app adds no exporter.
+core's defaults because the wizard does not provision them.
+
+When `AXIOM_DOMAIN` and `AXIOM_TOKEN` are set, the Worker exports traces and
+logs to Axiom over OTLP. Each invocation builds an exporter and flushes it
+when its Scope closes; Workflow steps each get their own exporter before
+hibernation. `packages/infra/src/Resources/AiGateway.ts` declares the gateway's
+OTel exporter from the same values, including on updates. Both stages share
+`digital-shelf-traces` and `digital-shelf-logs`; the Worker's
+`deployment.environment.name` resource attribute identifies its stage.
+Without either value, Worker export is disabled with one init warning and
+the gateway declares no exporters. Cloudflare's Worker observability is
+disabled; Axiom holds the exported traces and logs.
+
+**Verify in Axiom.** After an authorised deploy and Scrape, query its ID, for
+example:
+
+```sh
+axiom query -D ruie -O npbrands-etkr --start-time -2h "['digital-shelf-traces'] | where ['attributes.custom.shelf.scrape.id'] == '<id>'"
+```
+
+The exact attribute path depends on how Axiom flattens OTLP attributes;
+confirm it against an ingested event and adjust this example after the first
+deploy. Check `digital-shelf-logs` for the same stage and invocation.
 
 ## Smoke and diagnosis
 

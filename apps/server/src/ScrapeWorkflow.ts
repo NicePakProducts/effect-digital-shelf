@@ -91,6 +91,7 @@ export const run = <E, R>(
           Effect.andThen(Effect.failCause(cause)),
         )
       }),
+      // Run spans stay outside step telemetry and are intentionally unexported.
       Effect.withSpan("ScrapeWorkflow.run", { parent }),
     )
   })

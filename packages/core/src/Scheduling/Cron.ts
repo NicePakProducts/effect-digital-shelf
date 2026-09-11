@@ -68,7 +68,7 @@ const make = Effect.gen(function* () {
           } satisfies PhaseReport
         }),
       ),
-      Effect.withSpan(`Cron.${name}`, { level: "Debug" }),
+      Effect.withSpan(`Cron.${name}`),
     )
 
   const tick = Effect.fn("Cron.tick")(

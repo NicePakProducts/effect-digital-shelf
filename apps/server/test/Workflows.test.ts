@@ -25,7 +25,9 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
+import * as Tracer from "effect/Tracer"
 import { run as scrape } from "../src/ScrapeWorkflow.ts"
 import { run as extraction } from "../src/ExtractionWorkflow.ts"
 import { databaseStep } from "../src/WorkflowSupport.ts"
@@ -99,6 +101,9 @@ const setup = (
     closed: number[] = []
 
   const spans: { traceId: string; parent: string | undefined }[] = []
+  const exported: Tracer.Span[] = []
+  const exportersOpened: number[] = []
+  const exportersClosed: number[] = []
 
   const configs: Record<
     string,
@@ -205,9 +210,40 @@ const setup = (
       return value
     })
 
+  const telemetry = Layer.effect(
+    Tracer.Tracer,
+    Effect.gen(function* () {
+      const index = exportersOpened.length
+      exportersOpened.push(index)
+      const buffered: Tracer.Span[] = []
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          expect(
+            buffered.every((span) => Predicate.isTagged(span.status, "Ended")),
+          ).toBe(true)
+          exported.push(...buffered)
+          exportersClosed.push(index)
+        }),
+      )
+
+      return Tracer.make({
+        span(options) {
+          const span = new Tracer.NativeSpan(options)
+          buffered.push(span)
+
+          return span
+        },
+      })
+    }),
+  )
+
   const layers = {
-    scrape: Layer.effect(ScrapeRunner, scoped(scrapeRunner)),
-    extraction: Layer.effect(ExtractionRunner, scoped(extractionRunner)),
+    scrape: Layer.effect(ScrapeRunner, scoped(scrapeRunner)).pipe(
+      Layer.provideMerge(telemetry),
+    ),
+    extraction: Layer.effect(ExtractionRunner, scoped(extractionRunner)).pipe(
+      Layer.provideMerge(telemetry),
+    ),
   }
 
   const steps = WorkflowStep.of({
@@ -223,6 +259,7 @@ const setup = (
         return task.effect.pipe(
           Effect.map((value) => {
             expect(active).toBe(0)
+            expect(exportersClosed).toEqual(exportersOpened)
             const saved: T = JSON.parse(JSON.stringify(value))
             checkpoint.set(task.name, saved)
 
@@ -243,6 +280,9 @@ const setup = (
     opened,
     closed,
     spans,
+    exported,
+    exportersOpened,
+    exportersClosed,
     configs,
     checkpoint,
     layers,
@@ -272,6 +312,20 @@ for (const kind of ["scrape", "extraction"] as const)
           expect(env.closed).toEqual(env.opened)
           expect(env.opened).toHaveLength(names.length)
 
+          expect(env.exportersOpened).toHaveLength(names.length)
+          expect(env.exportersClosed).toEqual(env.exportersOpened)
+          expect(env.exported.map((span) => span.name)).toEqual(
+            names.map(
+              (name) =>
+                `${kind === "scrape" ? "Scrape" : "Extraction"}Workflow.${name}`,
+            ),
+          )
+
+          for (const span of env.exported) {
+            expect(span.traceId).toBe(traceId)
+            expect(Option.getOrThrow(span.parent).spanId).toBe(rootSpanId)
+          }
+
           for (const span of env.spans)
             expect(span).toEqual({ traceId, parent: rootSpanId })
           expect(env.configs.claim).toEqual(databaseStep)
@@ -283,6 +337,7 @@ for (const kind of ["scrape", "extraction"] as const)
           yield* env.run(kind)
           expect(env.called).toHaveLength(names.length)
           expect(env.opened).toHaveLength(names.length)
+          expect(env.exportersOpened).toHaveLength(names.length)
         })
       },
     )

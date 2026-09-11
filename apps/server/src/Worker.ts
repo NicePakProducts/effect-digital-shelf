@@ -4,13 +4,16 @@ import type { Executions } from "@digital-shelf/core/Scheduling/Executions"
 import * as DbAdapter from "@digital-shelf/infra/Adapters/Db"
 import * as ExecutionsAdapter from "@digital-shelf/infra/Adapters/Executions"
 import * as R2BucketAdapter from "@digital-shelf/infra/Adapters/R2Bucket"
+import * as TelemetryAdapter from "@digital-shelf/infra/Adapters/Telemetry"
 import {
   resourceName,
   stageOf,
   type Stage,
 } from "@digital-shelf/infra/Resources/Names"
 import * as Cloudflare from "alchemy/Cloudflare"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
 import { Stack } from "alchemy/Stack"
+import * as Config from "effect/Config"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -38,10 +41,37 @@ export const makeServer = (options: {
         onNone: () => null,
         onSome: (name) => ({ name, zoneName: "npbrands.au" }),
       }),
-      observability: { enabled: true, traces: { enabled: true } },
+      observability: { enabled: false },
     },
     Effect.gen(function* () {
       yield* ConfigKeys.bind
+
+      const axiom = Option.all({
+        domain: yield* Config.option(Config.string("AXIOM_DOMAIN")),
+        token: yield* Config.option(Config.redacted("AXIOM_TOKEN")),
+      })
+
+      const versionMetadata = yield* Cloudflare.Workers.VersionMetadata()
+
+      if (Option.isNone(axiom))
+        yield* Effect.logWarning(
+          "Axiom telemetry disabled: AXIOM_DOMAIN or AXIOM_TOKEN unset",
+        )
+
+      const telemetry: Layer.Layer<never, never, RuntimeContext> = Layer.unwrap(
+        Effect.map(versionMetadata, ({ id }) =>
+          Option.match(axiom, {
+            onNone: () => TelemetryAdapter.layerDisabled(options.stage),
+            onSome: ({ domain, token }) =>
+              TelemetryAdapter.layer({
+                axiomToken: token,
+                axiomDomain: domain,
+                stage: options.stage,
+                versionId: id,
+              }),
+          }),
+        ),
+      )
 
       const hyperdrive = yield* Cloudflare.Hyperdrive.Connect(
         options.hyperdrive,
@@ -74,9 +104,13 @@ export const makeServer = (options: {
       )
 
       const workflowLayers: WorkflowLayers["Service"] = {
-        scrape: Core.ScrapeWorkflow.pipe(Layer.provide([adapters, providers])),
+        scrape: Core.ScrapeWorkflow.pipe(
+          Layer.provide([adapters, providers]),
+          Layer.provideMerge(telemetry),
+        ),
         extraction: Core.ExtractionWorkflow.pipe(
           Layer.provide([adapters, Core.LanguageModelLive]),
+          Layer.provideMerge(telemetry),
         ),
       }
 
@@ -93,12 +127,16 @@ export const makeServer = (options: {
           const report = yield* (yield* Cron).tick()
           yield* Effect.logInfo(JSON.stringify(report))
         }).pipe(
-          Effect.provide(Core.Cron.pipe(Layer.provide(adapters))),
+          Effect.provide(
+            Core.Cron.pipe(
+              Layer.provide(adapters),
+              Layer.provideMerge(telemetry),
+            ),
+          ),
           Effect.scoped,
           Effect.catchCause((cause) =>
             Effect.logError("Cron invocation failed", cause),
           ),
-          Effect.withSpan("Server.cron", { root: true }),
         ),
       )
 
@@ -108,7 +146,7 @@ export const makeServer = (options: {
       )
 
       return {
-        fetch: Http.fetch(appLayer),
+        fetch: Http.fetch(appLayer, telemetry),
       }
     }).pipe(
       Effect.provide([
@@ -116,6 +154,7 @@ export const makeServer = (options: {
         Cloudflare.R2.ReadWriteBucketBinding,
         Cloudflare.Workers.BrowserBinding,
         Cloudflare.Workers.CronEventSourceLive,
+        Cloudflare.Workers.VersionMetadataBinding,
       ]),
     ),
   )
