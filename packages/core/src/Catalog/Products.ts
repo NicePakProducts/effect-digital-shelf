@@ -10,19 +10,20 @@ import * as Layer from "effect/Layer"
 import { Db } from "../Sql/Db.ts"
 import { Cascade } from "./Cascade.ts"
 import * as Repo from "./repositories/ProductsRepo.ts"
-import * as ParentRepo from "./repositories/BrandsRepo.ts"
+import { BrandsRepo } from "./repositories/BrandsRepo.ts"
 
 const make = Effect.gen(function* () {
   const db = yield* Db
   const withDb = Effect.provideService(Db, db)
   const cascade = yield* Cascade
+  const brandsRepo = yield* BrandsRepo
 
   const create = Effect.fn("Products.create")(function* (
     command: CreateProduct,
   ) {
     return yield* db.transaction(() =>
       Effect.gen(function* () {
-        yield* ParentRepo.get(command.brandId)
+        yield* brandsRepo.get(command.brandId)
 
         return yield* Repo.insert({
           ...command,
@@ -65,5 +66,7 @@ export class Products extends Context.Service<
   Products,
   Effect.Success<typeof make>
 >()("@digital-shelf/core/Catalog/Products", { make }) {
-  static readonly layer = Layer.effect(this, this.make)
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide(BrandsRepo.layer),
+  )
 }

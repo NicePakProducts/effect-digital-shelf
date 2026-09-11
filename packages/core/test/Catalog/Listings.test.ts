@@ -261,8 +261,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
           url: c.url("/item"),
         })
 
-        if (container === "Brand")
-          yield* (yield* Brands).update(c.brandId, { paused: true })
+        if (container === "Brand") {
+          const brands = yield* Brands
+          yield* brands.update({
+            brandId: c.brandId,
+            command: { paused: true },
+          })
+        }
 
         if (container === "Product")
           yield* (yield* Products).update(c.productId, { paused: true })

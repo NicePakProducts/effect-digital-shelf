@@ -17,13 +17,14 @@ import { Db } from "../Sql/Db.ts"
 import { Cascade } from "./Cascade.ts"
 import { requireHostMatch } from "./HostRule.ts"
 import * as Repo from "./repositories/PagesRepo.ts"
-import * as BrandsRepo from "./repositories/BrandsRepo.ts"
+import { BrandsRepo } from "./repositories/BrandsRepo.ts"
 import * as RetailersRepo from "./repositories/RetailersRepo.ts"
 
 const make = Effect.gen(function* () {
   const db = yield* Db
   const withDb = Effect.provideService(Db, db)
   const cascade = yield* Cascade
+  const brandsRepo = yield* BrandsRepo
 
   const get = Effect.fn("Pages.get")(function* (id: PageId) {
     const row = yield* Repo.findWithStatus(id)
@@ -37,7 +38,7 @@ const make = Effect.gen(function* () {
   const create = Effect.fn("Pages.create")(function* (command: CreatePage) {
     const insert = db.transaction(() =>
       Effect.gen(function* () {
-        yield* BrandsRepo.get(command.brandId)
+        yield* brandsRepo.get(command.brandId)
         const retailer = yield* RetailersRepo.getForShare(command.retailerId)
         yield* requireHostMatch(command.url, retailer.domain)
 
@@ -152,5 +153,7 @@ export class Pages extends Context.Service<
   Pages,
   Effect.Success<typeof make>
 >()("@digital-shelf/core/Catalog/Pages", { make }) {
-  static readonly layer = Layer.effect(this, this.make)
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide(BrandsRepo.layer),
+  )
 }

@@ -2,18 +2,19 @@ import { CascadeRoot } from "./repositories/CascadeRepo.ts"
 import type { Brand } from "@digital-shelf/domain/Catalog/Brand"
 import type {
   CreateBrand,
+  GetBrand,
+  RemoveBrand,
+  BrandImpact,
   UpdateBrand,
 } from "@digital-shelf/domain/Catalog/BrandManagement"
 import type { CascadeImpact } from "@digital-shelf/domain/Catalog/CascadeImpact"
 import type { BrandNotFound } from "@digital-shelf/domain/Catalog/Errors"
-import type { BrandId } from "@digital-shelf/domain/Shared/Ids"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { SqlError } from "effect/unstable/sql/SqlError"
-import { Db } from "../Sql/Db.ts"
 import { Cascade } from "./Cascade.ts"
-import * as BrandsRepo from "./repositories/BrandsRepo.ts"
+import { BrandsRepo } from "./repositories/BrandsRepo.ts"
 
 /**
  * Brand commands and reads as the api calls them. Commands take the domain's
@@ -26,61 +27,60 @@ export class Brands extends Context.Service<
   {
     readonly create: (command: CreateBrand) => Effect.Effect<Brand, SqlError>
     readonly update: (
-      id: BrandId,
-      command: UpdateBrand,
+      input: UpdateBrand,
     ) => Effect.Effect<Brand, BrandNotFound | SqlError>
     readonly remove: (
-      id: BrandId,
+      input: RemoveBrand,
     ) => Effect.Effect<CascadeImpact, BrandNotFound | SqlError>
     readonly impact: (
-      id: BrandId,
+      input: BrandImpact,
     ) => Effect.Effect<CascadeImpact, BrandNotFound | SqlError>
     readonly get: (
-      id: BrandId,
+      input: GetBrand,
     ) => Effect.Effect<Brand, BrandNotFound | SqlError>
     readonly list: Effect.Effect<ReadonlyArray<Brand>, SqlError>
   }
 >()("@digital-shelf/core/Catalog/Brands", {
   make: Effect.gen(function* () {
     const cascade = yield* Cascade
-    const db = yield* Db
-    const withDb = Effect.provideService(Db, db)
+    const repo = yield* BrandsRepo
 
     const create = Effect.fn("Brands.create")(function* (command: CreateBrand) {
-      return yield* BrandsRepo.insert({
+      return yield* repo.insert({
         name: command.name,
         paused: command.paused ?? false,
       })
-    }, withDb)
+    })
 
-    const update = Effect.fn("Brands.update")(function* (
-      id: BrandId,
-      command: UpdateBrand,
-    ) {
-      return yield* BrandsRepo.update(id, command)
-    }, withDb)
+    const update = Effect.fn("Brands.update")(function* (input: UpdateBrand) {
+      return yield* repo.update(input.brandId, input.command)
+    })
 
-    const remove = Effect.fn("Brands.remove")(function* (id: BrandId) {
-      return (yield* cascade.remove(
-        CascadeRoot.Brand({ id }),
-        BrandsRepo.remove(id),
-      )).impact
-    }, withDb)
+    const remove = Effect.fn("Brands.remove")(function* (input: RemoveBrand) {
+      const result = yield* cascade.remove(
+        CascadeRoot.Brand({ id: input.brandId }),
+        repo.remove(input.brandId),
+      )
 
-    const impact = Effect.fn("Brands.impact")(function* (id: BrandId) {
-      yield* BrandsRepo.get(id)
+      return result.impact
+    })
 
-      return yield* cascade.impact(CascadeRoot.Brand({ id }))
-    }, withDb)
+    const impact = Effect.fn("Brands.impact")(function* (input: BrandImpact) {
+      yield* repo.get(input.brandId)
 
-    const get = Effect.fn("Brands.get")(function* (id: BrandId) {
-      return yield* BrandsRepo.get(id)
-    }, withDb)
+      return yield* cascade.impact(CascadeRoot.Brand({ id: input.brandId }))
+    })
 
-    const list = BrandsRepo.list().pipe(withDb, Effect.withSpan("Brands.list"))
+    const get = Effect.fn("Brands.get")(function* (input: GetBrand) {
+      return yield* repo.get(input.brandId)
+    })
+
+    const list = repo.list.pipe(Effect.withSpan("Brands.list"))
 
     return { create, update, remove, impact, get, list }
   }),
 }) {
-  static readonly layer = Layer.effect(this, this.make)
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide(BrandsRepo.layer),
+  )
 }

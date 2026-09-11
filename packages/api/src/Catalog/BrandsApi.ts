@@ -1,6 +1,6 @@
 import {
   CreateBrand,
-  UpdateBrand,
+  UpdateBrandCommand,
 } from "@digital-shelf/domain/Catalog/BrandManagement"
 import { CascadeImpact } from "@digital-shelf/domain/Catalog/CascadeImpact"
 import * as HttpApiEndpoint from "effect/unstable/httpapi/HttpApiEndpoint"
@@ -23,7 +23,7 @@ export class BrandsApi extends HttpApiGroup.make("brands").add(
   }),
   HttpApiEndpoint.patch("update", "/brands/:id", {
     params: Wire.IdParams,
-    payload: UpdateBrand,
+    payload: UpdateBrandCommand,
     success: Wire.BrandWire,
     error: [Errors.BrandNotFound],
   }),
