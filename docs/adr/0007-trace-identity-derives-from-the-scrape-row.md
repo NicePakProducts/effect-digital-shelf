@@ -19,6 +19,7 @@ Every span the system emits reaches Axiom over OTLP from Effect's own tracer, an
 ## Consequences
 
 - Scrape creation is the one place that mints a root, so `Scrapes` (core) owns it, inside the same transaction as the insert; the Extraction lifecycle inherits the Scrape's context and adds no telemetry column.
+- `Scrape.created` records the insertion result in `shelf.dispatch.outcome` (`created` or `in-flight-skip`); `Scrape.dispatch` and `Extraction.dispatch` record whether an Execution started in the boolean `shelf.dispatch.started`, with `shelf.execution.kind` identifying `scrape` or `extraction`.
 - The `Executions` port carries the trace context into a Workflow instance's params as a W3C `traceparent` string, decoded with `HttpTraceContext.w3c` at each step.
 - Retention removes the Scrape row, so a trace older than the retention window has no row to derive from; the trace itself stays queryable in Axiom by the id in the URL or the trace search.
 - The AI Gateway joins the same trace through `cf-aig-otel-trace-id` and `cf-aig-otel-parent-span-id`, so its span, with `gen_ai.usage.cost`, sits under the Extraction's LLM span; cost is never computed in this codebase.

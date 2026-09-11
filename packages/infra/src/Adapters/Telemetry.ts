@@ -1,8 +1,9 @@
 /**
  * Exports invocation telemetry to Axiom with the Scrape trace identity and stage-specific levels.
  * Build per invocation inside its Scope so closing it flushes (ADR 0007, #28), never at Worker init.
+ * Production's Info log threshold suppresses the exporter's Debug failure messages.
  */
-import { TraceIdentity } from "@digital-shelf/core/Layers"
+import { layer as TraceIdentity } from "@digital-shelf/core/Scraping/Trace"
 import * as Layer from "effect/Layer"
 import type * as LogLevel from "effect/LogLevel"
 import * as Redacted from "effect/Redacted"
@@ -67,7 +68,7 @@ export const make = (
     }),
   ).pipe(Layer.provide([OtlpSerialization.layerProtobuf, httpClient]))
 
-  return TraceIdentity.pipe(
+  return TraceIdentity().pipe(
     Layer.provideMerge(otlp),
     Layer.provideMerge(levels(options.stage)),
   )
@@ -78,4 +79,4 @@ export const layer = (
 ): Layer.Layer<OtlpExporter.Flusher> => make(options, FetchHttpClient.layer)
 
 export const layerDisabled = (stage: Stage): Layer.Layer<never> =>
-  TraceIdentity.pipe(Layer.provideMerge(levels(stage)))
+  TraceIdentity().pipe(Layer.provideMerge(levels(stage)))

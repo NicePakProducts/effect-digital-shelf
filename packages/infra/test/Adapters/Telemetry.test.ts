@@ -13,6 +13,7 @@ import * as Tracer from "effect/Tracer"
 import * as HttpClient from "effect/unstable/http/HttpClient"
 import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
+import { Buffer } from "node:buffer"
 
 const traceId = "0123456789abcdef0123456789abcdef"
 
@@ -104,6 +105,11 @@ describe("Telemetry adapter", () => {
           expect(request.body._tag).toBe("Uint8Array")
 
           if (Predicate.isTagged(request.body, "Uint8Array")) {
+            expect(
+              Buffer.from(request.body.body).includes(
+                Buffer.from(traceId, "hex"),
+              ),
+            ).toBe(true)
             const text = new TextDecoder().decode(request.body.body)
             expect(text).toContain("digital-shelf-server")
             expect(text).toContain("deployment.environment.name")

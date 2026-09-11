@@ -16,7 +16,7 @@ export const layerTest = Layer.mergeAll(
   Layers.ScrapeWorkflow,
   Layers.ExtractionWorkflow,
 ).pipe(
-  Layer.provideMerge(Layers.TraceIdentity),
+  Layer.provideMerge(Layers.TraceIdentity()),
   Layer.provideMerge(
     Layer.mergeAll(
       DbTest.layerTest,

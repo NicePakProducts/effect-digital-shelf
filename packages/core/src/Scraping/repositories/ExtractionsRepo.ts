@@ -209,7 +209,7 @@ export const transition = Effect.fn("ExtractionsRepo.transition", {
   )
 })
 
-export const PendingExtraction = Schema.Struct({
+export const TracedExtraction = Schema.Struct({
   ...Extraction.fields,
   rootSpanId: SpanId,
 })
@@ -220,7 +220,7 @@ export const listPending = Effect.fn("ExtractionsRepo.listPending", {
   if (limit <= 0) return []
   const db = yield* Db
 
-  return yield* Rows.decodeAll(PendingExtraction)(
+  return yield* Rows.decodeAll(TracedExtraction)(
     yield* query(
       db
         .select({
@@ -241,11 +241,15 @@ export const listStuck = Effect.fn("ExtractionsRepo.listStuck", {
 })(function* (before: DateTime.Utc) {
   const db = yield* Db
 
-  return yield* Rows.decodeAll(Extraction)(
+  return yield* Rows.decodeAll(TracedExtraction)(
     yield* query(
       db
-        .select()
+        .select({
+          ...getTableColumns(extractions),
+          rootSpanId: scrapes.rootSpanId,
+        })
         .from(extractions)
+        .innerJoin(scrapes, eq(scrapes.id, extractions.scrapeId))
         .where(
           and(
             eq(extractions.status, "running"),

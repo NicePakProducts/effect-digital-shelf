@@ -45,7 +45,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const row = yield* Effect.gen(function* () {
             const scrapes = yield* Scrapes
             const runner = yield* ScrapeRunner
-            const row = yield* scrapes.trigger({ parent })
+
+            const row = yield* scrapes
+              .trigger({ parent })
+              .pipe(Effect.withSpan("unsampled-caller", { level: "Debug" }))
+
             yield* Effect.flip(scrapes.trigger({ parent }))
             yield* scrapes.bulk(
               BulkScrape.members[0].make({ brandId: fixture.brandId }),
@@ -80,6 +84,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
 
           expect(dispatches).toHaveLength(1)
           const dispatch = dispatches[0]!
+          expect(dispatch.sampled).toBe(true)
           expect(dispatch.traceId).toBe(traceIdOf(row.id))
           expect(Option.getOrThrow(dispatch.parent)).toMatchObject({
             // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
@@ -90,6 +95,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           expect(dispatch.links[0]?.span).toBe(
             spans.find((span) => span.name === "Scrapes.trigger"),
           )
+          expect(dispatch.links[0]?.span.sampled).toBe(false)
           expect(dispatch.attributes.get("shelf.scrape.id")).toBe(row.id)
           expect(dispatch.attributes.get("shelf.execution.kind")).toBe("scrape")
           expect(dispatch.attributes.get("shelf.dispatch.started")).toBe(true)
@@ -254,6 +260,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             extractionTransition.attributes.get("shelf.extraction.id"),
           ).toBe(extracting.id)
           expect(extractionTransition.attributes.get("shelf.attempt")).toBe(1)
+          expect((yield* (yield* Extractions).get(extracting.id)).status).toBe(
+            "failed",
+          )
+          expect(
+            yield* (yield* ExecutionsTest).service.status(
+              "extraction",
+              extracting.id,
+            ),
+          ).toEqual(Option.some("terminated"))
           expect(
             extractionTransition.links.some(
               (link) =>
