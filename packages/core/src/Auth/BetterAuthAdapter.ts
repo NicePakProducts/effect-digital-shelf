@@ -37,6 +37,9 @@ import * as Effect from "effect/Effect"
 import { Db, type Database } from "../Sql/Db.ts"
 import { query } from "../Sql/Errors.ts"
 
+/** Every export of the Sql module by name; only Drizzle tables are models. */
+const tables = new Map(Object.entries(Sql))
+
 /** Postgres port of the Better Auth 1.7.3 Drizzle adapter. The factory owns
  * field transforms and fallback joins; every SQL builder runs in the captured
  * Effect context, including the connection reserved by a transaction. */
@@ -99,7 +102,7 @@ export const makeAdapter = (
     },
     adapter: ({ getFieldName }) => {
       const getSchema = (model: string): PgTable => {
-        const table = new Map(Object.entries(Sql)).get(model)
+        const table = tables.get(model)
 
         if (!is(table, PgTable))
           throw new BetterAuthError(

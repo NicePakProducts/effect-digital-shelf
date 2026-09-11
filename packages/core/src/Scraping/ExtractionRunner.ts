@@ -194,7 +194,9 @@ const make = Effect.gen(function* () {
 
       if (Predicate.isTagged(parsed, "failed")) return parsed
 
-      return ExtractOutcome.members[0].make({
+      return {
+        // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- provider usage counts are not re-validated here; `.make` would turn a success into a recorded failure via catchDefect
+        _tag: "extracted",
         data: parsed.value,
         finishReason: response.finishReason,
         usage: {
@@ -202,7 +204,7 @@ const make = Effect.gen(function* () {
           completionTokens: response.usage.output,
           totalTokens: response.usage.input + response.usage.output,
         },
-      })
+      } satisfies ExtractOutcome
     }).pipe(
       Effect.catch((error) =>
         Effect.succeed<ExtractOutcome>(

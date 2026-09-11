@@ -147,13 +147,22 @@ const attempted = (
                 "shelf.attempts": attempts,
               }),
               Effect.fail(
-                new ScrapeProviderError({
-                  code: error.code,
-                  retryable: error.retryable,
-                  message: error.message,
-                  attempts,
-                  detail: error.detail,
-                }),
+                new ScrapeProviderError(
+                  error.detail === undefined
+                    ? {
+                        code: error.code,
+                        retryable: error.retryable,
+                        message: error.message,
+                        attempts,
+                      }
+                    : {
+                        code: error.code,
+                        retryable: error.retryable,
+                        message: error.message,
+                        attempts,
+                        detail: error.detail,
+                      },
+                ),
               ),
             ),
           ),

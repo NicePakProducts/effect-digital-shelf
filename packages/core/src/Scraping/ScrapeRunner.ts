@@ -153,12 +153,14 @@ const make = Effect.gen(function* () {
       yield* bucket.put(htmlKey, result.html, "text/html")
       yield* bucket.put(rawKey, JSON.stringify(envelope), "application/json")
 
-      return FetchOutcome.members[0].make({
+      return {
+        // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- the envelope is raw provider data; `.make` would re-validate it and throw a defect past the error handlers below
+        _tag: "fetched",
         envelope,
         htmlKey,
         rawKey,
         truncated: bounded.truncated,
-      }) satisfies FetchOutcome
+      } satisfies FetchOutcome
     }).pipe(
       Effect.catchTag("TimeoutError", () =>
         Effect.succeed<FetchOutcome>(
