@@ -92,7 +92,13 @@ Production stack evaluation fails if either Axiom value is absent, before
 declaring resources. Dev warns and declares an empty exporter list, which
 clears any existing gateway exporter, including one configured by hand.
 The gateway exporter needs no dashboard step; deployment applies the declared
-configuration on every update.
+configuration on every update. After a deploy that first writes the exporter,
+probe it: send one request through the gateway with a `cf-aig-otel-trace-id`
+header and look for a `service.name == 'ai-gateway'` span in Axiom. On the
+first dev deploy of #40 the written configuration was correct (verified by
+GET) yet exported nothing for over ten minutes; re-applying the identical
+configuration (`pnpm run deploy --stage <stage> --yes --force`) made spans
+arrive within seconds. Repeat that if a probe stays silent.
 
 Cloudflare's Worker observability is disabled; Axiom retains the exported
 traces and logs. Logs written outside a telemetry region, including the
