@@ -8,6 +8,12 @@ import * as Redacted from "effect/Redacted"
 // Only a disposable CI/local database; never read DATABASE_URL here.
 const url = process.env.DIGITAL_SHELF_TEST_POSTGRES_URL
 
+/** Drizzle types `execute` as the rows; the pg driver hands back its Result. */
+const rowsOf = (result: unknown): ReadonlyArray<unknown> =>
+  Array.isArray(result)
+    ? result
+    : (result as { readonly rows: ReadonlyArray<unknown> }).rows
+
 describe.skipIf(url === undefined)("Db adapter on PostgreSQL", () => {
   it.layer(Adapter.layer(Redacted.make(url ?? "")), { timeout: "30 seconds" })(
     "scoped pool",
@@ -17,7 +23,7 @@ describe.skipIf(url === undefined)("Db adapter on PostgreSQL", () => {
         () =>
           Effect.gen(function* () {
             const db = yield* Db
-            expect(yield* db.execute(sql`SELECT 1 AS one`)).toEqual([
+            expect(rowsOf(yield* db.execute(sql`SELECT 1 AS one`))).toEqual([
               { one: 1 },
             ])
             // The pool has one connection. This table is session-local and disappears
@@ -37,8 +43,10 @@ describe.skipIf(url === undefined)("Db adapter on PostgreSQL", () => {
                   // Query through the outer Db tag to prove fiber-scoped participation.
                   const sameDb = yield* Db
                   expect(
-                    yield* sameDb.execute(
-                      sql`SELECT id FROM infra_rollback_probe ORDER BY id`,
+                    rowsOf(
+                      yield* sameDb.execute(
+                        sql`SELECT id FROM infra_rollback_probe ORDER BY id`,
+                      ),
                     ),
                   ).toEqual([{ id: 1 }, { id: 2 }])
                   return yield* Effect.fail("rollback probe")
@@ -47,9 +55,11 @@ describe.skipIf(url === undefined)("Db adapter on PostgreSQL", () => {
             )
             expect(failed).toBe("rollback probe")
             expect(
-              yield* db.execute(sql`SELECT id FROM infra_rollback_probe`),
+              rowsOf(
+                yield* db.execute(sql`SELECT id FROM infra_rollback_probe`),
+              ),
             ).toEqual([{ id: 1 }])
-            expect(yield* db.execute(sql`SELECT 1 AS one`)).toEqual([
+            expect(rowsOf(yield* db.execute(sql`SELECT 1 AS one`))).toEqual([
               { one: 1 },
             ])
           }),
