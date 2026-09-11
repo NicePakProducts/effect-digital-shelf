@@ -62,20 +62,26 @@ const make = Effect.gen(function* () {
 
         if (result?.result !== "applied") return "alreadyTerminal" as const
 
-        yield* executions
-          .terminate({ kind: "scrape", id: row.id })
-          .pipe(
-            Effect.catchTag("ExecutionsError", (error) =>
-              Effect.logError("Stuck Scrape termination failed", error),
-            ),
-          )
-        yield* bucket
-          .delete(keysOf(row.id))
-          .pipe(
-            Effect.catchTag("StorageError", (error) =>
-              Effect.logError("Stuck Scrape object deletion failed", error),
-            ),
-          )
+        yield* Effect.gen(function* () {
+          yield* executions
+            .terminate({ kind: "scrape", id: row.id })
+            .pipe(
+              Effect.catchTag("ExecutionsError", (error) =>
+                Effect.logError("Stuck Scrape termination failed", error),
+              ),
+            )
+          yield* bucket
+            .delete(keysOf(row.id))
+            .pipe(
+              Effect.catchTag("StorageError", (error) =>
+                Effect.logError("Stuck Scrape object deletion failed", error),
+              ),
+            )
+        }).pipe(
+          Effect.catchCause((cause) =>
+            Effect.logError("Stuck Scrape sweep failed for row", row.id, cause),
+          ),
+        )
 
         return "failed" as const
       }).pipe(
@@ -116,13 +122,23 @@ const make = Effect.gen(function* () {
 
         if (result?.result !== "applied") return "alreadyTerminal" as const
 
-        yield* executions
-          .terminate({ kind: "extraction", id: row.id })
-          .pipe(
-            Effect.catchTag("ExecutionsError", (error) =>
-              Effect.logError("Stuck Extraction termination failed", error),
+        yield* Effect.gen(function* () {
+          yield* executions
+            .terminate({ kind: "extraction", id: row.id })
+            .pipe(
+              Effect.catchTag("ExecutionsError", (error) =>
+                Effect.logError("Stuck Extraction termination failed", error),
+              ),
+            )
+        }).pipe(
+          Effect.catchCause((cause) =>
+            Effect.logError(
+              "Stuck Extraction sweep failed for row",
+              row.id,
+              cause,
             ),
-          )
+          ),
+        )
 
         return "failed" as const
       }).pipe(
