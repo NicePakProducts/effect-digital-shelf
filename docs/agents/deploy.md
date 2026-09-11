@@ -103,12 +103,14 @@ A stage running without the Axiom values retains no Worker logs.
 example:
 
 ```sh
-axiom query -D "<your axiom CLI login>" -O npbrands-etkr --start-time -2h "['digital-shelf-traces'] | where ['attributes.custom.shelf.scrape.id'] == '<id>'"
+axiom query -D "<your axiom CLI login>" -O npbrands-etkr --start-time -2h "['digital-shelf-traces'] | where ['attributes.custom']['shelf.scrape.id'] == '<id>'"
 ```
 
-The exact attribute path depends on how Axiom flattens OTLP attributes;
-confirm it against an ingested event and adjust this example after the first
-deploy. Check `digital-shelf-logs` for the same stage and invocation.
+Axiom stores span attributes in the `attributes.custom` map, verified against
+the deployed dev trace. Access keys within that map as shown above; the dotted
+field form is invalid. Tick per-phase counts use the same map, for example
+`['attributes.custom']['shelf.tick.cadenceDue.started']`.
+Check `digital-shelf-logs` for the same stage and invocation.
 
 ## Smoke and diagnosis
 

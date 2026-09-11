@@ -285,13 +285,19 @@ const make = Effect.gen(function* () {
     target: { scrapeId: ScrapeId; rootSpanId: string },
     work: Effect.Effect<A, E, R>,
   ) =>
-    work.pipe(
-      Effect.withParentSpan(
-        Tracer.externalSpan({
-          traceId: traceIdOf(target.scrapeId),
-          spanId: target.rootSpanId,
-        }),
-      ),
+    Effect.gen(function* () {
+      const span = yield* Effect.currentSpan.pipe(Effect.option)
+      const traceId = traceIdOf(target.scrapeId)
+
+      if (Option.isSome(span) && span.value.traceId === traceId)
+        return yield* work
+
+      return yield* work.pipe(
+        Effect.withParentSpan(
+          Tracer.externalSpan({ traceId, spanId: target.rootSpanId }),
+        ),
+      )
+    }).pipe(
       Effect.annotateSpans({
         "shelf.extraction.id": id,
         "shelf.scrape.id": target.scrapeId,

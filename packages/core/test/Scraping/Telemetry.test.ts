@@ -428,5 +428,83 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           expect(llm?.attributes.get("gen_ai.usage.output_tokens")).toBe(5)
         }),
     )
+
+    for (const sameTrace of [true, false])
+      it.effect(
+        sameTrace
+          ? "Extraction runner preserves step parents in the Scrape trace"
+          : "Extraction runner uses the Scrape root beneath steps in another trace",
+        () =>
+          Effect.gen(function* () {
+            yield* reset
+
+            const scrape = yield* successfulScrape(
+              (yield* (yield* seed()).listing).parent,
+            )
+
+            const row = yield* extraction(scrape.id, 1, "pending")
+            const runner = yield* ExtractionRunner
+            const base = yield* Effect.tracer
+            const spans: Tracer.Span[] = []
+
+            const tracer = Tracer.make({
+              span(options) {
+                const span = base.span(options)
+                spans.push(span)
+
+                return span
+              },
+              context: base.context,
+            })
+
+            const parent = Tracer.externalSpan({
+              traceId: sameTrace
+                ? traceIdOf(scrape.id)
+                : "fedcba9876543210fedcba9876543210",
+              spanId: scrape.rootSpanId,
+            })
+
+            yield* Effect.gen(function* () {
+              const target = yield* runner
+                .claim(row.id)
+                .pipe(Effect.withSpan("ExtractionWorkflow.claim", { parent }))
+
+              const outcome = yield* runner
+                .extract(row.id, target)
+                .pipe(Effect.withSpan("ExtractionWorkflow.extract", { parent }))
+
+              yield* runner
+                .finish(row.id, outcome)
+                .pipe(Effect.withSpan("ExtractionWorkflow.finish", { parent }))
+            }).pipe(Effect.withTracer(tracer))
+
+            for (const name of ["claim", "extract", "finish"]) {
+              const step = spans.find(
+                (span) => span.name === `ExtractionWorkflow.${name}`,
+              )!
+
+              const work = spans.find(
+                (span) => span.name === `ExtractionRunner.${name}`,
+              )!
+
+              expect(step.traceId).toBe(parent.traceId)
+              expect(work.traceId).toBe(traceIdOf(scrape.id))
+              expect(work.attributes.get("shelf.extraction.id")).toBe(row.id)
+              expect(work.attributes.get("shelf.scrape.id")).toBe(scrape.id)
+
+              if (sameTrace) expect(Option.getOrThrow(work.parent)).toBe(step)
+              else
+                expect(Option.getOrThrow(work.parent)).toMatchObject({
+                  traceId: traceIdOf(scrape.id),
+                  spanId: scrape.rootSpanId,
+                })
+            }
+
+            const llm = spans.find((span) => span.name === "Extraction.llm")!
+            expect(Option.getOrThrow(llm.parent)).toBe(
+              spans.find((span) => span.name === "ExtractionRunner.extract"),
+            )
+          }),
+      )
   },
 )
