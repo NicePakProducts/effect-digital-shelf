@@ -1,4 +1,4 @@
-import * as ExtractionsRepo from "../Scraping/repositories/ExtractionsRepo.ts"
+import { ExtractionsRepo } from "../Scraping/repositories/ExtractionsRepo.ts"
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
 import * as DateTime from "effect/DateTime"
@@ -9,15 +9,17 @@ import * as Option from "effect/Option"
 import * as Tracer from "effect/Tracer"
 import { keysOf } from "../Scraping/R2Keys.ts"
 import { traceIdOf } from "../Scraping/Trace.ts"
-import { transition, transitionExtraction } from "../Scraping/Transitions.ts"
-import * as ScrapesRepo from "../Scraping/repositories/ScrapesRepo.ts"
+import { Transitions } from "../Scraping/Transitions.ts"
+import { ScrapesRepo } from "../Scraping/repositories/ScrapesRepo.ts"
 import { Db } from "../Sql/Db.ts"
 import { R2Bucket } from "../Storage/R2Bucket.ts"
 import { Executions } from "./Executions.ts"
 
 const make = Effect.gen(function* () {
   const db = yield* Db
-  const withDb = Effect.provideService(Db, db)
+  const scrapesRepo = yield* ScrapesRepo
+  const extractionsRepo = yield* ExtractionsRepo
+  const transitions = yield* Transitions
   const executions = yield* Executions
   const bucket = yield* R2Bucket
 
@@ -37,7 +39,7 @@ const make = Effect.gen(function* () {
   )
 
   const stuck = Effect.fn("Sweeps.stuck")(function* (now: DateTime.Utc) {
-    const rows = yield* ScrapesRepo.listStuck(
+    const rows = yield* scrapesRepo.listStuck(
       DateTime.subtractDuration(now, bound),
     )
 
@@ -46,14 +48,16 @@ const make = Effect.gen(function* () {
 
     for (const row of rows) {
       yield* Effect.gen(function* () {
-        const result = yield* transition(row.id, "running", "failed", {
-          finishedAt: Option.some(now),
-          updatedAt: now,
-          errorCode: Option.some("timeout"),
-          errorMessage: Option.some("Scrape exceeded the stuck bound"),
-        }).pipe(
-          Effect.catchTag("TransitionRejected", () => Effect.succeed(null)),
-        )
+        const result = yield* transitions
+          .scrape(row.id, "running", "failed", {
+            finishedAt: Option.some(now),
+            updatedAt: now,
+            errorCode: Option.some("timeout"),
+            errorMessage: Option.some("Scrape exceeded the stuck bound"),
+          })
+          .pipe(
+            Effect.catchTag("TransitionRejected", () => Effect.succeed(null)),
+          )
 
         if (result?.result !== "applied") {
           alreadyTerminal++
@@ -90,7 +94,7 @@ const make = Effect.gen(function* () {
       )
     }
 
-    const extractionRows = yield* ExtractionsRepo.listStuck(
+    const extractionRows = yield* extractionsRepo.listStuck(
       DateTime.subtractDuration(now, bound),
     )
 
@@ -99,19 +103,16 @@ const make = Effect.gen(function* () {
 
     for (const row of extractionRows) {
       yield* Effect.gen(function* () {
-        const result = yield* transitionExtraction(
-          row.id,
-          "running",
-          "failed",
-          {
+        const result = yield* transitions
+          .extraction(row.id, "running", "failed", {
             finishedAt: Option.some(now),
             updatedAt: now,
             errorCode: Option.some("llm_timeout"),
             errorMessage: Option.some("Extraction exceeded the stuck bound"),
-          },
-        ).pipe(
-          Effect.catchTag("TransitionRejected", () => Effect.succeed(null)),
-        )
+          })
+          .pipe(
+            Effect.catchTag("TransitionRejected", () => Effect.succeed(null)),
+          )
 
         if (result?.result !== "applied") {
           extractionsAlreadyTerminal++
@@ -157,7 +158,7 @@ const make = Effect.gen(function* () {
       extractionsFailed,
       extractionsAlreadyTerminal,
     }
-  }, withDb)
+  })
 
   const retention = Effect.fn("Sweeps.retention")(function* (
     now: DateTime.Utc,
@@ -165,7 +166,7 @@ const make = Effect.gen(function* () {
     const before = DateTime.subtractDuration(now, window)
 
     const ids = yield* db.transaction(() =>
-      ScrapesRepo.deleteExpired(before, cap),
+      scrapesRepo.deleteExpired(before, cap),
     )
 
     if (ids.length > 0)
@@ -176,7 +177,7 @@ const make = Effect.gen(function* () {
             Effect.logError("Retention object deletion failed", error),
           ),
         )
-    const backlog = yield* ScrapesRepo.expiredBacklog(before)
+    const backlog = yield* scrapesRepo.expiredBacklog(before)
 
     return {
       deleted: ids.length,
@@ -186,7 +187,7 @@ const make = Effect.gen(function* () {
         onSome: DateTime.formatIso,
       }),
     }
-  }, withDb)
+  })
 
   return { stuck, retention }
 })
@@ -195,5 +196,11 @@ export class Sweeps extends Context.Service<
   Sweeps,
   Effect.Success<typeof make>
 >()("@digital-shelf/core/Scheduling/Sweeps", { make }) {
-  static readonly layer = Layer.effect(this, this.make)
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide([
+      ScrapesRepo.layer,
+      ExtractionsRepo.layer,
+      Transitions.layer,
+    ]),
+  )
 }

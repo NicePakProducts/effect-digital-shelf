@@ -6,7 +6,7 @@ import {
   FetchOutcome,
   TransitionRejected,
 } from "@digital-shelf/core/Scraping/ScrapeRunner"
-import * as ExtractionsRepo from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
+import { ExtractionsRepo } from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
 import { ScrapeProviderError } from "@digital-shelf/core/Providers/ScrapeProviders"
 import { Db } from "@digital-shelf/core/Sql/Db"
 import { query } from "@digital-shelf/core/Sql/Errors"
@@ -30,7 +30,8 @@ import { reset, seed } from "../fixtures/Scraping.ts"
 
 const setup = Effect.gen(function* () {
   yield* reset
-  const target = yield* (yield* seed()).listing
+  const seededCatalog = yield* seed()
+  const target = yield* seededCatalog.listing
   const scrapes = yield* Scrapes
   const row = yield* scrapes.trigger({ parent: target.parent })
 
@@ -46,10 +47,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           yield* reset
 
-          const { parent, url } = yield* (yield* seed({
+          const seededCatalog = yield* seed({
             mode: "advance",
             country: "Canada",
-          })).listing
+          })
+
+          const listing = yield* seededCatalog.listing
+          const parent = listing.parent
+          const url = listing.url
 
           const scrapes = yield* Scrapes
           const row = yield* scrapes.trigger({ parent })
@@ -59,7 +64,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const claimed = yield* runner.claim(row.id)
           expect(claimed.country).toBe("Canada")
           yield* runner.fetch(row.id, claimed)
-          expect(yield* (yield* ScrapeProvidersTest).requests).toEqual([
+          const scrapeProvidersTest = yield* ScrapeProvidersTest
+          expect(yield* scrapeProvidersTest.requests).toEqual([
             {
               mode: "advance",
               request: { url, country: Option.some("Canada") },
@@ -71,7 +77,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "catch-all leaves both terminal states completely unchanged",
       () =>
         Effect.gen(function* () {
-          const { row, runner, scrapes, target } = yield* setup
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
+          const scrapes = setupResult.scrapes
+          const target = setupResult.target
 
           const fetched = yield* runner.fetch(
             row.id,
@@ -95,7 +105,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "rejected finish preserves TransitionRejected if object cleanup fails",
       () =>
         Effect.gen(function* () {
-          const { row, runner } = yield* setup
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
 
           const outcome = yield* runner.fetch(
             row.id,
@@ -103,7 +115,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           )
 
           yield* runner.fail(row.id, "timeout", "swept")
-          yield* (yield* R2BucketTest).failNextDelete
+          const bucketTest = yield* R2BucketTest
+          yield* bucketTest.failNextDelete
           expect(
             yield* Effect.flip(runner.finish(row.id, outcome)),
           ).toBeInstanceOf(TransitionRejected)
@@ -113,7 +126,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "happy path stores objects, advances the parent and atomically creates one pinned Extraction; steps replay",
       () =>
         Effect.gen(function* () {
-          const { row, runner, scrapes, target } = yield* setup
+          const extractionsRepo = yield* ExtractionsRepo
+
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
+          const scrapes = setupResult.scrapes
+          const target = setupResult.target
           const claimed = yield* runner.claim(row.id)
           const firstStartedAt = (yield* scrapes.get(row.id)).startedAt
           yield* TestClock.adjust("1 second")
@@ -147,7 +166,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           expect(parentRows[0]?.lastScrapedAt).toEqual(
             DateTime.toDateUtc(yield* DateTime.now),
           )
-          const objects = yield* (yield* R2BucketTest).inspect
+          const bucketTest = yield* R2BucketTest
+          const objects = yield* bucketTest.inspect
           expect(objects.get(`html/${row.id}.html`)?.contentType).toBe(
             "text/html",
           )
@@ -156,12 +176,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           )
 
           const initial = Option.getOrThrow(
-            yield* ExtractionsRepo.findInitial(row.id),
+            yield* extractionsRepo.findInitial(row.id),
           )
 
           yield* runner.startExtraction(initial.id, row.id)
           yield* runner.startExtraction(initial.id, row.id)
-          const calls = yield* (yield* ExecutionsTest).calls
+          const executionsTest = yield* ExecutionsTest
+          const calls = yield* executionsTest.calls
           expect(
             calls.filter((call) => call.kind === "extraction")[0]?.instances,
           ).toEqual([
@@ -180,11 +201,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               .where(eq(extractions.id, initial.id)),
           )
           expect(yield* runner.finish(row.id, outcome)).toEqual(result)
-        }),
+        }).pipe(Effect.provide([ExtractionsRepo.layer])),
     )
     it.effect("a late finish cannot resurrect a failed Scrape", () =>
       Effect.gen(function* () {
-        const { row, runner, scrapes } = yield* setup
+        const extractionsRepo = yield* ExtractionsRepo
+
+        const setupResult = yield* setup
+        const row = setupResult.row
+        const runner = setupResult.runner
+        const scrapes = setupResult.scrapes
         const claimed = yield* runner.claim(row.id)
         const outcome = yield* runner.fetch(row.id, claimed)
         yield* runner.fail(row.id, "unknown", "execution failed")
@@ -193,18 +219,23 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           yield* Effect.flip(runner.finish(row.id, outcome)),
         ).toBeInstanceOf(TransitionRejected)
         expect((yield* scrapes.get(row.id)).status).toBe("failed")
-        const objects = yield* (yield* R2BucketTest).inspect
+        const bucketTest = yield* R2BucketTest
+        const objects = yield* bucketTest.inspect
         expect(objects.has(`html/${row.id}.html`)).toBe(false)
         expect(objects.has(`raw/${row.id}.json`)).toBe(false)
-        expect(Option.isNone(yield* ExtractionsRepo.findInitial(row.id))).toBe(
+        expect(Option.isNone(yield* extractionsRepo.findInitial(row.id))).toBe(
           true,
         )
-      }),
+      }).pipe(Effect.provide([ExtractionsRepo.layer])),
     )
     it.effect("the provider deadline is driven by TestClock", () =>
       Effect.gen(function* () {
-        const { row, runner, target } = yield* setup
-        yield* (yield* ScrapeProvidersTest).script(
+        const setupResult = yield* setup
+        const row = setupResult.row
+        const runner = setupResult.runner
+        const target = setupResult.target
+        const scrapeProvidersTest = yield* ScrapeProvidersTest
+        yield* scrapeProvidersTest.script(
           target.url,
           Effect.sleep("10 minutes").pipe(Effect.as(fetched(target.url))),
         )
@@ -225,9 +256,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
     )
     it.effect("inner text is capped at a UTF-8 character boundary", () =>
       Effect.gen(function* () {
-        const { row, runner, target } = yield* setup
+        const setupResult = yield* setup
+        const row = setupResult.row
+        const runner = setupResult.runner
+        const target = setupResult.target
         const result = fetched(target.url)
-        yield* (yield* ScrapeProvidersTest).script(
+        const scrapeProvidersTest = yield* ScrapeProvidersTest
+        yield* scrapeProvidersTest.script(
           target.url,
           Effect.succeed({
             ...result,
@@ -247,8 +282,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
     )
     it.effect("provider failures are JSON-safe and persist their code", () =>
       Effect.gen(function* () {
-        const { row, runner, target, scrapes } = yield* setup
-        yield* (yield* ScrapeProvidersTest).script(
+        const setupResult = yield* setup
+        const row = setupResult.row
+        const runner = setupResult.runner
+        const target = setupResult.target
+        const scrapes = setupResult.scrapes
+        const scrapeProvidersTest = yield* ScrapeProvidersTest
+        yield* scrapeProvidersTest.script(
           target.url,
           Effect.fail(
             new ScrapeProviderError({
@@ -282,7 +322,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "catch-all can fail before claim and claim uses dispatch snapshots",
       () =>
         Effect.gen(function* () {
-          const { row, runner, scrapes } = yield* setup
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
+          const scrapes = setupResult.scrapes
           yield* runner.fail(row.id, "unknown", "before claim")
           expect((yield* scrapes.get(row.id)).status).toBe("failed")
           expect(yield* Effect.flip(runner.claim(row.id))).toBeInstanceOf(
@@ -294,7 +337,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "finish rolls back success if initial Extraction insertion fails",
       () =>
         Effect.gen(function* () {
-          const { row, runner, scrapes } = yield* setup
+          const extractionsRepo = yield* ExtractionsRepo
+
+          const setupResult = yield* setup
+          const row = setupResult.row
+          const runner = setupResult.runner
+          const scrapes = setupResult.scrapes
 
           const outcome = yield* runner.fetch(
             row.id,
@@ -302,7 +350,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           )
 
           const now = yield* DateTime.now
-          yield* ExtractionsRepo.insert({
+          yield* extractionsRepo.insert({
             scrapeId: row.id,
             attempt: 1,
             status: "pending",
@@ -318,7 +366,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           expect(
             (yield* query(db.select().from(scrapeTable)))[0]?.finishedAt,
           ).toBeNull()
-        }),
+        }).pipe(Effect.provide([ExtractionsRepo.layer])),
     )
   },
 )

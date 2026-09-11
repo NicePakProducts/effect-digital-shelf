@@ -3,7 +3,7 @@ import { TriggerExtraction } from "@digital-shelf/domain/Scraping/ScrapingManage
 import { expect, it } from "@effect/vitest"
 import { Extractions } from "@digital-shelf/core/Scraping/Extractions"
 import { ExtractionRunner } from "@digital-shelf/core/Scraping/ExtractionRunner"
-import * as Repo from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
+import { ExtractionsRepo } from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
 import { traceparentOf } from "@digital-shelf/core/Scraping/Trace"
 import { Db } from "@digital-shelf/core/Sql/Db"
 import { query } from "@digital-shelf/core/Sql/Errors"
@@ -68,7 +68,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
           promptSnapshot: "Edited prompt",
           model: "@cf/zai-org/glm-4.7-flash",
         })
-        expect((yield* (yield* ExecutionsTest).calls)[0]?.instances).toEqual([
+        const executionsTest = yield* ExecutionsTest
+        expect((yield* executionsTest.calls)[0]?.instances).toEqual([
           {
             id: row.id,
             traceparent: traceparentOf(scrape.id, scrape.rootSpanId),
@@ -87,7 +88,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
             extractionId: row.id,
           }),
         )
-        yield* (yield* ExtractionRunner).fail(row.id, "unknown", "test")
+        const extractionRunner = yield* ExtractionRunner
+        yield* extractionRunner.fail(row.id, "unknown", "test")
         expect(
           (yield* service.trigger(
             TriggerExtraction.members[0].make({ scrapeId: scrape.id }),
@@ -101,8 +103,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
       Effect.gen(function* () {
         yield* reset
 
+        const seededCatalog = yield* seed()
+
         const scrape = yield* successfulScrape(
-          (yield* (yield* seed()).listing).parent,
+          (yield* seededCatalog.listing).parent,
         )
 
         yield* extraction(scrape.id, 1, "success")
@@ -133,11 +137,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
   it.effect("rejects unsuccessful, expired and missing Scrapes", () =>
     Effect.gen(function* () {
       yield* reset
-      const parent = (yield* (yield* seed()).listing).parent
+      const seededCatalog = yield* seed()
+      const parent = (yield* seededCatalog.listing).parent
       const failed = yield* history(parent, "failed", "1 hour")
       const expired = yield* successfulScrape(parent)
+      const db = yield* Db
       yield* query(
-        (yield* Db)
+        db
           .update(scrapes)
           .set({ htmlR2Key: null })
           .where(eq(scrapes.id, expired.id)),
@@ -249,7 +255,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
           recoveredFailed: 0,
           unresolved: 0,
         })
-        const calls = yield* (yield* ExecutionsTest).calls
+        const executionsTest = yield* ExecutionsTest
+        const calls = yield* executionsTest.calls
         expect(
           calls
             .filter((call) => call.operation === "start")
@@ -268,9 +275,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         crypto.randomUUID(),
       )
 
+      const extractions = yield* Extractions
       expect(
         yield* Effect.flip(
-          (yield* Extractions).bulk({ retailerId, promptKind: "listing" }),
+          extractions.bulk({ retailerId, promptKind: "listing" }),
         ),
       ).toEqual(new RetailerNotFound({ retailerId }))
     }),
@@ -327,16 +335,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
     Effect.gen(function* () {
       yield* reset
 
-      const row = yield* extraction(
-        (yield* successfulScrape((yield* (yield* seed()).listing).parent)).id,
-        1,
-        "pending",
-      )
+      const catalog = yield* seed()
+      const listing = yield* catalog.listing
+      const scrape = yield* successfulScrape(listing.parent)
+      const row = yield* extraction(scrape.id, 1, "pending")
 
       const service = yield* Extractions
       expect(yield* service.redispatch(row.id)).toBe("created")
       expect(yield* service.redispatch(row.id)).toBe("already-active")
-      yield* (yield* ExtractionRunner).claim(row.id)
+      const extractionRunner = yield* ExtractionRunner
+      yield* extractionRunner.claim(row.id)
       expect(yield* Effect.flip(service.redispatch(row.id))).toMatchObject({
         // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
         _tag: "TransitionRejected",
@@ -349,6 +357,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
     "latest data falls back to last good Scrape and highest successful attempt with ordered per-Listing provenance",
     () =>
       Effect.gen(function* () {
+        const extractionsRepo = yield* ExtractionsRepo
+
         yield* reset
         const catalog = yield* seed()
         const first = (yield* catalog.listing).parent
@@ -395,18 +405,18 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
           result.find((item) => item.provenance.scrapeId === older.id),
         ).toEqual(data)
         expect(
-          Option.getOrThrow(yield* Repo.latestSuccessful(older.id)).id,
+          Option.getOrThrow(yield* extractionsRepo.latestSuccessful(older.id))
+            .id,
         ).toBe(best.id)
+        const seededCatalog = yield* seed()
         expect(
-          yield* service.latestExtractedDataForProduct(
-            (yield* seed()).productId,
-          ),
+          yield* service.latestExtractedDataForProduct(seededCatalog.productId),
         ).toEqual([])
         const unknown = Schema.decodeUnknownSync(ProductId)(crypto.randomUUID())
         expect(
           yield* Effect.flip(service.latestExtractedDataForProduct(unknown)),
         ).toEqual(new ProductNotFound({ productId: unknown }))
-      }),
+      }).pipe(Effect.provide([ExtractionsRepo.layer])),
   )
   it.effect(
     "newest successful Scrape with expired HTML is not replaced by older retained HTML",
@@ -417,8 +427,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         const parent = (yield* catalog.listing).parent
         const older = yield* successfulScrape(parent, { age: "2 hours" })
         const newest = yield* successfulScrape(parent, { age: "1 hour" })
+        const db = yield* Db
         yield* query(
-          (yield* Db)
+          db
             .update(scrapes)
             .set({ htmlR2Key: null })
             .where(eq(scrapes.id, newest.id)),

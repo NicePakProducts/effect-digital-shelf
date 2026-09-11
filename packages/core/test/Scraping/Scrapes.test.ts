@@ -2,7 +2,7 @@ import { BulkScrape } from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import * as Option from "effect/Option"
 import * as Exit from "effect/Exit"
 import * as Cause from "effect/Cause"
-import * as ScrapesRepo from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
+import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
 import { expect, it } from "@effect/vitest"
 import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
 import { ParentInFlight } from "@digital-shelf/domain/Scraping/Errors"
@@ -26,12 +26,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
     () =>
       Effect.gen(function* () {
         yield* reset
-        const { parent } = yield* (yield* seed({ paused: true })).listing
+        const seededCatalog = yield* seed({ paused: true })
+        const listing2 = yield* seededCatalog.listing
+        const parent = listing2.parent
         const service = yield* Scrapes
         const row = yield* service.trigger({ parent })
         expect(row.status).toBe("pending")
         expect(row.rootSpanId).toMatch(/^[0-9a-f]{16}$/)
-        const calls = yield* (yield* ExecutionsTest).calls
+        const executionsTest = yield* ExecutionsTest
+        const calls = yield* executionsTest.calls
         expect(calls[0]?.instances).toEqual([
           {
             id: row.id,
@@ -131,7 +134,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         recoveredFailed: 0,
         unresolved: 0,
       })
-      const calls = yield* (yield* ExecutionsTest).calls
+      const executionsTest = yield* ExecutionsTest
+      const calls = yield* executionsTest.calls
       expect(calls.every((call) => call.instances.length <= 100)).toBe(true)
     }),
   )
@@ -230,7 +234,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
   it.effect("manual Page trigger classifies its own partial index", () =>
     Effect.gen(function* () {
       yield* reset
-      const { parent } = yield* (yield* seed()).page
+      const seededCatalog = yield* seed()
+      const page2 = yield* seededCatalog.page
+      const parent = page2.parent
       const service = yield* Scrapes
       const row = yield* service.trigger({ parent })
       expect(yield* Effect.flip(service.trigger({ parent }))).toEqual(
@@ -240,8 +246,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
   )
   it.effect("disabled tracing fails clearly before creating a row", () =>
     Effect.gen(function* () {
+      const scrapesRepo = yield* ScrapesRepo
+
       yield* reset
-      const { parent } = yield* (yield* seed()).listing
+      const seededCatalog = yield* seed()
+      const listing2 = yield* seededCatalog.listing
+      const parent = listing2.parent
       const service = yield* Scrapes
 
       const exit = yield* service
@@ -254,14 +264,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         expect(Cause.pretty(exit.cause)).toContain(
           "Scrape.created needs a real span; tracing is disabled",
         )
-      expect(yield* ScrapesRepo.listPending(10)).toEqual([])
-    }),
+      expect(yield* scrapesRepo.listPending(10)).toEqual([])
+    }).pipe(Effect.provide([ScrapesRepo.layer])),
   )
 
   it.effect(
     "bulk counts effectively paused Parents instead of dispatching them",
     () =>
       Effect.gen(function* () {
+        const scrapesRepo = yield* ScrapesRepo
+
         yield* reset
         const fixture = yield* seed({ paused: true })
         const paused = yield* fixture.listing
@@ -278,8 +290,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         expect(report.skipped).toEqual([])
         expect(report.skippedPaused).toEqual([paused.parent, pausedPage.parent])
         expect(report.started).toBe(0)
-        expect(yield* ScrapesRepo.listPending(10)).toEqual([])
-      }),
+        expect(yield* scrapesRepo.listPending(10)).toEqual([])
+      }).pipe(Effect.provide([ScrapesRepo.layer])),
   )
   it.effect("list pages newest first and breaks created-at ties by id", () =>
     Effect.gen(function* () {
@@ -350,16 +362,17 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
     () =>
       Effect.gen(function* () {
         yield* reset
-        const { parent } = yield* (yield* seed()).listing
+        const seededCatalog = yield* seed()
+        const listing2 = yield* seededCatalog.listing
+        const parent = listing2.parent
         const service = yield* Scrapes
         const scrape = yield* successfulScrape(parent, { html: "<p>Kept</p>" })
         expect(yield* service.content(scrape.id)).toEqual(
           Option.some("<p>Kept</p>"),
         )
         // Retention removes the object; the row keeps its key until it expires too.
-        yield* (yield* R2BucketTest).service.delete([
-          Option.getOrThrow(scrape.htmlR2Key),
-        ])
+        const bucketTest = yield* R2BucketTest
+        yield* bucketTest.service.delete([Option.getOrThrow(scrape.htmlR2Key)])
         expect(yield* service.content(scrape.id)).toEqual(Option.none())
         const pending = yield* service.trigger({ parent })
         expect(yield* service.content(pending.id)).toEqual(Option.none())

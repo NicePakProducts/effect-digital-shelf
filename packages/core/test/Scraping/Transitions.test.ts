@@ -1,4 +1,4 @@
-import { transitionExtraction } from "@digital-shelf/core/Scraping/Transitions"
+import { Transitions } from "@digital-shelf/core/Scraping/Transitions"
 import * as Effect from "effect/Effect"
 import * as CoreTest from "../layers/Core.ts"
 import {
@@ -51,27 +51,27 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "conditional writes classify apply, replay and rejected late outcomes",
       () =>
         Effect.gen(function* () {
+          const transitions = yield* Transitions
+
           yield* reset
 
-          const row = yield* extraction(
-            (yield* successfulScrape((yield* (yield* seed()).listing).parent))
-              .id,
-            1,
-            "pending",
-          )
+          const catalog = yield* seed()
+          const listing = yield* catalog.listing
+          const scrape = yield* successfulScrape(listing.parent)
+          const row = yield* extraction(scrape.id, 1, "pending")
 
           expect(
-            (yield* transitionExtraction(row.id, "pending", "running", {}))
+            (yield* transitions.extraction(row.id, "pending", "running", {}))
               .result,
           ).toBe("applied")
           expect(
-            (yield* transitionExtraction(row.id, "pending", "running", {}))
+            (yield* transitions.extraction(row.id, "pending", "running", {}))
               .result,
           ).toBe("already_applied")
-          yield* transitionExtraction(row.id, "running", "failed", {})
+          yield* transitions.extraction(row.id, "running", "failed", {})
           expect(
             yield* Effect.flip(
-              transitionExtraction(row.id, "running", "success", {}),
+              transitions.extraction(row.id, "running", "success", {}),
             ),
           ).toMatchObject({
             // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
@@ -80,7 +80,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             id: row.id,
             observed: "failed",
           })
-        }),
+        }).pipe(Effect.provide(Transitions.layer)),
     )
   },
 )

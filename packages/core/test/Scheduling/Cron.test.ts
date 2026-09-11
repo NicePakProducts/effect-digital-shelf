@@ -1,5 +1,5 @@
 import { successfulScrape, extraction } from "../fixtures/Scraping.ts"
-import * as ScrapesRepo from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
+import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
 import * as Option from "effect/Option"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Layer from "effect/Layer"
@@ -24,7 +24,8 @@ it.layer(
       yield* reset
       yield* TestClock.setTime(Date.UTC(2026, 8, 9))
       yield* cadenceFixture
-      const report = yield* (yield* Cron).tick()
+      const cron = yield* Cron
+      const report = yield* cron.tick()
       expect(report.phases.map((entry) => entry.phase)).toEqual([
         "stuck",
         "extractionDrain",
@@ -53,8 +54,10 @@ it.layer(
         "failed",
         "100 days",
       )
-      yield* (yield* ExecutionsTest).failNext
-      const report = yield* (yield* Cron).tick()
+      const executionsTest = yield* ExecutionsTest
+      yield* executionsTest.failNext
+      const cron = yield* Cron
+      const report = yield* cron.tick()
       expect(report.phases[2]).toMatchObject({
         phase: "scrapeDrain",
         outcome: "failed",
@@ -74,6 +77,8 @@ it.layer(
     "cron reconciles an orphan and dispatches its due Parent again",
     () =>
       Effect.gen(function* () {
+        const scrapesRepo = yield* ScrapesRepo
+
         yield* reset
         const fixture = yield* seed()
 
@@ -83,23 +88,27 @@ it.layer(
           "25 hours",
         )
 
-        yield* (yield* ExecutionsTest).setStatus("scrape", row.id, "errored")
-        const report = yield* (yield* Cron).tick()
+        const executionsTest = yield* ExecutionsTest
+        yield* executionsTest.setStatus("scrape", row.id, "errored")
+        const cron = yield* Cron
+        const report = yield* cron.tick()
         expect(report.phases[2]).toMatchObject({
           counts: { recoveredFailed: 1, started: 0 },
         })
         expect(report.phases[3]).toMatchObject({
           counts: { created: 1, started: 1 },
         })
-        const failed = yield* ScrapesRepo.get(row.id)
+        const failed = yield* scrapesRepo.get(row.id)
         expect(failed.status).toBe("failed")
         expect(failed.errorCode).toEqual(Option.some("unknown"))
-      }),
+      }).pipe(Effect.provide([ScrapesRepo.layer])),
   )
   it.effect(
     "60 pending rows consume the configured 50-start cap before cadence",
     () =>
       Effect.gen(function* () {
+        const scrapesRepo = yield* ScrapesRepo
+
         yield* reset
         const fixture = yield* seed()
 
@@ -107,20 +116,22 @@ it.layer(
           yield* history((yield* fixture.listing).parent, "pending", "1 hour")
         yield* fixture.listing
         yield* fixture.page
-        const report = yield* (yield* Cron).tick()
+        const cron = yield* Cron
+        const report = yield* cron.tick()
         expect(report.phases[2]).toMatchObject({ counts: { started: 50 } })
         expect(report.phases[3]).toMatchObject({
           outcome: "ok",
           counts: { started: 0, created: 0 },
         })
-        const calls = yield* (yield* ExecutionsTest).calls
+        const executionsTest = yield* ExecutionsTest
+        const calls = yield* executionsTest.calls
         expect(
           calls
             .filter((call) => call.operation === "start")
             .flatMap((call) => call.instances),
         ).toHaveLength(50)
-        expect(yield* ScrapesRepo.listPending(100)).toHaveLength(60)
-      }),
+        expect(yield* scrapesRepo.listPending(100)).toHaveLength(60)
+      }).pipe(Effect.provide([ScrapesRepo.layer])),
   )
 })
 
@@ -149,7 +160,8 @@ it.layer(
           "pending",
         )
       yield* history((yield* catalog.listing).parent, "pending", "1 hour")
-      const report = yield* (yield* Cron).tick()
+      const cron = yield* Cron
+      const report = yield* cron.tick()
       expect(report.phases[1]).toMatchObject({
         phase: "extractionDrain",
         outcome: "ok",
@@ -170,8 +182,10 @@ it.layer(
           "pending",
         )
         yield* history((yield* catalog.listing).parent, "pending", "1 hour")
-        yield* (yield* ExecutionsTest).failNext
-        const report = yield* (yield* Cron).tick()
+        const executionsTest = yield* ExecutionsTest
+        yield* executionsTest.failNext
+        const cron = yield* Cron
+        const report = yield* cron.tick()
         expect(report.phases[1]).toMatchObject({
           phase: "extractionDrain",
           outcome: "failed",
