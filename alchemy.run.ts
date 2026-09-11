@@ -22,6 +22,19 @@ export default Alchemy.Stack(
       token: yield* Config.option(Config.redacted("AXIOM_TOKEN")),
     })
 
+    if (Option.isNone(axiom)) {
+      if (stage === "prod")
+        return yield* Effect.die(
+          new Error(
+            "prod deploy requires AXIOM_DOMAIN and AXIOM_TOKEN: the gateway's OTel export is declared from these values; deploying without them clears it",
+          ),
+        )
+
+      yield* Effect.logWarning(
+        "Axiom telemetry disabled for dev: AXIOM_DOMAIN or AXIOM_TOKEN unset; deploying clears the gateway's OTel exporter",
+      )
+    }
+
     const hostname = (yield* Config.option(
       Config.string("SERVER_HOSTNAME"),
     )).pipe(Option.filter((name) => name !== ""))

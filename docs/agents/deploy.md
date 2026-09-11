@@ -82,20 +82,28 @@ core's defaults because the wizard does not provision them.
 
 When `AXIOM_DOMAIN` and `AXIOM_TOKEN` are set, the Worker exports traces and
 logs to Axiom over OTLP. Each invocation builds an exporter and flushes it
-when its Scope closes; Workflow steps each get their own exporter before
-hibernation. `packages/infra/src/Resources/AiGateway.ts` declares the gateway's
+when its Scope closes; each Workflow step builds and flushes its own exporter
+inside the step, so buffered spans need not survive hibernation.
+`packages/infra/src/Resources/AiGateway.ts` declares the gateway's
 OTel exporter from the same values, including on updates. Both stages share
 `digital-shelf-traces` and `digital-shelf-logs`; the Worker's
 `deployment.environment.name` resource attribute identifies its stage.
-Without either value, Worker export is disabled with one init warning and
-the gateway declares no exporters. Cloudflare's Worker observability is
-disabled; Axiom holds the exported traces and logs.
+Production stack evaluation fails if either Axiom value is absent, before
+declaring resources. Dev warns and declares an empty exporter list, which
+clears any existing gateway exporter, including one configured by hand.
+The gateway exporter needs no dashboard step; deployment applies the declared
+configuration on every update.
+
+Cloudflare's Worker observability is disabled; Axiom retains the exported
+traces and logs. Logs written outside a telemetry region, including the
+init-time "Axiom telemetry disabled" warning, reach only `wrangler tail`.
+A stage running without the Axiom values retains no Worker logs.
 
 **Verify in Axiom.** After an authorised deploy and Scrape, query its ID, for
 example:
 
 ```sh
-axiom query -D ruie -O npbrands-etkr --start-time -2h "['digital-shelf-traces'] | where ['attributes.custom.shelf.scrape.id'] == '<id>'"
+axiom query -D "<your axiom CLI login>" -O npbrands-etkr --start-time -2h "['digital-shelf-traces'] | where ['attributes.custom.shelf.scrape.id'] == '<id>'"
 ```
 
 The exact attribute path depends on how Axiom flattens OTLP attributes;

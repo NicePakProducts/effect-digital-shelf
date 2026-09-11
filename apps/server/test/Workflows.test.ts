@@ -210,6 +210,7 @@ const setup = (
       return value
     })
 
+  // This fixture covers adapter lifetime only; infra Telemetry and Http tests cover the real adapter.
   const telemetry = Layer.effect(
     Tracer.Tracer,
     Effect.gen(function* () {

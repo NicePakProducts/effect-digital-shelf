@@ -58,19 +58,23 @@ export const makeServer = (options: {
           "Axiom telemetry disabled: AXIOM_DOMAIN or AXIOM_TOKEN unset",
         )
 
-      const telemetry: Layer.Layer<never, never, RuntimeContext> = Layer.unwrap(
-        Effect.map(versionMetadata, ({ id }) =>
-          Option.match(axiom, {
-            onNone: () => TelemetryAdapter.layerDisabled(options.stage),
-            onSome: ({ domain, token }) =>
-              TelemetryAdapter.layer({
-                axiomToken: token,
-                axiomDomain: domain,
-                stage: options.stage,
-                versionId: id,
-              }),
-          }),
-        ),
+      // Contravariant output hides the exporter registry and unifies both branches.
+      const telemetry: Layer.Layer<never, never, RuntimeContext> = Option.match(
+        axiom,
+        {
+          onNone: () => TelemetryAdapter.layerDisabled(options.stage),
+          onSome: ({ domain, token }) =>
+            Layer.unwrap(
+              Effect.map(versionMetadata, ({ id }) =>
+                TelemetryAdapter.layer({
+                  axiomToken: token,
+                  axiomDomain: domain,
+                  stage: options.stage,
+                  versionId: id,
+                }),
+              ),
+            ),
+        },
       )
 
       const hyperdrive = yield* Cloudflare.Hyperdrive.Connect(
@@ -124,20 +128,19 @@ export const makeServer = (options: {
 
       yield* Cloudflare.Workers.cron("* * * * *", () =>
         Effect.gen(function* () {
-          const report = yield* (yield* Cron).tick()
-          yield* Effect.logInfo(JSON.stringify(report))
-        }).pipe(
-          Effect.provide(
-            Core.Cron.pipe(
-              Layer.provide(adapters),
-              Layer.provideMerge(telemetry),
+          const context = yield* Layer.build(telemetry)
+
+          return yield* Effect.gen(function* () {
+            const report = yield* (yield* Cron).tick()
+            yield* Effect.logInfo(JSON.stringify(report))
+          }).pipe(
+            Effect.provide(Core.Cron.pipe(Layer.provide(adapters))),
+            Effect.catchCause((cause) =>
+              Effect.logError("Cron invocation failed", cause),
             ),
-          ),
-          Effect.scoped,
-          Effect.catchCause((cause) =>
-            Effect.logError("Cron invocation failed", cause),
-          ),
-        ),
+            Effect.provideContext(context),
+          )
+        }).pipe(Effect.scoped),
       )
 
       const appLayer = Http.layer(options.stage).pipe(

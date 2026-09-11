@@ -27,7 +27,10 @@ const platform = Layer.mergeAll(
   }),
 )
 
-/** Alchemy closes the request Scope after the response, inside waitUntil. */
+/**
+ * Builds telemetry and the application layers into Alchemy's request Scope.
+ * Alchemy closes that Scope after the response, inside ctx.waitUntil.
+ */
 export const fetch = <A, E, R, T, R2>(
   appLayer: Layer.Layer<A, E, R>,
   telemetry: Layer.Layer<T, never, R2>,

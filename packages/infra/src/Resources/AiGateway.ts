@@ -16,6 +16,7 @@ export const otelOf = (axiom: Option.Option<Axiom>): GatewayOtel[] =>
       {
         url: `https://${domain}/v1/traces`,
         headers: {
+          // The API needs the literal header, so the unwrapped token is cleartext in Alchemy state (#64).
           Authorization: `Bearer ${Redacted.value(token)}`,
           "X-Axiom-Dataset": "digital-shelf-traces",
         },
@@ -29,6 +30,6 @@ export const make = (stage: Stage, axiom: Option.Option<Axiom>) =>
     id: resourceName(stage, "ai-gateway"),
     collectLogs: true,
     authentication: true,
-    // Omitting otel wipes the exporter on any gateway update (#64).
+    // An empty array clears the exporter just as omission does; declared state is authoritative (#64).
     otel: otelOf(axiom),
   }).pipe(RemovalPolicy.retain(stage === "prod"))

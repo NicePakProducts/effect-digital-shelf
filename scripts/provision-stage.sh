@@ -648,23 +648,9 @@ pause
 
 # ── 10 · AI Gateway OpenTelemetry export ──────────────────────────────────
 stage_10() {
-stage "AI Gateway: OpenTelemetry export to Axiom (only once the gateway exists)"
-out=$(cf GET "/accounts/$ACCOUNT_ID/ai-gateway/gateways/$GATEWAY_NAME")
-if [[ "$(printf '%s' "$out" | jq -r '.success // false')" == "true" ]]; then
-  say "Gateway '$GATEWAY_NAME' exists. Point its OTel exporter at the $STAGE traces dataset."
-  open_url "https://dash.cloudflare.com/?to=/:account/ai/ai-gateway"
-  step "Open '$GATEWAY_NAME' → Settings → OpenTelemetry export → add an exporter:"
-  note "    URL           https://$AXIOM_DOMAIN/v1/traces"
-  note "    Headers       Authorization: Bearer <the $STAGE Axiom token>"
-  note "                  X-Axiom-Dataset: $TRACES_DATASET"
-  note "    Content type  protobuf"
-  note "The telemetry landing (#40) keeps it on only if the exported span carries no prompt or completion payload."
-  pause "Configured (or deliberately skipped)? Press Enter."
-else
-  warn "gateway '$GATEWAY_NAME' does not exist yet; it is created by the infra landing (#37)."
-  say "Re-run this wizard after that deploy (every other stage keeps its saved values) to configure the export."
-  SKIPPED+=("AI Gateway OTel export for $GATEWAY_NAME → https://$AXIOM_DOMAIN/v1/traces with X-Axiom-Dataset: $TRACES_DATASET (after #37)")
-fi
+stage "AI Gateway: OpenTelemetry export declared by deployment"
+note "packages/infra/src/Resources/AiGateway.ts declares the exporter from AXIOM_DOMAIN and AXIOM_TOKEN."
+note "No dashboard step is needed; deployment applies the declared configuration."
 }
 
 # ── run ─────────────────────────────────────────────────────────────────────
