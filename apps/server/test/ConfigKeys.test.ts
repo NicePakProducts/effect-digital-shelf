@@ -12,9 +12,12 @@ import {
 
 const core = resolve(import.meta.dirname, "../../../packages/core/src")
 
-const sources = readdirSync(core, { recursive: true })
-  .filter((file) => typeof file === "string" && file.endsWith(".ts"))
-  .map((file) => readFileSync(resolve(core, String(file)), "utf8"))
+const sources = readdirSync(core, {
+  recursive: true,
+  encoding: "utf8",
+}).flatMap((file) =>
+  file.endsWith(".ts") ? [readFileSync(resolve(core, file), "utf8")] : [],
+)
 
 describe("config binding coverage", () => {
   it("includes every literal core Config key, including multiline calls", () => {

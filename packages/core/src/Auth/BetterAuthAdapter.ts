@@ -27,12 +27,12 @@ import {
   sql,
   getTableColumns,
   is,
-  Table,
   type SQL,
 } from "drizzle-orm"
-import type { PgTable, PgColumn } from "drizzle-orm/pg-core"
+import { PgTable, type PgColumn } from "drizzle-orm/pg-core"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core"
 import * as Context from "effect/Context"
+import * as Schema from "effect/Schema"
 import * as Effect from "effect/Effect"
 import { Db, type Database } from "../Sql/Db.ts"
 import { query } from "../Sql/Errors.ts"
@@ -99,14 +99,14 @@ export const makeAdapter = (
     },
     adapter: ({ getFieldName }) => {
       const getSchema = (model: string): PgTable => {
-        const table = (Sql as Record<string, unknown>)[model]
+        const table = new Map(Object.entries(Sql)).get(model)
 
-        if (!is(table, Table))
+        if (!is(table, PgTable))
           throw new BetterAuthError(
             `[# Drizzle Adapter]: The model "${model}" was not found in the schema object. Please pass the schema directly to the adapter options.`,
           )
 
-        return table as PgTable
+        return table
       }
 
       const column = (model: string, field: string): PgColumn => {
@@ -126,14 +126,14 @@ export const makeAdapter = (
 
         const insensitive =
           w.mode === "insensitive" &&
-          (typeof w.value === "string" ||
+          (Schema.is(Schema.String)(w.value) ||
             (Array.isArray(w.value) &&
-              w.value.every((v) => typeof v === "string")))
+              w.value.every((v) => Schema.is(Schema.String)(v))))
 
         const operand = sql`lower(${col})`
 
         const value =
-          insensitive && typeof w.value === "string"
+          insensitive && Schema.is(Schema.String)(w.value)
             ? w.value.toLowerCase()
             : w.value
 
@@ -156,7 +156,8 @@ export const makeAdapter = (
               : notInArray(col, values)
         }
 
-        const insensitiveString = insensitive && typeof w.value === "string"
+        const insensitiveString =
+          insensitive && Schema.is(Schema.String)(w.value)
 
         if (w.operator === "contains")
           return (insensitiveString ? ilike : like)(col, `%${String(w.value)}%`)
@@ -220,6 +221,7 @@ export const makeAdapter = (
 
       const checkMissingFields = (
         model: string,
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Better Auth's model-generic adapter contract carries field values as unknown; the factory owns transforms.
         values: Record<string, unknown>,
       ) => {
         const columns = getTableColumns(getSchema(model))
@@ -242,16 +244,19 @@ export const makeAdapter = (
 
       const withReturning = async <T>(builder: {
         returning: () => Effect.Effect<
+          // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Better Auth's model-generic adapter contract carries field values as unknown; the factory owns transforms.
           ReadonlyArray<Record<string, unknown>>,
           EffectDrizzleQueryError
         >
       }): Promise<T | null> =>
+        // SAFETY: Better Auth chooses T for the model passed to this returning builder; the factory owns field transforms.
         ((await run(builder.returning()))[0] as T) ?? null
 
       return {
         async create({ model, data }) {
           checkMissingFields(model, data)
 
+          // SAFETY: The same model validates data and supplies the returning row; Better Auth applies its output transforms.
           return (
             await run(db.insert(getSchema(model)).values(data).returning())
           )[0] as typeof data
@@ -272,6 +277,7 @@ export const makeAdapter = (
               .where(convertWhereClause(where, model)),
           )
 
+          // SAFETY: Better Auth supplies T for this model and projection; selection resolves every requested field against that table.
           return (rows[0] as T) ?? null
         },
         async findMany<T>({
@@ -305,6 +311,7 @@ export const makeAdapter = (
               ),
             )
 
+          // SAFETY: Better Auth supplies T for this model and projection; the query reads precisely that selection.
           return (await run(
             builder.where(convertWhereClause(where, model)),
           )) as T[]
@@ -328,9 +335,11 @@ export const makeAdapter = (
           where: CleanedWhere[]
           update: T
         }) {
+          // SAFETY: Better Auth supplies update as the selected model's field dictionary; its generic T erases that constraint.
           return withReturning<T>(
             db
               .update(getSchema(model))
+              // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Better Auth's model-generic adapter contract carries field values as unknown; the factory owns transforms.
               .set(update as Record<string, unknown>)
               .where(convertWhereClause(where, model)),
           )
@@ -388,10 +397,12 @@ export const makeAdapter = (
           model: string
           where: CleanedWhere[]
           increment: Record<string, number>
+          // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Better Auth's model-generic adapter contract carries field values as unknown; the factory owns transforms.
           set?: Record<string, unknown> | undefined
         }) {
           const table = getSchema(model)
           const id = column(model, "id")
+          // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Better Auth's model-generic adapter contract carries field values as unknown; the factory owns transforms.
           const assignments: Record<string, unknown> = {}
 
           for (const [field, delta] of Object.entries(increment))

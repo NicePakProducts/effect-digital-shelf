@@ -1,3 +1,4 @@
+import { CascadeRoot } from "./repositories/CascadeRepo.ts"
 import {
   RetailerDomain,
   hostMatches,
@@ -160,10 +161,10 @@ const make = Effect.gen(function* () {
             yield* refuseStrandedChildren(id, domain)
           }
 
-          return yield* Repo.update(id, {
-            ...patch,
-            ...(domain === undefined ? {} : { domain }),
-          })
+          return yield* Repo.update(
+            id,
+            domain === undefined ? patch : { ...patch, domain },
+          )
         }),
       )
       .pipe(
@@ -186,12 +187,14 @@ const make = Effect.gen(function* () {
   const impact = Effect.fn("Retailers.impact")(function* (id: RetailerId) {
     yield* Repo.get(id)
 
-    return yield* cascade.impact({ _tag: "Retailer", id })
+    return yield* cascade.impact(CascadeRoot.Retailer({ id }))
   }, withDb)
 
   const remove = Effect.fn("Retailers.remove")(function* (id: RetailerId) {
-    return (yield* cascade.remove({ _tag: "Retailer", id }, Repo.remove(id)))
-      .impact
+    return (yield* cascade.remove(
+      CascadeRoot.Retailer({ id }),
+      Repo.remove(id),
+    )).impact
   }, withDb)
 
   return { create, update, get, list, impact, remove }

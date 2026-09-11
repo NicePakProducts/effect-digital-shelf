@@ -280,6 +280,7 @@ describe("Executions adapter", () => {
             ),
           ),
         ).toMatchObject({
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- This partial assertion omits cause; it does not construct an ExecutionsError.
           _tag: "ExecutionsError",
           operation: "start",
           kind: "scrape",

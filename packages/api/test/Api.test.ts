@@ -27,6 +27,7 @@ const platform = HttpPlatform.layer.pipe(
 const auth = Layer.succeed(Auth, {
   getSession: () => Effect.succeed(Option.none()),
   handle: () => Effect.die(new Error("Auth routes are mounted by the app")),
+  // SAFETY: The API only calls getSession; the Better Auth api is never read.
   api: undefined as never,
 })
 

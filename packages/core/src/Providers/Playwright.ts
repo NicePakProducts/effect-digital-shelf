@@ -1,11 +1,11 @@
 import type { ScrapeEnvelope } from "@digital-shelf/domain/Scraping/ScrapeEnvelope"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 import * as Option from "effect/Option"
 import type { BrowserBinding } from "./BrowserRendering.ts"
 import {
   ScrapeProviderError,
-  type ScrapeProviderErrorCode,
   type ScrapeRequest,
   type ScrapeResult,
 } from "./ScrapeProviders.ts"
@@ -46,6 +46,7 @@ export interface Page {
    * `navigator.userAgent` as `"Cloudflare-Workers"` at build time, so a
    * function body would be rewritten before Playwright serialised it (#18).
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- Playwright string evaluate returns unknown; the capture boundary decodes it.
   readonly evaluate: (expression: string) => Promise<unknown>
   readonly content: () => Promise<string>
 }
@@ -81,16 +82,15 @@ export type Launch = (binding: BrowserBinding) => Promise<Browser>
  * Deferred import: `@cloudflare/playwright` imports `cloudflare:workers` at
  * module top level, and Alchemy evaluates the Worker and Workflow init graph
  * in Node at deploy time, where a static import fails the deploy with
- * "Received protocol 'cloudflare:'" (#18). The two casts the library's
- * `BrowserWorker` parameter and augmented `Browser` type demand live here,
+ * "Received protocol 'cloudflare:'" (#18). The cast bridging the library's
+ * `BrowserWorker` parameter to the platform binding lives here,
  * once, and nowhere else in core.
  */
 export const launchOnWorkerd: Launch = async (binding) => {
-  const playwright = (await import("@cloudflare/playwright")) as unknown as {
-    readonly launch: (endpoint: unknown) => Promise<Browser>
-  }
+  const playwright = await import("@cloudflare/playwright")
 
-  return playwright.launch(binding)
+  // SAFETY: The platform supplies the Browser Rendering fetch binding; only the incompatible DOM and Workers fetch declarations differ.
+  return playwright.launch(binding as Parameters<typeof playwright.launch>[0])
 }
 
 const messageOf = (cause: unknown) =>
@@ -105,7 +105,7 @@ type Phase = "session" | "navigate" | "capture"
 export const classify = (
   phase: Phase,
   cause: unknown,
-): { readonly code: ScrapeProviderErrorCode; readonly retryable: boolean } => {
+): Pick<ScrapeProviderError, "code" | "retryable"> => {
   const message = messageOf(cause)
 
   // A session that never launched is the provider failing, not the target.
@@ -208,7 +208,9 @@ export const fetchOnce = (options: {
       responseHeaders,
       cookies,
       innerText,
-      userAgent: typeof userAgent === "string" ? userAgent : "",
+      userAgent: Schema.decodeUnknownOption(Schema.String)(userAgent).pipe(
+        Option.getOrElse(() => ""),
+      ),
       ipInfo: Option.none(),
       type: "html",
       session: Option.some(browser.sessionId()),

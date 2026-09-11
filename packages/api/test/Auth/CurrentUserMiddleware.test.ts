@@ -10,6 +10,7 @@ import * as Middleware from "@digital-shelf/api/Auth/CurrentUserMiddleware"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Result from "effect/Result"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 
@@ -33,6 +34,7 @@ for (const authenticated of [true, false]) {
           )
         },
         handle: () => Effect.succeed(new Response()),
+        // SAFETY: The middleware only calls getSession; api is never read.
         api: undefined as never,
       })
 
@@ -46,6 +48,7 @@ for (const authenticated of [true, false]) {
           return HttpServerResponse.text("ok")
         })
 
+        // SAFETY: This middleware ignores its options; the value is never read.
         const result = yield* middleware(handler, undefined as never).pipe(
           Effect.result,
         )
@@ -56,7 +59,7 @@ for (const authenticated of [true, false]) {
         else {
           expect(result._tag).toBe("Failure")
 
-          if (result._tag === "Failure")
+          if (Result.isFailure(result))
             expect(result.failure).toBeInstanceOf(HttpApiError.Unauthorized)
         }
       }).pipe(

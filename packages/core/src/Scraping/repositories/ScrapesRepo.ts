@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate"
 import { ScrapeNotFound } from "@digital-shelf/domain/Scraping/Errors"
 import {
   Scrape,
@@ -78,7 +79,7 @@ export const findInFlight = Effect.fn("ScrapesRepo.findInFlight")(function* (
         .from(scrapes)
         .where(
           and(
-            parent._tag === "Listing"
+            Predicate.isTagged(parent, "Listing")
               ? eq(scrapes.listingId, parent.listingId)
               : eq(scrapes.pageId, parent.pageId),
             inArray(scrapes.status, ["pending", "running"]),
@@ -264,7 +265,7 @@ export const mostRecentSuccessful = Effect.fn(
         .from(scrapes)
         .where(
           and(
-            parent._tag === "Listing"
+            Predicate.isTagged(parent, "Listing")
               ? eq(scrapes.listingId, parent.listingId)
               : eq(scrapes.pageId, parent.pageId),
             eq(scrapes.status, "success"),

@@ -5,7 +5,8 @@ import { RootApi } from "../src/RootApi.ts"
 
 const spec = OpenApi.fromApi(RootApi)
 
-const codesOf = (responses: object) => Object.keys(responses).sort()
+const codesOf = (responses: OpenApi.OpenAPISpecResponses) =>
+  Object.keys(responses).sort()
 
 describe("RootApi", () => {
   it("matches the OpenAPI contract snapshot", async () => {
@@ -284,7 +285,7 @@ describe("RootApi", () => {
         ["PageNotFound", "UrlHostMismatch"],
       ],
     ] as const) {
-      const names = (responses: object) =>
+      const names = (responses: OpenApi.OpenAPISpecResponses) =>
         Array.from(
           JSON.stringify(responses).matchAll(
             /#\/components\/schemas\/([A-Za-z]+)Encoded/g,

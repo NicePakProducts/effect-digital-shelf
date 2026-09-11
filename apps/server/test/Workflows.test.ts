@@ -2,12 +2,12 @@ import { describe, expect, it } from "@effect/vitest"
 import {
   ScrapeRunner,
   type FetchTarget,
-  type FetchOutcome,
+  FetchOutcome,
 } from "@digital-shelf/core/Scraping/ScrapeRunner"
 import {
   ExtractionRunner,
   type ExtractTarget,
-  type ExtractOutcome,
+  ExtractOutcome,
 } from "@digital-shelf/core/Scraping/ExtractionRunner"
 import { TransitionRejected } from "@digital-shelf/core/Scraping/Transitions"
 import {
@@ -17,6 +17,7 @@ import {
 } from "@digital-shelf/domain/Shared/Ids"
 import {
   WorkflowStep,
+  type WorkflowStepConfig,
   type WorkflowTaskOptions,
 } from "alchemy/Cloudflare/Workflows"
 import * as Cause from "effect/Cause"
@@ -54,8 +55,7 @@ const fetchTarget: FetchTarget = {
   rootSpanId,
 }
 
-const fetchOutcome: FetchOutcome = {
-  _tag: "fetched",
+const fetchOutcome = FetchOutcome.members[0].make({
   htmlKey: "html/key",
   rawKey: "raw/key",
   truncated: false,
@@ -72,7 +72,7 @@ const fetchOutcome: FetchOutcome = {
     raw: {},
     attempts: 1,
   },
-}
+})
 
 const extractTarget: ExtractTarget = {
   scrapeId: id,
@@ -83,12 +83,11 @@ const extractTarget: ExtractTarget = {
   rootSpanId,
 }
 
-const extractOutcome: ExtractOutcome = {
-  _tag: "extracted",
+const extractOutcome = ExtractOutcome.members[0].make({
   data: { price: 1 },
   finishReason: "stop",
   usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
-}
+})
 
 const setup = (
   options: { reject?: string; crash?: string; noExtraction?: boolean } = {},
@@ -100,7 +99,15 @@ const setup = (
     closed: number[] = []
 
   const spans: { traceId: string; parent: string | undefined }[] = []
-  const configs: Record<string, unknown> = {}
+
+  const configs: Record<
+    string,
+    {
+      timeout: WorkflowStepConfig["timeout"]
+      retries: WorkflowStepConfig["retries"]
+    }
+  > = {}
+
   let active = 0
 
   const observe = (name: string) =>
@@ -210,11 +217,8 @@ const setup = (
 
         // Checkpoints cross a JSON boundary; exceptions lose their tagged identity.
         if (checkpoint.has(task.name))
-          return Effect.succeed(
-            Schema.decodeUnknownSync(Schema.Unknown)(
-              checkpoint.get(task.name),
-            ) as T,
-          )
+          // SAFETY: Each name replays only its own task's previously saved T.
+          return Effect.succeed(checkpoint.get(task.name) as T)
 
         return task.effect.pipe(
           Effect.map((value) => {
@@ -296,6 +300,7 @@ for (const kind of ["scrape", "extraction"] as const)
             expect(env.called).toEqual(before)
             expect(env.called.at(-1)).toBe(`${kind}.${name}`)
             expect(env.called).not.toContain(`${kind}.fail`)
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- The persisted stop envelope has no exported constructor; assert its serialized shape.
             expect(env.checkpoint.get(name)).toEqual({ _tag: "stopped" })
             expect(env.closed).toEqual(env.opened)
           })

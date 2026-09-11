@@ -1,3 +1,4 @@
+import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
 import { Db } from "@digital-shelf/core/Sql/Db"
 import { query } from "@digital-shelf/core/Sql/Errors"
 import { keysOf } from "@digital-shelf/core/Scraping/R2Keys"
@@ -42,7 +43,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
 
         for (const age of ["2 hours", "1 hour"] as const) {
           const scrape = yield* history(
-            { _tag: "Page", pageId: row.id },
+            ScrapeParent.members[1].make({ pageId: row.id }),
             "success",
             age,
           )
@@ -141,7 +142,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         })
 
         expect(page.combinedStatus).toBe("none")
-        yield* history({ _tag: "Page", pageId: page.id }, "running", "1 minute")
+        yield* history(
+          ScrapeParent.members[1].make({ pageId: page.id }),
+          "running",
+          "1 minute",
+        )
         expect((yield* pages.get(page.id)).combinedStatus).toBe("running")
         expect((yield* pages.list())[0]?.combinedStatus).toBe("running")
       }),

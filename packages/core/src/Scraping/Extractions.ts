@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate"
 import { extractionModel } from "../Providers/LanguageModel.ts"
 import type { SqlError } from "effect/unstable/sql/SqlError"
 import {
@@ -19,9 +20,10 @@ import {
   parentKind,
   type ScrapeParent,
 } from "@digital-shelf/domain/Scraping/Scrape"
-import type {
+import {
   BulkReExtract,
   TriggerExtraction,
+  BulkScrape,
 } from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import type {
   ExtractionStatus,
@@ -132,19 +134,18 @@ const make = Effect.gen(function* () {
   const trigger = Effect.fn("Extractions.trigger")(function* (
     command: TriggerExtraction,
   ) {
-    const scrape =
-      command._tag === "Scrape"
-        ? yield* ScrapesRepo.get(command.scrapeId)
-        : yield* Effect.gen(function* () {
-            yield* requireTarget(command.parent)
-            const row = yield* ScrapesRepo.mostRecentSuccessful(command.parent)
+    const scrape = Predicate.isTagged(command, "Scrape")
+      ? yield* ScrapesRepo.get(command.scrapeId)
+      : yield* Effect.gen(function* () {
+          yield* requireTarget(command.parent)
+          const row = yield* ScrapesRepo.mostRecentSuccessful(command.parent)
 
-            return yield* Effect.fromOption(row).pipe(
-              Effect.mapError(
-                () => new NoSuccessfulScrape({ parent: command.parent }),
-              ),
-            )
-          })
+          return yield* Effect.fromOption(row).pipe(
+            Effect.mapError(
+              () => new NoSuccessfulScrape({ parent: command.parent }),
+            ),
+          )
+        })
 
     if (scrape.status !== "success")
       return yield* new ScrapeNotReExtractable({
@@ -212,10 +213,11 @@ const make = Effect.gen(function* () {
     command: BulkReExtract,
   ) {
     if (
-      !(yield* ParentsRepo.containerExists({
-        _tag: "Retailer",
-        retailerId: command.retailerId,
-      }))
+      !(yield* ParentsRepo.containerExists(
+        BulkScrape.members[2].make({
+          retailerId: command.retailerId,
+        }),
+      ))
     )
       return yield* new RetailerNotFound({ retailerId: command.retailerId })
 
@@ -397,7 +399,9 @@ const make = Effect.gen(function* () {
     "Extractions.latestExtractedDataForProduct",
   )(function* (id: ProductId) {
     if (
-      !(yield* ParentsRepo.containerExists({ _tag: "Product", productId: id }))
+      !(yield* ParentsRepo.containerExists(
+        BulkScrape.members[1].make({ productId: id }),
+      ))
     )
       return yield* new ProductNotFound({ productId: id })
 

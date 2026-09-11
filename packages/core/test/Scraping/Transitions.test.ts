@@ -74,6 +74,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               transitionExtraction(row.id, "running", "success", {}),
             ),
           ).toMatchObject({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
             _tag: "TransitionRejected",
             kind: "extraction",
             id: row.id,

@@ -1,3 +1,4 @@
+import { CascadeRoot } from "./repositories/CascadeRepo.ts"
 import type {
   CreateProduct,
   UpdateProduct,
@@ -47,14 +48,14 @@ const make = Effect.gen(function* () {
   })
 
   const remove = Effect.fn("Products.remove")(function* (id: ProductId) {
-    return (yield* cascade.remove({ _tag: "Product", id }, Repo.remove(id)))
+    return (yield* cascade.remove(CascadeRoot.Product({ id }), Repo.remove(id)))
       .impact
   }, withDb)
 
   const impact = Effect.fn("Products.impact")(function* (id: ProductId) {
     yield* Repo.get(id)
 
-    return yield* cascade.impact({ _tag: "Product", id })
+    return yield* cascade.impact(CascadeRoot.Product({ id }))
   }, withDb)
 
   return { create, update, get, list, remove, impact }

@@ -9,7 +9,7 @@ import { CreateListing } from "@digital-shelf/domain/Catalog/ListingManagement"
 import { BrandNotFound } from "@digital-shelf/domain/Catalog/Errors"
 import { Retailer } from "@digital-shelf/domain/Catalog/Retailer"
 import * as Scrape from "@digital-shelf/domain/Scraping/Scrape"
-import { BrandId } from "@digital-shelf/domain/Shared/Ids"
+import { BrandId, ListingId, PageId } from "@digital-shelf/domain/Shared/Ids"
 import { brands, scrapes } from "@digital-shelf/domain/Sql/index"
 
 const uuid = (n: number) =>
@@ -145,12 +145,15 @@ describe("Scrape", () => {
     expect(scrapeKeysMatchRow).toBe(true)
     const scrape = Schema.decodeUnknownSync(Scrape.Scrape)(row(uuid(4), null))
     expect(Option.isNone(scrape.startedAt)).toBe(true)
-    expect(Scrape.parent(scrape)).toEqual({
-      _tag: "Listing",
-      listingId: uuid(4),
-    })
+    expect(Scrape.parent(scrape)).toEqual(
+      Scrape.ScrapeParent.members[0].make({
+        listingId: ListingId.make(uuid(4)),
+      }),
+    )
     const page = Schema.decodeUnknownSync(Scrape.Scrape)(row(null, uuid(5)))
-    expect(Scrape.parent(page)).toEqual({ _tag: "Page", pageId: uuid(5) })
+    expect(Scrape.parent(page)).toEqual(
+      Scrape.ScrapeParent.members[1].make({ pageId: PageId.make(uuid(5)) }),
+    )
     expect(Scrape.parentKind(Scrape.parent(page))).toBe("page")
   })
 
@@ -209,6 +212,7 @@ describe("commands and errors", () => {
         new BrandNotFound({ brandId }),
       )
 
+      // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Check the encoded wire tag independently of the error constructor.
       expect(encoded).toEqual({ _tag: "BrandNotFound", brandId })
     }),
   )

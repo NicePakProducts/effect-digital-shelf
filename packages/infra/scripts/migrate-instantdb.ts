@@ -64,10 +64,13 @@ type Table = keyof typeof tables
 
 type EntityName = Exclude<Table, "listing_variants">
 
-interface Entity {
-  id: string
-  [key: string]: unknown
-}
+const SourceObject = Schema.Record(Schema.String, Schema.Unknown)
+
+const Entity = Schema.StructWithRest(Schema.Struct({ id: Schema.String }), [
+  SourceObject,
+])
+
+type Entity = typeof Entity.Type
 
 type Snapshot = { exportedAt: string } & Record<EntityName, Entity[]>
 
@@ -96,11 +99,12 @@ const entityNames = Object.keys(tables).filter(
   (name): name is EntityName => name !== "listing_variants",
 )
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value)
+const isRecord = Schema.is(SourceObject)
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- InstantDB attributes are normalized before per-row validation so invalid values remain reportable.
 const absentJson = (value: unknown) =>
   value == null ||
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Legacy empty objects and arrays both mean absent JSON; retain this normalization before validation.
   (typeof value === "object" && Object.keys(value).length === 0)
     ? null
     : value
@@ -109,6 +113,7 @@ type DropReason = "expired" | "excluded" | "invalid"
 
 function problem(
   field: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Migration diagnostics retain the original invalid attribute without narrowing or discarding it.
   original: unknown,
   reason: string,
   omission: Exclude<DropReason, "expired"> | null = null,
@@ -121,11 +126,11 @@ function problem(
 }
 
 const text = (r: Entity, field: string): string => {
-  const value = r[field]
+  const value = Schema.decodeUnknownOption(Schema.String)(r[field])
 
-  if (typeof value !== "string") problem(field, value, "expected a string")
+  if (Option.isNone(value)) problem(field, r[field], "expected a string")
 
-  return value
+  return value.value
 }
 
 const optionalText = (r: Entity, field: string) =>
@@ -134,11 +139,11 @@ const optionalText = (r: Entity, field: string) =>
 const absentText = (r: Entity, field: string) => optionalText(r, field) || null
 
 const boolean = (r: Entity, field: string): boolean => {
-  const value = r[field]
+  const value = Schema.decodeUnknownOption(Schema.Boolean)(r[field])
 
-  if (typeof value !== "boolean") problem(field, value, "expected a boolean")
+  if (Option.isNone(value)) problem(field, r[field], "expected a boolean")
 
-  return value
+  return value.value
 }
 
 const integer = (r: Entity, field: string): number | null => {
@@ -146,22 +151,28 @@ const integer = (r: Entity, field: string): number | null => {
 
   if (value == null) return null
 
-  if (typeof value !== "number") problem(field, value, "expected a number")
+  const number = Schema.decodeUnknownOption(Schema.Number)(value)
 
-  return value
+  if (Option.isNone(number)) problem(field, value, "expected a number")
+
+  return number.value
 }
 
+const TimestampText = Schema.String.check(
+  Schema.isPattern(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/,
+  ),
+)
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- This decoder accepts raw snapshot timestamps and reports invalid values against their source field.
 const date = (value: unknown, field: string): Date => {
-  if (
-    typeof value !== "string" ||
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(
-      value,
-    )
-  ) {
+  const timestamp = Schema.decodeUnknownOption(TimestampText)(value)
+
+  if (Option.isNone(timestamp)) {
     problem(field, value, "expected an ISO timestamp with timezone")
   }
 
-  const result = new Date(value)
+  const result = new Date(timestamp.value)
 
   if (!Number.isFinite(result.getTime()))
     problem(field, value, "invalid timestamp")
@@ -178,6 +189,8 @@ const timestamps = (r: Entity) => ({
   updatedAt: date(r.updatedAt, "updatedAt"),
 })
 
+const LinkedEntity = Schema.Struct({ id: Schema.String })
+
 const links = (r: Entity, field: string): string[] => {
   const value = r[field]
 
@@ -185,11 +198,13 @@ const links = (r: Entity, field: string): string[] => {
     return problem(field, value, "expected an array of link ids")
 
   return value.map((link) => {
-    if (!isRecord(link) || typeof link.id !== "string") {
+    const linked = Schema.decodeUnknownOption(LinkedEntity)(link)
+
+    if (Option.isNone(linked)) {
       return problem(field, value, "expected a linked id")
     }
 
-    return link.id
+    return linked.value.id
   })
 }
 
@@ -206,6 +221,7 @@ const literal = <A extends string>(
   values: readonly A[],
   field: string,
   value: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Audit reports retain the pre-normalization InstantDB value when a literal is invalid.
   original: unknown = value,
 ): A => {
   const match = values.find((allowed) => allowed === value)
@@ -216,24 +232,27 @@ const literal = <A extends string>(
   return match
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- This is the JSON input boundary; decode the envelope and ids before per-row attribute validation.
 const snapshotFrom = (value: unknown): Snapshot => {
-  if (!isRecord(value)) throw new Error("Snapshot must be an object")
-  date(value.exportedAt, "exportedAt")
+  const decoded = Schema.decodeUnknownOption(SourceObject)(value)
+
+  if (Option.isNone(decoded)) throw new Error("Snapshot must be an object")
+  const snapshot = decoded.value
+  date(snapshot.exportedAt, "exportedAt")
 
   for (const entity of entityNames) {
-    const rows = value[entity]
+    const rows = Schema.decodeUnknownOption(Schema.Array(Entity))(
+      snapshot[entity],
+    )
 
-    if (
-      !Array.isArray(rows) ||
-      rows.some((r) => !isRecord(r) || typeof r.id !== "string")
-    ) {
+    if (Option.isNone(rows)) {
       throw new Error(`Snapshot ${entity} must contain objects with string ids`)
     }
   }
 
   // SAFETY: The envelope and ids were checked above. Attribute validation is per
   // row below, so invalid source data can be reported and excluded by id.
-  return value as Snapshot
+  return snapshot as Snapshot
 }
 
 function transform(snapshot: Snapshot, options: TransformOptions) {
@@ -689,6 +708,7 @@ const env = (name: string) => {
   return value
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON.stringify accepts arbitrary snapshots and reports, including invalid original attributes retained for audit.
 async function writeJson(file: string, value: unknown) {
   await writeFile(file, `${JSON.stringify(value, null, 2)}\n`)
 }
@@ -736,6 +756,16 @@ async function exportSnapshot(out: string) {
   console.log(`Snapshot written to ${out}`)
 }
 
+const R2Listing = Schema.Struct({
+  success: Schema.Literal(true),
+  result: Schema.Array(Schema.Unknown),
+  result_info: Schema.optional(Schema.Unknown),
+})
+
+const R2Object = Schema.Struct({ key: Schema.String })
+
+const R2PageInfo = Schema.Struct({ cursor: Schema.String })
+
 function r2(bucket: string, account: string, token: string) {
   const base = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/r2/buckets/${encodeURIComponent(bucket)}/objects`
 
@@ -768,27 +798,26 @@ function r2(bucket: string, account: string, token: string) {
         if (cursor) query.set("cursor", cursor)
         const response = await request(`?${query}`)
         check(response)
-        const data: unknown = await response.json()
 
-        if (
-          !isRecord(data) ||
-          data.success !== true ||
-          !Array.isArray(data.result)
+        const data = Schema.decodeUnknownOption(R2Listing)(
+          await response.json(),
         )
-          throw new Error("Invalid R2 object listing")
 
-        for (const object of data.result) {
-          if (!isRecord(object) || typeof object.key !== "string")
+        if (Option.isNone(data)) throw new Error("Invalid R2 object listing")
+
+        for (const object of data.value.result) {
+          const decoded = Schema.decodeUnknownOption(R2Object)(object)
+
+          if (Option.isNone(decoded))
             throw new Error("Invalid key in R2 listing")
-          keys.add(object.key)
+          keys.add(decoded.value.key)
         }
 
-        const info = data.result_info
+        const info = Schema.decodeUnknownOption(R2PageInfo)(
+          data.value.result_info,
+        )
 
-        cursor =
-          isRecord(info) && typeof info.cursor === "string"
-            ? info.cursor
-            : undefined
+        cursor = Option.getOrUndefined(Option.map(info, (page) => page.cursor))
       } while (cursor)
 
       return keys
@@ -1178,6 +1207,7 @@ async function main() {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Promise rejection reasons are unconstrained; the CLI only renders this final failure.
 await main().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : String(error))
   process.exitCode = 1

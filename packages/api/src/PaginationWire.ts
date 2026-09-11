@@ -59,7 +59,7 @@ export const formatCursor = (row: Keyset): string =>
 export const page = <A extends Keyset, W>(
   result: { readonly items: ReadonlyArray<A>; readonly hasMore: boolean },
   toWire: (row: A) => W,
-): { readonly items: ReadonlyArray<W>; readonly nextCursor: string | null } => {
+) => {
   const last = result.items[result.items.length - 1]
 
   return {

@@ -1,3 +1,4 @@
+import { BulkScrape } from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import * as Option from "effect/Option"
 import * as Exit from "effect/Exit"
 import * as Cause from "effect/Cause"
@@ -54,10 +55,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         const service = yield* Scrapes
         yield* service.trigger({ parent: one.parent })
 
-        const report = yield* service.bulk({
-          _tag: "Brand",
-          brandId: fixture.brandId,
-        })
+        const report = yield* service.bulk(
+          BulkScrape.members[0].make({
+            brandId: fixture.brandId,
+          }),
+        )
 
         expect(report.created).toHaveLength(2)
         expect(report.skipped).toEqual([one.parent])
@@ -115,10 +117,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
       for (let i = 0; i < 102; i++) yield* fixture.listing
       const service = yield* Scrapes
 
-      const report = yield* service.bulk({
-        _tag: "Product",
-        productId: fixture.productId,
-      })
+      const report = yield* service.bulk(
+        BulkScrape.members[1].make({
+          productId: fixture.productId,
+        }),
+      )
 
       expect(report.created).toHaveLength(102)
       expect(report.started).toBe(100)
@@ -265,10 +268,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Scrapes", (it) => {
         const pausedPage = yield* fixture.page
         const service = yield* Scrapes
 
-        const report = yield* service.bulk({
-          _tag: "Brand",
-          brandId: fixture.brandId,
-        })
+        const report = yield* service.bulk(
+          BulkScrape.members[0].make({
+            brandId: fixture.brandId,
+          }),
+        )
 
         expect(report.created).toEqual([])
         expect(report.skipped).toEqual([])

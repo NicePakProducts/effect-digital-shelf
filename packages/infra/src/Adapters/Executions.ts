@@ -50,7 +50,13 @@ export interface WorkflowHandle<Params> {
   readonly get: (id: string) => Effect.Effect<WorkflowInstance>
 }
 
+const RpcError = Schema.Struct({
+  message: Schema.optional(Schema.Unknown),
+  cause: Schema.optional(Schema.Unknown),
+})
+
 /** Alchemy uses tryPromise(...).orDie: RPC errors arrive inside UnknownError.cause. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Effect defects from Alchemy RPC are unknown; this boundary decodes each error in the cause chain.
 const matches = (defect: unknown, pattern: RegExp): boolean => {
   const seen = new Set<unknown>()
   let current = defect
@@ -58,36 +64,41 @@ const matches = (defect: unknown, pattern: RegExp): boolean => {
   while (!seen.has(current)) {
     seen.add(current)
 
-    if (typeof current === "string") return pattern.test(current)
+    const text = Schema.decodeUnknownOption(Schema.String)(current)
 
-    if (typeof current !== "object" || current === null) return false
+    if (Option.isSome(text)) return pattern.test(text.value)
 
-    if (
-      "message" in current &&
-      typeof current.message === "string" &&
-      pattern.test(current.message)
+    const error = Schema.decodeUnknownOption(RpcError)(current)
+
+    if (Option.isNone(error)) return false
+
+    const message = Schema.decodeUnknownOption(Schema.String)(
+      error.value.message,
     )
-      return true
 
-    if (!("cause" in current)) return false
-    current = current.cause
+    if (Option.isSome(message) && pattern.test(message.value)) return true
+
+    current = error.value.cause
   }
 
   return false
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Alchemy's catchDefect contract supplies unknown; matches decodes the RPC cause chain.
 const duplicate = (defect: unknown) =>
   matches(
     defect,
     /\binstance\.(?:already_exists|id_conflict)\b|\b(?:instance|id)\b[^\n]*\balready (?:exists|in use|used)\b/i,
   )
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Alchemy's catchDefect contract supplies unknown; matches decodes the RPC cause chain.
 const notFound = (defect: unknown) =>
   matches(
     defect,
     /\binstance\.not_found\b|\binstance\b[^\n]*\b(?:not found|does not exist)\b/i,
   )
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Alchemy's catchDefect contract supplies unknown; matches decodes the RPC cause chain.
 const terminal = (defect: unknown) =>
   matches(
     defect,
@@ -107,8 +118,8 @@ const start = <Params>(
       const ids = new Set(created.map(({ id }) => id))
 
       return {
-        started: batch.filter(({ id }) => ids.has(id)).map(({ id }) => id),
-        skipped: batch.filter(({ id }) => !ids.has(id)).map(({ id }) => id),
+        started: batch.flatMap(({ id }) => (ids.has(id) ? [id] : [])),
+        skipped: batch.flatMap(({ id }) => (ids.has(id) ? [] : [id])),
       }
     }),
     // Live docs say duplicates are omitted; the installed workers-types

@@ -6,6 +6,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Match from "effect/Match"
 import * as Option from "effect/Option"
 
 const fake = () => {
@@ -83,12 +84,12 @@ describe("R2 adapter", () => {
           return Effect.gen(function* () {
             const bucket = yield* R2Bucket
 
-            const call =
-              operation === "put"
-                ? bucket.put("key", "body", "text/plain")
-                : operation === "get"
-                  ? bucket.get("key")
-                  : bucket.delete(["key"])
+            const call = Match.value(operation).pipe(
+              Match.when("put", () => bucket.put("key", "body", "text/plain")),
+              Match.when("get", () => bucket.get("key")),
+              Match.when("delete", () => bucket.delete(["key"])),
+              Match.exhaustive,
+            )
 
             expect(yield* Effect.flip(call)).toEqual(
               new StorageError({ operation, key: "key", cause }),

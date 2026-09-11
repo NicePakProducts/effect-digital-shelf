@@ -1,5 +1,7 @@
+import * as Schema from "effect/Schema"
+
 export function sanitise(raw: string): string {
-  if (typeof raw !== "string" || raw.length === 0) return ""
+  if (!Schema.is(Schema.String)(raw) || raw.length === 0) return ""
   let out = raw
 
   // ── 1. Quote out JSON-LD <script> blocks before any <script> strip ──

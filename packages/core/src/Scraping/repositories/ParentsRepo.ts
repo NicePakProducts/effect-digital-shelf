@@ -1,5 +1,7 @@
+import * as Match from "effect/Match"
+import * as Predicate from "effect/Predicate"
 import { Cadence, Cadences } from "@digital-shelf/domain/Catalog/Cadence"
-import type { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
+import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
 import type { BulkScrape } from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import {
   ScrapeMode,
@@ -56,9 +58,11 @@ export type ScrapeTarget = typeof ScrapeTarget.Type
 
 export const parentOf = (target: ScrapeTarget): ScrapeParent =>
   Option.match(target.listingId, {
-    onSome: (listingId) => ({ _tag: "Listing", listingId }) as const,
+    onSome: (listingId) => ScrapeParent.members[0].make({ listingId }),
     onNone: () =>
-      ({ _tag: "Page", pageId: Option.getOrThrow(target.pageId) }) as const,
+      ScrapeParent.members[1].make({
+        pageId: Option.getOrThrow(target.pageId),
+      }),
   })
 
 const decodeTargets = Rows.decodeAll(ScrapeTarget)
@@ -158,12 +162,11 @@ export const findTarget = Effect.fn("ParentsRepo.findTarget")(function* (
 ) {
   const db = yield* Db
 
-  const rows =
-    parent._tag === "Listing"
-      ? yield* query(
-          listingBase(db).select.where(eq(listings.id, parent.listingId)),
-        )
-      : yield* query(pageBase(db).select.where(eq(pages.id, parent.pageId)))
+  const rows = Predicate.isTagged(parent, "Listing")
+    ? yield* query(
+        listingBase(db).select.where(eq(listings.id, parent.listingId)),
+      )
+    : yield* query(pageBase(db).select.where(eq(pages.id, parent.pageId)))
 
   const targets = yield* decodeTargets(rows)
 
@@ -253,12 +256,12 @@ export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
     const l = listingBase(db)
     const p = pageBase(db)
 
-    const listingScope =
-      scope._tag === "Brand"
-        ? eq(brands.id, scope.brandId)
-        : scope._tag === "Product"
-          ? eq(products.id, scope.productId)
-          : eq(retailers.id, scope.retailerId)
+    const listingScope = Match.value(scope).pipe(
+      Match.tag("Brand", (scope) => eq(brands.id, scope.brandId)),
+      Match.tag("Product", (scope) => eq(products.id, scope.productId)),
+      Match.tag("Retailer", (scope) => eq(retailers.id, scope.retailerId)),
+      Match.exhaustive,
+    )
 
     const listingRows = yield* query(
       l.select
@@ -266,18 +269,17 @@ export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
         .orderBy(asc(listings.createdAt), asc(listings.id)),
     )
 
-    const pageRows =
-      scope._tag === "Product"
-        ? []
-        : yield* query(
-            p.select
-              .where(
-                scope._tag === "Brand"
-                  ? eq(brands.id, scope.brandId)
-                  : eq(retailers.id, scope.retailerId),
-              )
-              .orderBy(asc(pages.createdAt), asc(pages.id)),
-          )
+    const pageRows = Predicate.isTagged(scope, "Product")
+      ? []
+      : yield* query(
+          p.select
+            .where(
+              Predicate.isTagged(scope, "Brand")
+                ? eq(brands.id, scope.brandId)
+                : eq(retailers.id, scope.retailerId),
+            )
+            .orderBy(asc(pages.createdAt), asc(pages.id)),
+        )
 
     return yield* decodeTargets([...listingRows, ...pageRows])
   },
@@ -288,27 +290,33 @@ export const containerExists = Effect.fn("ParentsRepo.containerExists")(
   function* (scope: BulkScrape) {
     const db = yield* Db
 
-    const rows =
-      scope._tag === "Brand"
-        ? yield* query(
-            db
-              .select({ id: brands.id })
-              .from(brands)
-              .where(eq(brands.id, scope.brandId)),
-          )
-        : scope._tag === "Product"
-          ? yield* query(
-              db
-                .select({ id: products.id })
-                .from(products)
-                .where(eq(products.id, scope.productId)),
-            )
-          : yield* query(
-              db
-                .select({ id: retailers.id })
-                .from(retailers)
-                .where(eq(retailers.id, scope.retailerId)),
-            )
+    const rows = yield* Match.value(scope).pipe(
+      Match.tag("Brand", (scope) =>
+        query(
+          db
+            .select({ id: brands.id })
+            .from(brands)
+            .where(eq(brands.id, scope.brandId)),
+        ),
+      ),
+      Match.tag("Product", (scope) =>
+        query(
+          db
+            .select({ id: products.id })
+            .from(products)
+            .where(eq(products.id, scope.productId)),
+        ),
+      ),
+      Match.tag("Retailer", (scope) =>
+        query(
+          db
+            .select({ id: retailers.id })
+            .from(retailers)
+            .where(eq(retailers.id, scope.retailerId)),
+        ),
+      ),
+      Match.exhaustive,
+    )
 
     return rows.length > 0
   },
@@ -322,7 +330,7 @@ export const markScraped = Effect.fn("ParentsRepo.markScraped")(function* (
   const db = yield* Db
   const lastScrapedAt = DateTime.toDateUtc(at)
 
-  if (parent._tag === "Listing") {
+  if (Predicate.isTagged(parent, "Listing")) {
     yield* query(
       db
         .update(listings)

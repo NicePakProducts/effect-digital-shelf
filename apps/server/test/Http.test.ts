@@ -45,7 +45,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         )
 
         expect(error).toMatchObject({
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- This is a partial assertion on an HTTP error, not an error constructor.
           _tag: "HttpServerError",
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- This partial reason pattern intentionally omits RouteNotFound's request.
           reason: { _tag: "RouteNotFound" },
         })
       }),

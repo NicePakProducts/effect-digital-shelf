@@ -152,9 +152,7 @@ const attempted = (
                   retryable: error.retryable,
                   message: error.message,
                   attempts,
-                  ...(error.detail === undefined
-                    ? {}
-                    : { detail: error.detail }),
+                  detail: error.detail,
                 }),
               ),
             ),

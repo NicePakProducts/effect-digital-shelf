@@ -4,6 +4,7 @@ import * as Config from "effect/Config"
 import * as Context from "effect/Context"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 import * as Layer from "effect/Layer"
 import { Scrapes } from "../Scraping/Scrapes.ts"
 import { Sweeps } from "./Sweeps.ts"
@@ -85,7 +86,7 @@ const make = Effect.gen(function* () {
       phases.push(drain)
 
       const drainStarted =
-        drain.outcome === "ok" && typeof drain.counts.started === "number"
+        drain.outcome === "ok" && Schema.is(Schema.Number)(drain.counts.started)
           ? drain.counts.started
           : 0
 

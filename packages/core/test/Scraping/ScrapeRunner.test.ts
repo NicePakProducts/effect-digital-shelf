@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate"
 import { expect, it } from "@effect/vitest"
 import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
 import {
@@ -215,6 +216,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
 
         yield* TestClock.adjust("181 seconds")
         expect(yield* Fiber.join(fiber)).toMatchObject({
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
           _tag: "failed",
           code: "timeout",
           attempts: 1,
@@ -235,7 +237,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         const outcome = yield* runner.fetch(row.id, yield* runner.claim(row.id))
         expect(outcome._tag).toBe("fetched")
 
-        if (outcome._tag !== "fetched") return
+        if (!Predicate.isTagged(outcome, "fetched")) return
         expect(outcome.truncated).toBe(true)
         expect(
           new TextEncoder().encode(outcome.envelope.innerText).length,
@@ -260,6 +262,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         )
         const outcome = yield* runner.fetch(row.id, yield* runner.claim(row.id))
         expect(outcome).toMatchObject({
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
           _tag: "failed",
           code: "blocked",
           detail: { status: 403 },

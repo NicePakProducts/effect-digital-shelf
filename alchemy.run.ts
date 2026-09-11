@@ -7,6 +7,7 @@ import * as AiGateway from "./packages/infra/src/Resources/AiGateway.ts"
 import * as Bucket from "./packages/infra/src/Resources/Bucket.ts"
 import { stageOf } from "./packages/infra/src/Resources/Names.ts"
 import * as Postgres from "./packages/infra/src/Resources/Postgres.ts"
+// oxlint-disable-next-line anti-slop-effect/no-service-constructor-imports -- makeServer is an Alchemy resource factory, not an Effect service constructor
 import { makeServer } from "./apps/server/src/Worker.ts"
 
 export default Alchemy.Stack(

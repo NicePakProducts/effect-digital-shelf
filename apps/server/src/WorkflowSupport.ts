@@ -1,8 +1,8 @@
-import type { TransitionRejected } from "@digital-shelf/core/Scraping/Transitions"
 import * as Workflows from "alchemy/Cloudflare/Workflows"
 import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
+import * as Predicate from "effect/Predicate"
 import * as Tracer from "effect/Tracer"
 import * as Headers from "effect/unstable/http/Headers"
 import * as HttpTraceContext from "effect/unstable/http/HttpTraceContext"
@@ -32,13 +32,8 @@ export const step = <A, E, R>(
       name,
       work.pipe(
         Effect.map((value) => ({ _tag: "continue" as const, value })),
-        Effect.catchIf(
-          (error): error is E & TransitionRejected =>
-            typeof error === "object" &&
-            error !== null &&
-            "_tag" in error &&
-            error._tag === "TransitionRejected",
-          () => Effect.succeed({ _tag: "stopped" as const }),
+        Effect.catchIf(Predicate.isTagged("TransitionRejected"), () =>
+          Effect.succeed({ _tag: "stopped" as const }),
         ),
         Effect.orDie,
         Effect.scoped,
@@ -47,7 +42,8 @@ export const step = <A, E, R>(
       config,
     )
 
-    if (result._tag === "stopped") return yield* new WorkflowStopped()
+    if (Predicate.isTagged(result, "stopped"))
+      return yield* new WorkflowStopped()
 
     return result.value
   })

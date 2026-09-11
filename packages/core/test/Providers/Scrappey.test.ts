@@ -3,6 +3,7 @@ import * as Scrappey from "@digital-shelf/core/Providers/Scrappey"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
+import * as Schema from "effect/Schema"
 import * as Option from "effect/Option"
 import * as Redacted from "effect/Redacted"
 import * as TestClock from "effect/testing/TestClock"
@@ -112,10 +113,12 @@ describe("Scrappey provider — envelope", () => {
 
       const { envelope } = yield* fetch
 
-      const raw = envelope.raw as {
-        readonly creditsLeft: number
-        readonly solution: Record<string, unknown>
-      }
+      const raw = Schema.decodeUnknownSync(
+        Schema.Struct({
+          creditsLeft: Schema.Number,
+          solution: Schema.Record(Schema.String, Schema.Json),
+        }),
+      )(envelope.raw)
 
       expect(raw.creditsLeft).toBe(41)
       expect(raw.solution.fingerprint).toEqual({ vendor: "extension" })

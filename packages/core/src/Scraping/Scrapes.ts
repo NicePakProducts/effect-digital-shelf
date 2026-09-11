@@ -1,3 +1,5 @@
+import * as Match from "effect/Match"
+import * as Predicate from "effect/Predicate"
 import {
   BrandNotFound,
   ProductNotFound,
@@ -52,7 +54,7 @@ export const requireTarget = Effect.fn("Scrapes.requireTarget")(function* (
   if (Option.isSome(target)) return target.value
 
   return yield* Effect.fail(
-    parent._tag === "Listing"
+    Predicate.isTagged(parent, "Listing")
       ? new ListingNotFound({ listingId: parent.listingId })
       : new PageNotFound({ pageId: parent.pageId }),
   )
@@ -182,7 +184,7 @@ const make = Effect.gen(function* () {
         )
         .pipe(
           onUniqueViolation(
-            parent._tag === "Listing"
+            Predicate.isTagged(parent, "Listing")
               ? "scrapes_listing_in_flight"
               : "scrapes_page_in_flight",
             () => new InFlightConflict(),
@@ -252,11 +254,21 @@ const make = Effect.gen(function* () {
   const bulk = Effect.fn("Scrapes.bulk")(function* (scope: BulkScrape) {
     if (!(yield* ParentsRepo.containerExists(scope)))
       return yield* Effect.fail(
-        scope._tag === "Brand"
-          ? new BrandNotFound({ brandId: scope.brandId })
-          : scope._tag === "Product"
-            ? new ProductNotFound({ productId: scope.productId })
-            : new RetailerNotFound({ retailerId: scope.retailerId }),
+        Match.value(scope).pipe(
+          Match.tag(
+            "Brand",
+            (scope) => new BrandNotFound({ brandId: scope.brandId }),
+          ),
+          Match.tag(
+            "Product",
+            (scope) => new ProductNotFound({ productId: scope.productId }),
+          ),
+          Match.tag(
+            "Retailer",
+            (scope) => new RetailerNotFound({ retailerId: scope.retailerId }),
+          ),
+          Match.exhaustive,
+        ),
       )
 
     const report = yield* insertAll(

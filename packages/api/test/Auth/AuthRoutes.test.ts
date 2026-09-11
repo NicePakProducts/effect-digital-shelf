@@ -24,6 +24,7 @@ it.effect(
 
             return new Response("auth response", { status: 202 })
           }),
+        // SAFETY: AuthRoutes only calls handle; the api value is never read.
         api: undefined as never,
       })
 

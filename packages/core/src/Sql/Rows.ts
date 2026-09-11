@@ -32,12 +32,12 @@ export type RowOf<S extends Schema.Constraint> = {
  * from one definition, so a mismatch can only be a bug.
  */
 export const decode = <S extends Schema.Constraint>(schema: S) => {
-  const decodeRow = Schema.decodeEffect(schema)
+  const decodeRow = Schema.decodeUnknownEffect(schema)
 
   return (
     row: RowOf<S>,
   ): Effect.Effect<S["Type"], never, S["DecodingServices"]> =>
-    Effect.orDie(decodeRow(row as S["Encoded"]))
+    Effect.orDie(decodeRow(row))
 }
 
 export const decodeAll = <S extends Schema.Constraint>(schema: S) => {

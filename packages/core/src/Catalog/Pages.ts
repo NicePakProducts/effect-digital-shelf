@@ -1,3 +1,4 @@
+import { CascadeRoot } from "./repositories/CascadeRepo.ts"
 import { defaultCadence } from "@digital-shelf/domain/Catalog/Cadence"
 import {
   PageNotFound,
@@ -136,11 +137,12 @@ const make = Effect.gen(function* () {
   const impact = Effect.fn("Pages.impact")(function* (id: PageId) {
     yield* Repo.get(id)
 
-    return yield* cascade.impact({ _tag: "Page", id })
+    return yield* cascade.impact(CascadeRoot.Page({ id }))
   }, withDb)
 
   const remove = Effect.fn("Pages.remove")(function* (id: PageId) {
-    return (yield* cascade.remove({ _tag: "Page", id }, Repo.remove(id))).impact
+    return (yield* cascade.remove(CascadeRoot.Page({ id }), Repo.remove(id)))
+      .impact
   }, withDb)
 
   return { create, update, get, list, impact, remove }

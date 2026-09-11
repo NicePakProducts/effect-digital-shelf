@@ -44,18 +44,23 @@ export const completeJson = (request: {
   maxOutputTokens: number
   headers: Record<string, string>
   model?: string
-}) =>
-  LanguageModel.generateText({
+}) => {
+  const config = {
+    response_format: { type: "json_object" as const },
+    max_output_tokens: request.maxOutputTokens,
+  }
+
+  return LanguageModel.generateText({
     prompt: [
       { role: "system", content: request.system },
       { role: "user", content: request.user },
     ],
   }).pipe(
-    OpenAiLanguageModel.withConfigOverride({
-      response_format: { type: "json_object" },
-      max_output_tokens: request.maxOutputTokens,
-      ...(request.model === undefined ? {} : { model: request.model }),
-    }),
+    OpenAiLanguageModel.withConfigOverride(
+      request.model === undefined
+        ? config
+        : { ...config, model: request.model },
+    ),
     OpenAiConfig.withClientTransform(
       HttpClient.mapRequest(HttpClientRequest.setHeaders(request.headers)),
     ),
@@ -68,3 +73,4 @@ export const completeJson = (request: {
       },
     })),
   )
+}

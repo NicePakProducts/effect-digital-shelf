@@ -1,3 +1,4 @@
+import { CascadeRoot } from "./repositories/CascadeRepo.ts"
 import type { Brand } from "@digital-shelf/domain/Catalog/Brand"
 import type {
   CreateBrand,
@@ -61,7 +62,7 @@ export class Brands extends Context.Service<
 
     const remove = Effect.fn("Brands.remove")(function* (id: BrandId) {
       return (yield* cascade.remove(
-        { _tag: "Brand", id },
+        CascadeRoot.Brand({ id }),
         BrandsRepo.remove(id),
       )).impact
     }, withDb)
@@ -69,7 +70,7 @@ export class Brands extends Context.Service<
     const impact = Effect.fn("Brands.impact")(function* (id: BrandId) {
       yield* BrandsRepo.get(id)
 
-      return yield* cascade.impact({ _tag: "Brand", id })
+      return yield* cascade.impact(CascadeRoot.Brand({ id }))
     }, withDb)
 
     const get = Effect.fn("Brands.get")(function* (id: BrandId) {

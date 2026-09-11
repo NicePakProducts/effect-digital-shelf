@@ -8,6 +8,11 @@ import {
   successfulScrape,
 } from "@digital-shelf/core/test/fixtures/Scraping"
 import { RootApi } from "@digital-shelf/api/RootApi"
+import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
+import {
+  BulkScrape,
+  TriggerExtraction,
+} from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import {
   ListingId,
   PageId,
@@ -56,7 +61,11 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           expect(row.status).toBe("pending")
           expect(row.listingId).toBe(parent.listingId)
           expect(row.pageId).toBe(null)
-          const body = (yield* response.json) as Record<string, unknown>
+
+          const body = Schema.decodeUnknownSync(Schema.JsonObject)(
+            yield* response.json,
+          )
+
           expect(Object.keys(body)).not.toContain("htmlR2Key")
           expect(Object.keys(body)).not.toContain("rawR2Key")
           expect(body["createdAt"]).toBe(DateTime.formatIso(row.createdAt))
@@ -68,6 +77,7 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
 
           expect(conflict.status).toBe(409)
           expect(yield* conflict.json).toEqual({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Assert the serialized error contract independently of its constructor.
             _tag: "ParentInFlight",
             parent,
             scrapeId: row.id,
@@ -80,12 +90,17 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
         const api = yield* client
 
         const response = yield* api.scrapes.trigger({
-          payload: { parent: { _tag: "Listing", listingId: missingListingId } },
+          payload: {
+            parent: ScrapeParent.members[0].make({
+              listingId: missingListingId,
+            }),
+          },
           responseMode: "response-only",
         })
 
         expect(response.status).toBe(404)
         expect(yield* response.json).toEqual({
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Assert the serialized error contract independently of its constructor.
           _tag: "ListingNotFound",
           listingId: missingListingId,
         })
@@ -104,7 +119,7 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           yield* api.scrapes.trigger({ payload: { parent: inFlight.parent } })
 
           const [report, response] = yield* api.scrapes.bulk({
-            payload: { _tag: "Brand", brandId: fixture.brandId },
+            payload: BulkScrape.members[0].make({ brandId: fixture.brandId }),
             responseMode: "decoded-and-response",
           })
 
@@ -119,7 +134,7 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           yield* paused.page
           expect(
             yield* api.scrapes.bulk({
-              payload: { _tag: "Brand", brandId: paused.brandId },
+              payload: BulkScrape.members[0].make({ brandId: paused.brandId }),
             }),
           ).toEqual({ created: 0, skippedInFlight: 0, skippedPaused: 2 })
         }),
@@ -270,7 +285,7 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           const api = yield* client
 
           const [row, response] = yield* api.extractions.trigger({
-            payload: { _tag: "Scrape", scrapeId: scrape.id },
+            payload: TriggerExtraction.members[0].make({ scrapeId: scrape.id }),
             responseMode: "decoded-and-response",
           })
 
@@ -285,12 +300,13 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           })
 
           const conflict = yield* api.extractions.trigger({
-            payload: { _tag: "Scrape", scrapeId: scrape.id },
+            payload: TriggerExtraction.members[0].make({ scrapeId: scrape.id }),
             responseMode: "response-only",
           })
 
           expect(conflict.status).toBe(409)
           expect(yield* conflict.json).toEqual({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Assert the serialized error contract independently of its constructor.
             _tag: "ExtractionInFlight",
             scrapeId: scrape.id,
             promptKind: "listing",
@@ -299,12 +315,13 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           const failed = yield* history(parent, "failed", "1 hour")
 
           const unextractable = yield* api.extractions.trigger({
-            payload: { _tag: "Scrape", scrapeId: failed.id },
+            payload: TriggerExtraction.members[0].make({ scrapeId: failed.id }),
             responseMode: "response-only",
           })
 
           expect(unextractable.status).toBe(422)
           expect(yield* unextractable.json).toEqual({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Assert the serialized error contract independently of its constructor.
             _tag: "ScrapeNotReExtractable",
             scrapeId: failed.id,
             reason: "not_successful",
@@ -446,9 +463,10 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
             }),
           ]) {
             expect(response.status).toBe(404)
-            expect((yield* response.json) as { _tag: string }).toMatchObject({
-              _tag: "NoExtractedData",
-            })
+            expect(yield* response.json).toHaveProperty(
+              "_tag",
+              "NoExtractedData",
+            )
           }
 
           expect(
@@ -464,6 +482,7 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
 
           expect(unknown.status).toBe(404)
           expect(yield* unknown.json).toEqual({
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Assert the serialized error contract independently of its constructor.
             _tag: "ProductNotFound",
             productId: missingProductId,
           })
@@ -483,7 +502,9 @@ it.layer(ApiTest.layerAnonymous, { timeout: "60 seconds" })(
           yield* api.scrapes.list({ query: {}, responseMode: "response-only" }),
           yield* api.scrapes.trigger({
             payload: {
-              parent: { _tag: "Listing", listingId: missingListingId },
+              parent: ScrapeParent.members[0].make({
+                listingId: missingListingId,
+              }),
             },
             responseMode: "response-only",
           }),

@@ -1,3 +1,4 @@
+import { CascadeRoot } from "./repositories/CascadeRepo.ts"
 import type {
   CreateVariant,
   UpdateVariant,
@@ -44,7 +45,7 @@ const make = Effect.gen(function* () {
   })
 
   const remove = Effect.fn("Variants.remove")(function* (id: VariantId) {
-    return (yield* cascade.remove({ _tag: "Variant", id }, Repo.remove(id)))
+    return (yield* cascade.remove(CascadeRoot.Variant({ id }), Repo.remove(id)))
       .impact
   }, withDb)
 

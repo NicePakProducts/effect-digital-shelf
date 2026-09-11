@@ -1,7 +1,8 @@
+import * as Predicate from "effect/Predicate"
 import { SpanId } from "@digital-shelf/domain/Scraping/Execution"
 import { ExtractionNotFound } from "@digital-shelf/domain/Scraping/Errors"
 import { LatestExtractedData } from "@digital-shelf/domain/Scraping/LatestExtractedData"
-import type { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
+import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
 import type {
   ExtractionStatus,
   PromptKind,
@@ -139,6 +140,7 @@ export const allocate = Effect.fn("ExtractionsRepo.allocate")(function* (
     updatedAt: values.updatedAt ?? now,
   })
 
+  // SAFETY: Both columns and encoded fields derive from the extractions table; missing optional insert values intentionally become SQL NULL.
   const fields = Object.entries(getTableColumns(extractions)).map(
     ([key, column]) =>
       key === "attempt"
@@ -348,7 +350,7 @@ export const latestExtractedData = Effect.fn(
   const rows = yield* query(
     dataQuery(
       db,
-      parent._tag === "Listing"
+      Predicate.isTagged(parent, "Listing")
         ? eq(scrapes.listingId, parent.listingId)
         : eq(scrapes.pageId, parent.pageId),
     ),
@@ -387,10 +389,9 @@ export const latestExtractedDataForProduct = Effect.fn(
 
   return yield* Effect.forEach(rows, (row) =>
     decodeData(
-      {
-        _tag: "Listing",
+      ScrapeParent.members[0].make({
         listingId: Schema.decodeSync(ListingId)(row.listingId),
-      },
+      }),
       row.latest,
     ),
   )

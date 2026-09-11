@@ -42,12 +42,12 @@ export type ExecutionStatus = typeof ExecutionStatus.Type
 export const isTerminalExecutionStatus = (
   status: ExecutionStatus,
 ): status is (typeof TerminalExecutionStatuses)[number] =>
-  (TerminalExecutionStatuses as ReadonlyArray<string>).includes(status)
+  TerminalExecutionStatuses.some((candidate) => candidate === status)
 
 export const isActiveExecutionStatus = (
   status: ExecutionStatus,
 ): status is (typeof ActiveExecutionStatuses)[number] =>
-  (ActiveExecutionStatuses as ReadonlyArray<string>).includes(status)
+  ActiveExecutionStatuses.some((candidate) => candidate === status)
 
 /** The result of a Dispatch, as a value rather than an exception. */
 export const DispatchOutcomes = [

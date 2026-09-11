@@ -1,3 +1,5 @@
+import { CascadeRoot } from "../../src/Catalog/repositories/CascadeRepo.ts"
+import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
 import { R2Bucket } from "@digital-shelf/core/Storage/R2Bucket"
 import * as BrandsRepo from "@digital-shelf/core/Catalog/repositories/BrandsRepo"
 import * as VariantsRepo from "@digital-shelf/core/Catalog/repositories/VariantsRepo"
@@ -57,19 +59,19 @@ const tree = Effect.gen(function* () {
   })
 
   const s1 = yield* history(
-    { _tag: "Listing", listingId: l1.id },
+    ScrapeParent.members[0].make({ listingId: l1.id }),
     "success",
     "1 hour",
   )
 
   const s2 = yield* history(
-    { _tag: "Listing", listingId: l2.id },
+    ScrapeParent.members[0].make({ listingId: l2.id }),
     "success",
     "1 hour",
   )
 
   const s3 = yield* history(
-    { _tag: "Page", pageId: page.id },
+    ScrapeParent.members[1].make({ pageId: page.id }),
     "success",
     "1 hour",
   )
@@ -143,7 +145,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
           scrapes: 1,
         })
         expect(
-          yield* cascade.impact({ _tag: "Variant", id: c.variantId }),
+          yield* cascade.impact(CascadeRoot.Variant({ id: c.variantId })),
         ).toEqual(emptyImpact)
       }),
     60_000,
@@ -230,7 +232,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         expect(
           yield* Effect.flip(
             (yield* Cascade).remove(
-              { _tag: "Brand", id: c.brandId },
+              CascadeRoot.Brand({ id: c.brandId }),
               Effect.fail("refused"),
             ),
           ),
@@ -290,7 +292,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         )
 
         const variant = yield* cascade.remove(
-          { _tag: "Variant", id: c.variantId },
+          CascadeRoot.Variant({ id: c.variantId }),
           VariantsRepo.remove(c.variantId),
         )
 
@@ -300,7 +302,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
 
         for (let i = 0; i < 498; i++) {
           const scrape = yield* history(
-            { _tag: "Listing", listingId: c.listingId },
+            ScrapeParent.members[0].make({ listingId: c.listingId }),
             "success",
             "1 hour",
           )
@@ -310,7 +312,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         }
 
         const removed = yield* cascade.remove(
-          { _tag: "Brand", id: c.brandId },
+          CascadeRoot.Brand({ id: c.brandId }),
           BrandsRepo.remove(c.brandId),
         )
 

@@ -18,6 +18,7 @@ const storedUrl = Effect.fn("HostRuleFixture.storedUrl")(function* (
 ) {
   const db = yield* Db
 
+  // SAFETY: This query selects only the non-null text listings.url column.
   const rows = rowsOf(
     yield* query(db.execute(sql`select url from listings where id = ${id}`)),
   ) as ReadonlyArray<{ url: string }>
@@ -244,6 +245,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
       }),
     )
 
+    // SAFETY: The query above selects pg_locks.mode, a text column, under the name mode.
     return (rowsOf(result) as ReadonlyArray<{ mode: string }>).map(
       (row) => row.mode,
     )

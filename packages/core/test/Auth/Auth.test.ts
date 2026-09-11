@@ -1,3 +1,4 @@
+import * as Result from "effect/Result"
 import { isAPIError } from "better-auth/api"
 import * as Context from "effect/Context"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -88,7 +89,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
 
         expect(result._tag).toBe("Failure")
 
-        if (result._tag === "Failure") {
+        if (Result.isFailure(result)) {
           expect(isAPIError(result.failure.cause)).toBe(true)
 
           if (isAPIError(result.failure.cause))
@@ -134,7 +135,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
 
         expect(replay._tag).toBe("Failure")
 
-        if (replay._tag === "Failure") {
+        if (Result.isFailure(replay)) {
           expect(isAPIError(replay.failure.cause)).toBe(true)
 
           if (isAPIError(replay.failure.cause))
@@ -202,7 +203,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
 
       expect(result._tag).toBe("Failure")
 
-      if (result._tag === "Failure")
+      if (Result.isFailure(result))
         expect(result.failure.cause).toMatchObject({ message: "boom" })
       expect(queryContexts).toHaveLength(2)
 
@@ -282,6 +283,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
                 emailVerified: false,
               },
             }),
+            // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
           ).rejects.toMatchObject({ _tag: "SqlError" })
           expect(
             await adapter.deleteMany({

@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
@@ -34,7 +35,7 @@ export const query = <A, R>(
 
 /** The violated constraint's name when `error` is a unique violation. */
 export const uniqueViolation = (error: SqlError): Option.Option<string> =>
-  error.reason._tag === "UniqueViolation"
+  Predicate.isTagged(error.reason, "UniqueViolation")
     ? Option.some(error.reason.constraint)
     : Option.none()
 

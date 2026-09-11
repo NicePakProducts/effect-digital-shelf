@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate"
 import { extractionModel } from "../Providers/LanguageModel.ts"
 import { parent, parentKind } from "@digital-shelf/domain/Scraping/Scrape"
 import { ScrapeEnvelope } from "@digital-shelf/domain/Scraping/ScrapeEnvelope"
@@ -152,33 +153,34 @@ const make = Effect.gen(function* () {
       yield* bucket.put(htmlKey, result.html, "text/html")
       yield* bucket.put(rawKey, JSON.stringify(envelope), "application/json")
 
-      return {
-        _tag: "fetched",
+      return FetchOutcome.members[0].make({
         envelope,
         htmlKey,
         rawKey,
         truncated: bounded.truncated,
-      } satisfies FetchOutcome
+      }) satisfies FetchOutcome
     }).pipe(
       Effect.catchTag("TimeoutError", () =>
-        Effect.succeed<FetchOutcome>({
-          _tag: "failed",
-          code: "timeout",
-          message: "Scrape deadline exceeded",
-          retryable: true,
-          attempts: 1,
-          detail: null,
-        }),
+        Effect.succeed<FetchOutcome>(
+          FetchOutcome.members[1].make({
+            code: "timeout",
+            message: "Scrape deadline exceeded",
+            retryable: true,
+            attempts: 1,
+            detail: null,
+          }),
+        ),
       ),
       Effect.catchTag("ScrapeProviderError", (error) =>
-        Effect.succeed<FetchOutcome>({
-          _tag: "failed",
-          code: error.code,
-          message: error.message,
-          retryable: error.retryable,
-          attempts: error.attempts,
-          detail: jsonDetail(error.detail) ? error.detail : null,
-        }),
+        Effect.succeed<FetchOutcome>(
+          FetchOutcome.members[1].make({
+            code: error.code,
+            message: error.message,
+            retryable: error.retryable,
+            attempts: error.attempts,
+            detail: jsonDetail(error.detail) ? error.detail : null,
+          }),
+        ),
       ),
     )
   })
@@ -192,7 +194,7 @@ const make = Effect.gen(function* () {
         Effect.gen(function* () {
           const now = yield* DateTime.now
 
-          if (outcome._tag === "failed") {
+          if (Predicate.isTagged(outcome, "failed")) {
             yield* transition(id, "running", "failed", {
               finishedAt: Option.some(now),
               updatedAt: now,
@@ -257,7 +259,7 @@ const make = Effect.gen(function* () {
       .pipe(
         Effect.catchTag("TransitionRejected", (error) =>
           Effect.gen(function* () {
-            if (outcome._tag === "fetched")
+            if (Predicate.isTagged(outcome, "fetched"))
               yield* bucket
                 .delete([outcome.htmlKey, outcome.rawKey])
                 .pipe(

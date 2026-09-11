@@ -82,6 +82,7 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
 
       expect(response.status).toBe(409)
       expect(yield* response.json).toEqual({
+        // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Assert the serialized error contract independently of its constructor.
         _tag: "RetailerDomainTaken",
         domain: holder.domain,
         retailerId: holder.id,
@@ -156,6 +157,7 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
 
         expect(response.status).toBe(404)
         expect(yield* response.json).toEqual({
+          // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Assert the serialized error contract independently of its constructor.
           _tag: "BrandNotFound",
           brandId: missingId,
         })

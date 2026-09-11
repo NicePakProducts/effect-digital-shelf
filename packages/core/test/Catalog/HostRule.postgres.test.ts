@@ -76,6 +76,7 @@ const holdOpen = <A, E>(body: Effect.Effect<A, E, Db>) =>
 const someoneWaits = Effect.gen(function* () {
   const db = yield* Db
 
+  // SAFETY: The query casts count(*) to int and aliases the single result as waiting.
   const rows = rowsOf(
     yield* query(
       db.execute(sql`

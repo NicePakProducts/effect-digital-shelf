@@ -1,3 +1,5 @@
+import { TriggerExtraction } from "@digital-shelf/domain/Scraping/ScrapingManagement"
+import { BulkScrape } from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import * as Option from "effect/Option"
 import { Extractions } from "@digital-shelf/core/Scraping/Extractions"
 import { ExtractionRunner } from "@digital-shelf/core/Scraping/ExtractionRunner"
@@ -38,7 +40,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             const runner = yield* ScrapeRunner
             const row = yield* scrapes.trigger({ parent })
             yield* Effect.flip(scrapes.trigger({ parent }))
-            yield* scrapes.bulk({ _tag: "Brand", brandId: fixture.brandId })
+            yield* scrapes.bulk(
+              BulkScrape.members[0].make({ brandId: fixture.brandId }),
+            )
             yield* runner.claim(row.id)
             yield* runner.claim(row.id)
             yield* runner.fail(row.id, "unknown", "test")
@@ -121,10 +125,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           })
 
           const row = yield* Effect.gen(function* () {
-            const row = yield* (yield* Extractions).trigger({
-              _tag: "Scrape",
-              scrapeId: scrape.id,
-            })
+            const row = yield* (yield* Extractions).trigger(
+              TriggerExtraction.members[0].make({
+                scrapeId: scrape.id,
+              }),
+            )
 
             const runner = yield* ExtractionRunner
             const target = yield* runner.claim(row.id)
@@ -162,9 +167,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           }
 
           expect(
-            spans
-              .filter((span) => span.name === "Extraction.transition")
-              .map((span) => span.attributes.get("shelf.transition")),
+            spans.flatMap((span) =>
+              span.name === "Extraction.transition"
+                ? [span.attributes.get("shelf.transition")]
+                : [],
+            ),
           ).toEqual(["applied", "already_applied", "applied"])
           const llm = spans.find((span) => span.name === "Extraction.llm")
           expect(llm?.attributes.get("gen_ai.request.model")).toBe(row.model)

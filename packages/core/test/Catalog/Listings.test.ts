@@ -1,3 +1,4 @@
+import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
 import { eq } from "drizzle-orm"
 import * as DateTime from "effect/DateTime"
 import { Db } from "@digital-shelf/core/Sql/Db"
@@ -44,7 +45,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       })
 
       const scrape = yield* history(
-        { _tag: "Listing", listingId: row.id },
+        ScrapeParent.members[0].make({ listingId: row.id }),
         "success",
         "1 hour",
       )
@@ -85,7 +86,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
 
         for (const age of ["2 hours", "1 hour"] as const) {
           const scrape = yield* history(
-            { _tag: "Listing", listingId: row.id },
+            ScrapeParent.members[0].make({ listingId: row.id }),
             "success",
             age,
           )
@@ -288,7 +289,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
           url: c.url("/item"),
         })
 
-        const parent = { _tag: "Listing", listingId: row.id } as const
+        const parent = ScrapeParent.members[0].make({ listingId: row.id })
         yield* history(parent, "failed", "3 hours")
         expect((yield* listings.get(row.id)).combinedStatus).toBe("failed")
         const current = yield* history(parent, "success", "1 hour")

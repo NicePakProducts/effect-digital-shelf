@@ -1,3 +1,4 @@
+import { CascadeRoot } from "./repositories/CascadeRepo.ts"
 import { defaultCadence } from "@digital-shelf/domain/Catalog/Cadence"
 import {
   ListingNotFound,
@@ -120,11 +121,11 @@ const make = Effect.gen(function* () {
   const impact = Effect.fn("Listings.impact")(function* (id: ListingId) {
     yield* Repo.get(id)
 
-    return yield* cascade.impact({ _tag: "Listing", id })
+    return yield* cascade.impact(CascadeRoot.Listing({ id }))
   }, withDb)
 
   const remove = Effect.fn("Listings.remove")(function* (id: ListingId) {
-    return (yield* cascade.remove({ _tag: "Listing", id }, Repo.remove(id)))
+    return (yield* cascade.remove(CascadeRoot.Listing({ id }), Repo.remove(id)))
       .impact
   }, withDb)
 

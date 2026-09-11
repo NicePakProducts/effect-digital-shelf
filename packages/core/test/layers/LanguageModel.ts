@@ -28,10 +28,14 @@ const parts = (
   },
 ]
 
+interface RecordedCall {
+  system: string
+  user: string
+  maxOutputTokens?: number
+}
+
 const make = Effect.gen(function* () {
-  const calls = yield* Ref.make<
-    ReadonlyArray<{ system: string; user: string; maxOutputTokens?: number }>
-  >([])
+  const calls = yield* Ref.make<ReadonlyArray<RecordedCall>>([])
 
   const scripts = yield* Ref.make<
     ReadonlyArray<Effect.Effect<Array<Response.PartEncoded>, AiError.AiError>>
@@ -60,16 +64,12 @@ const make = Effect.gen(function* () {
           .map((part) => part.text)
           .join("\n")
 
-        yield* Ref.update(calls, (calls) => [
-          ...calls,
-          {
-            system,
-            user,
-            ...(config?.max_output_tokens == null
-              ? {}
-              : { maxOutputTokens: config.max_output_tokens }),
-          },
-        ])
+        const call: RecordedCall = { system, user }
+
+        if (config?.max_output_tokens != null)
+          call.maxOutputTokens = config.max_output_tokens
+
+        yield* Ref.update(calls, (calls) => [...calls, call])
 
         const next = yield* Ref.modify(scripts, (scripts) => [
           scripts[0],

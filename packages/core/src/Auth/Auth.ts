@@ -10,6 +10,7 @@ import * as Option from "effect/Option"
 import * as Redacted from "effect/Redacted"
 import type * as Headers from "effect/unstable/http/Headers"
 import { Db } from "../Sql/Db.ts"
+// oxlint-disable-next-line anti-slop-effect/no-service-constructor-imports -- Better Auth requires this synchronous DBAdapter factory; it is not an Effect service constructor.
 import { makeAdapter } from "./BetterAuthAdapter.ts"
 import { EmailSender } from "./EmailSender.ts"
 import { isAllowlisted, parseDomains } from "./Allowlist.ts"
@@ -74,7 +75,7 @@ const make = Effect.gen(function* () {
       jwt(),
       {
         ...mcpPlugin,
-        // Narrow only the incompatible OpenAPI metadata; retain endpoint names and signatures.
+        // SAFETY: Only unused OpenAPI metadata differs between plugin versions; endpoint names, handlers and signatures retain their original types.
         endpoints: mcpPlugin.endpoints as {
           [
             Key in keyof typeof mcpPlugin.endpoints

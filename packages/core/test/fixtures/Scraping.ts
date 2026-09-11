@@ -27,7 +27,7 @@ import { query } from "@digital-shelf/core/Sql/Errors"
 import * as ScrapesRepo from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
 import {
   parentColumns,
-  type ScrapeParent,
+  ScrapeParent,
 } from "@digital-shelf/domain/Scraping/Scrape"
 import * as DateTime from "effect/DateTime"
 import * as Duration from "effect/Duration"
@@ -106,7 +106,9 @@ export const seed = Effect.fn("fixture.seed")(function* (
     )
 
     return {
-      parent: { _tag: "Listing", listingId } satisfies ScrapeParent,
+      parent: ScrapeParent.members[0].make({
+        listingId,
+      }) satisfies ScrapeParent,
       url,
     }
   })
@@ -127,7 +129,10 @@ export const seed = Effect.fn("fixture.seed")(function* (
       }),
     )
 
-    return { parent: { _tag: "Page", pageId } satisfies ScrapeParent, url }
+    return {
+      parent: ScrapeParent.members[1].make({ pageId }) satisfies ScrapeParent,
+      url,
+    }
   })
 
   return { brandId, productId, retailerId, listing, page }

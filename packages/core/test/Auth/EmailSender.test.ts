@@ -1,3 +1,4 @@
+import * as Result from "effect/Result"
 import { expect, it } from "@effect/vitest"
 import { EmailSender } from "@digital-shelf/core/Auth/EmailSender"
 import * as ConfigProvider from "effect/ConfigProvider"
@@ -64,7 +65,7 @@ it.effect(
 
         expect(result._tag).toBe("Failure")
 
-        if (result._tag === "Failure") {
+        if (Result.isFailure(result)) {
           expect(result.failure._tag).toBe("EmailSendFailed")
           expect(result.failure.message).not.toContain("test-postmark-token")
         }

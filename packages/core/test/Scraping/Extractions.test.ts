@@ -1,3 +1,5 @@
+import * as Result from "effect/Result"
+import { TriggerExtraction } from "@digital-shelf/domain/Scraping/ScrapingManagement"
 import { expect, it } from "@effect/vitest"
 import { Extractions } from "@digital-shelf/core/Scraping/Extractions"
 import { ExtractionRunner } from "@digital-shelf/core/Scraping/ExtractionRunner"
@@ -55,10 +57,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         )
         const service = yield* Extractions
 
-        const row = yield* service.trigger({
-          _tag: "Scrape",
-          scrapeId: scrape.id,
-        })
+        const row = yield* service.trigger(
+          TriggerExtraction.members[0].make({
+            scrapeId: scrape.id,
+          }),
+        )
 
         expect(row).toMatchObject({
           attempt: 2,
@@ -73,7 +76,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         ])
         expect(
           yield* Effect.flip(
-            service.trigger({ _tag: "Scrape", scrapeId: scrape.id }),
+            service.trigger(
+              TriggerExtraction.members[0].make({ scrapeId: scrape.id }),
+            ),
           ),
         ).toEqual(
           new ExtractionInFlight({
@@ -84,8 +89,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         )
         yield* (yield* ExtractionRunner).fail(row.id, "unknown", "test")
         expect(
-          (yield* service.trigger({ _tag: "Scrape", scrapeId: scrape.id }))
-            .attempt,
+          (yield* service.trigger(
+            TriggerExtraction.members[0].make({ scrapeId: scrape.id }),
+          )).attempt,
         ).toBe(3)
       }),
   )
@@ -105,16 +111,18 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         const results = yield* Effect.all(
           Array.from({ length: 8 }, () =>
             service
-              .trigger({ _tag: "Scrape", scrapeId: scrape.id })
+              .trigger(
+                TriggerExtraction.members[0].make({ scrapeId: scrape.id }),
+              )
               .pipe(Effect.result),
           ),
           { concurrency: "unbounded" },
         )
 
-        const successes = results.filter((result) => result._tag === "Success")
+        const successes = results.filter((result) => Result.isSuccess(result))
         expect(successes).toHaveLength(1)
         expect(successes[0]?.success.attempt).toBe(2)
-        const failures = results.filter((result) => result._tag === "Failure")
+        const failures = results.filter((result) => Result.isFailure(result))
         expect(failures).toHaveLength(7)
 
         for (const result of failures)
@@ -142,12 +150,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
       ] as const)
         expect(
           yield* Effect.flip(
-            service.trigger({ _tag: "Scrape", scrapeId: row.id }),
+            service.trigger(
+              TriggerExtraction.members[0].make({ scrapeId: row.id }),
+            ),
           ),
         ).toEqual(new ScrapeNotReExtractable({ scrapeId: row.id, reason }))
       const id = Schema.decodeUnknownSync(ScrapeId)(crypto.randomUUID())
       expect(
-        yield* Effect.flip(service.trigger({ _tag: "Scrape", scrapeId: id })),
+        yield* Effect.flip(
+          service.trigger(TriggerExtraction.members[0].make({ scrapeId: id })),
+        ),
       ).toEqual(new ScrapeNotFound({ scrapeId: id }))
     }),
   )
@@ -161,7 +173,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         yield* successfulScrape(parent, { age: "2 hours" })
         const newest = yield* successfulScrape(parent, { age: "1 hour" })
         const service = yield* Extractions
-        const row = yield* service.trigger({ _tag: "Parent", parent })
+
+        const row = yield* service.trigger(
+          TriggerExtraction.members[1].make({ parent }),
+        )
+
         expect(row).toMatchObject({
           scrapeId: newest.id,
           promptKind: "page",
@@ -171,7 +187,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         yield* history(empty, "failed", "1 hour")
         expect(
           yield* Effect.flip(
-            service.trigger({ _tag: "Parent", parent: empty }),
+            service.trigger(
+              TriggerExtraction.members[1].make({ parent: empty }),
+            ),
           ),
         ).toEqual(new NoSuccessfulScrape({ parent: empty }))
       }),
@@ -320,6 +338,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
       expect(yield* service.redispatch(row.id)).toBe("already-active")
       yield* (yield* ExtractionRunner).claim(row.id)
       expect(yield* Effect.flip(service.redispatch(row.id))).toMatchObject({
+        // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- Partial assertion pattern, not a constructed domain value.
         _tag: "TransitionRejected",
         kind: "extraction",
         observed: "running",
@@ -406,7 +425,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Extractions", (it) => {
         )
         const service = yield* Extractions
         expect(
-          yield* Effect.flip(service.trigger({ _tag: "Parent", parent })),
+          yield* Effect.flip(
+            service.trigger(TriggerExtraction.members[1].make({ parent })),
+          ),
         ).toEqual(
           new ScrapeNotReExtractable({
             scrapeId: newest.id,

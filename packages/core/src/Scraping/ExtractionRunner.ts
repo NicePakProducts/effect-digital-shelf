@@ -1,3 +1,4 @@
+import * as Predicate from "effect/Predicate"
 import * as Tracer from "effect/Tracer"
 import * as Schedule from "effect/Schedule"
 import type * as AiError from "effect/unstable/ai/AiError"
@@ -114,25 +115,29 @@ const make = Effect.gen(function* () {
       const html = yield* bucket.get(target.htmlKey)
 
       if (Option.isNone(html))
-        return {
-          _tag: "failed",
+        return ExtractOutcome.members[1].make({
           code: "unknown",
           message: "Scrape HTML object missing from storage",
-        }
+        })
       const user = sanitise(html.value)
       const bytes = new TextEncoder().encode(user).length
 
       if (bytes > cap)
-        return {
-          _tag: "failed",
+        return ExtractOutcome.members[1].make({
           code: "context_overflow",
           message: `Sanitised input of ${bytes} bytes exceeds the cap of ${cap} bytes`,
-        }
+        })
 
       const response = yield* Effect.gen(function* () {
         const span = yield* Effect.currentSpan.pipe(Effect.option)
 
-        const headers: Record<string, string> = {
+        const headers: Record<"cf-aig-metadata", string> &
+          Partial<
+            Record<
+              "cf-aig-otel-trace-id" | "cf-aig-otel-parent-span-id",
+              string
+            >
+          > = {
           "cf-aig-metadata": yield* Schema.encodeEffect(
             Schema.fromJsonString(
               Schema.Struct({
@@ -187,10 +192,9 @@ const make = Effect.gen(function* () {
 
       const parsed = parseExtractedJson(response.text, response.finishReason)
 
-      if (parsed._tag === "failed") return parsed
+      if (Predicate.isTagged(parsed, "failed")) return parsed
 
-      return {
-        _tag: "extracted",
+      return ExtractOutcome.members[0].make({
         data: parsed.value,
         finishReason: response.finishReason,
         usage: {
@@ -198,19 +202,21 @@ const make = Effect.gen(function* () {
           completionTokens: response.usage.output,
           totalTokens: response.usage.input + response.usage.output,
         },
-      }
+      })
     }).pipe(
       Effect.catch((error) =>
-        Effect.succeed<ExtractOutcome>({
-          _tag: "failed",
-          ...classifyExtractionError(error),
-        }),
+        Effect.succeed<ExtractOutcome>(
+          ExtractOutcome.members[1].make({
+            ...classifyExtractionError(error),
+          }),
+        ),
       ),
       Effect.catchDefect((error) =>
-        Effect.succeed<ExtractOutcome>({
-          _tag: "failed",
-          ...classifyExtractionError(error),
-        }),
+        Effect.succeed<ExtractOutcome>(
+          ExtractOutcome.members[1].make({
+            ...classifyExtractionError(error),
+          }),
+        ),
       ),
     )
   })
@@ -225,11 +231,11 @@ const make = Effect.gen(function* () {
         yield* transitionExtraction(
           id,
           "running",
-          outcome._tag === "extracted" ? "success" : "failed",
+          Predicate.isTagged(outcome, "extracted") ? "success" : "failed",
           {
             finishedAt: Option.some(now),
             updatedAt: now,
-            ...(outcome._tag === "extracted"
+            ...(Predicate.isTagged(outcome, "extracted")
               ? {
                   extractedJson: Option.some(outcome.data),
                   promptTokens: Option.some(outcome.usage.promptTokens),

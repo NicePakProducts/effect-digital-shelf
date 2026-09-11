@@ -58,7 +58,7 @@ const decodeBody = Schema.decodeUnknownEffect(Body)
 const decodeJson = Schema.decodeUnknownEffect(Schema.Json)
 
 const isJsonObject = (json: Schema.Json): json is Schema.JsonObject =>
-  json !== null && typeof json === "object" && !Array.isArray(json)
+  Schema.is(Schema.Record(Schema.String, Schema.Json))(json)
 
 /** The vendor payload with the HTML stripped: forensics only (#13). */
 const withoutHtml = (json: Schema.Json): Schema.Json => {
@@ -117,7 +117,7 @@ const NAVIGATION = new Set(["CODE-0006"])
 
 export const classifyError = (
   message: string,
-): { readonly code: ScrapeProviderErrorCode; readonly retryable: boolean } => {
+): Pick<ScrapeProviderError, "code" | "retryable"> => {
   const code = /CODE-\d+/.exec(message)?.[0]
 
   if (code !== undefined) {
@@ -146,7 +146,7 @@ export const classifyError = (
 /** Scrappey's own transport status, not the target's. */
 export const classifyStatus = (
   status: number,
-): { readonly code: ScrapeProviderErrorCode; readonly retryable: boolean } => ({
+): Pick<ScrapeProviderError, "code" | "retryable"> => ({
   code: "provider_error",
   retryable: status === 408 || status === 429 || status >= 500,
 })
@@ -157,7 +157,7 @@ const providerError = (
     readonly retryable: boolean
   },
   message: string,
-  detail: unknown,
+  detail: Schema.Json,
 ) =>
   new ScrapeProviderError({
     ...classification,
@@ -230,9 +230,7 @@ export const fetchOnce = (options: {
           HttpClientRequest.bodyJsonUnsafe({
             cmd: "request.get",
             url: options.request.url,
-            ...(Option.isSome(options.request.country)
-              ? { proxyCountry: options.request.country.value }
-              : {}),
+            proxyCountry: Option.getOrUndefined(options.request.country),
           }),
         ),
       )
