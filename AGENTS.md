@@ -30,7 +30,7 @@ A scrape management system for a digital shelf, built on Effect v4 and Cloudflar
 - Feature public methods take one named input object when the operation carries data and more than one argument (`brands.update({ brandId, command })`); input schemas live in `packages/domain` beside the commands. Repositories stay positional (`repo.get(id)`).
 - Guard with `Predicate.isError`, never `instanceof Error`.
 - Read time through `DateTime.now` or `Clock` wherever an Effect seam exists; Drizzle column defaults (`defaultNow()`, `$onUpdate`) stay as they are.
-- `orDie` only where a failure can only be a bug, marked with a `SAFETY:` comment: row decoding in `Sql/Rows.ts` and Workflow-step glue in `apps/server`. Config and provider failures are typed layer failures (ADR 0008).
+- `orDie` only where a failure can only be a bug, marked with a `SAFETY:` comment: row decoding in `Sql/Rows.ts` and the decoding of Workflow parameters this codebase encoded in `apps/server`. Configuration and provider setup failures stay in the layer's `E`; operational provider failures stay in the method's `E` (ADR 0008).
 - Make the smallest correct change and follow existing repository patterns.
 
 ## Code style
@@ -50,7 +50,7 @@ A scrape management system for a digital shelf, built on Effect v4 and Cloudflar
 
 Run `vp check` and `vp test --run` for every affected workspace package.
 
-Repositories are never faked: a core test builds a feature over the real `Db` (PGlite by default) and reaches a `*Repo` only through its real `.layer`; `packages/core/test/Boundaries.test.ts` enforces this (ADR 0008).
+Repositories are never faked: a core test builds a feature over the real `Db` (PGlite by default) and reaches a `*Repo` only through its real `.layer`. A rule in `packages/core/test/Boundaries.test.ts` rejects the direct substitution forms listed in ADR 0008; review checks aliases and indirect constructions.
 
 `.github/workflows/ci.yml` runs exactly those commands for every package on
 every pull request, and nothing else: it never deploys and never touches a
