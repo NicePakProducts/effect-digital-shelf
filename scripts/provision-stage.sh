@@ -421,9 +421,9 @@ save_secret CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
 if [[ "$STAGE" == dev ]]; then
   SERVER_HOSTNAME="shelf-dev.apps.$HOST_ZONE"
 else
-  SERVER_HOSTNAME="digital-shelf-server-prod.${WORKERS_SUBDOMAIN:-<subdomain>}.workers.dev"
-  note "prod stays on workers.dev until the cutover sets shelf.apps.$HOST_ZONE (ADR 0006)."
+  SERVER_HOSTNAME="shelf.apps.$HOST_ZONE"
 fi
+note "the hostname becomes a custom domain on $HOST_ZONE; a workers.dev value fails the deploy."
 ask_default SERVER_HOSTNAME "Hostname for the $STAGE Worker" "$SERVER_HOSTNAME"
 save_var SERVER_HOSTNAME "$SERVER_HOSTNAME"
 pause
