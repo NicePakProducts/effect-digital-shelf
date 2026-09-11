@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
 import { readdirSync, readFileSync, statSync } from "node:fs"
-import { dirname, join, relative, resolve } from "node:path"
+import { basename, dirname, join, relative, resolve } from "node:path"
 
 /**
  * The import boundary of core, as decided on the map's Core layout ticket:
@@ -14,7 +14,10 @@ const files = walk(src).filter((file) => file.endsWith(".ts"))
 
 const test = resolve(import.meta.dirname)
 
-const testFiles = walk(test).filter((file) => file.endsWith(".ts"))
+// This rule's own documentation may quote forbidden forms.
+const testFiles = walk(test).filter(
+  (file) => file.endsWith(".ts") && basename(file) !== "Boundaries.test.ts",
+)
 
 describe("core import boundary", () => {
   it("repositories import only domain, Drizzle, Effect and Sql/", () => {
@@ -63,8 +66,9 @@ describe("core import boundary", () => {
 describe("test seams", () => {
   /**
    * Repositories are never faked (ADR 0008). A bounded syntactic scan: it rejects
-   * Layer.succeed, Layer.effect, Context.make and Effect.provideService calls
-   * providing a *Repo under test/, and allows XRepo.layer and XRepo.layer.pipe(...).
+   * Layer.succeed, Layer.effect, Layer.sync, Layer.mock, Context.make and
+   * Effect.provideService calls providing a *Repo under test/, and allows
+   * XRepo.layer and XRepo.layer.pipe(...).
    * It does not see through aliases, re-exports or helper-produced layers;
    * review carries the rest.
    */
@@ -73,7 +77,7 @@ describe("test seams", () => {
       testFiles.flatMap((file) =>
         Array.from(
           readFileSync(file, "utf8").matchAll(
-            /\b(?:Layer\.(?:succeed|effect)|Context\.make|Effect\.provideService)\(\s*(\w+Repo)\b/g,
+            /\b(?:Layer\.(?:succeed|effect|sync|mock)|Context\.make|Effect\.provideService)\(\s*(\w+Repo)\b/g,
           ),
           (match) => `${relative(test, file)}: ${match[0]}`,
         ),

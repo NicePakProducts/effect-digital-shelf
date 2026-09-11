@@ -185,9 +185,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
     60_000,
   )
   /**
-   * If BrandsRepo captured a second SQL client, its delete would commit outside
-   * Cascade's transaction and the brand would be gone. The surviving row proves
-   * that a repository constructed before the transaction joins the same Db.
+   * The repository yielded before cascade.remove opens its transaction deletes
+   * inside it: the caller's failure restores the row and leaves R2 untouched.
+   * PGlite uses one in-process session; a second Db over a separate PGlite
+   * database would fail with BrandNotFound instead of "after delete". The
+   * two-connection hazard is proved on PostgreSQL in Layering.postgres.test.ts.
    */
   it.effect(
     "rolls back a real delete through the repository service when the caller fails afterwards",

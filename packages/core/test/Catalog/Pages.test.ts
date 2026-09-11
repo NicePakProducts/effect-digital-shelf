@@ -118,11 +118,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
             })
           }
 
-          if (source === "Retailer")
-            yield* (yield* Retailers).update(c.retailerId, { paused: true })
+          if (source === "Retailer") {
+            const retailers = yield* Retailers
+            yield* retailers.update(c.retailerId, { paused: true })
+          }
 
-          if (source === "Product")
-            yield* (yield* Products).update(c.productId, { paused: true })
+          if (source === "Product") {
+            const products = yield* Products
+            yield* products.update(c.productId, { paused: true })
+          }
 
           if (source === "Page") yield* pages.update(page.id, { paused: true })
           expect((yield* pages.get(page.id)).effectivePaused).toBe(
