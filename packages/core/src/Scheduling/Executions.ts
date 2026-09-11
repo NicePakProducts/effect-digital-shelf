@@ -23,6 +23,21 @@ export interface ExecutionInstance {
   readonly traceparent: string
 }
 
+export interface StartExecutionsInput {
+  readonly kind: ExecutionKind
+  readonly instances: ReadonlyArray<ExecutionInstance>
+}
+
+export interface ExecutionStatusInput {
+  readonly kind: ExecutionKind
+  readonly id: string
+}
+
+export interface TerminateExecutionInput {
+  readonly kind: ExecutionKind
+  readonly id: string
+}
+
 export interface StartReport {
   readonly started: ReadonlyArray<string>
   /** Ids whose Execution already existed, whatever its status. */
@@ -40,18 +55,15 @@ export class Executions extends Context.Service<
   {
     /** One batch start, at most 100 instances; idempotent on used ids. */
     readonly start: (
-      kind: ExecutionKind,
-      instances: ReadonlyArray<ExecutionInstance>,
+      input: StartExecutionsInput,
     ) => Effect.Effect<StartReport, ExecutionsError>
     /** `None` when no Execution exists under that id. */
     readonly status: (
-      kind: ExecutionKind,
-      id: string,
+      input: ExecutionStatusInput,
     ) => Effect.Effect<Option.Option<ExecutionStatus>, ExecutionsError>
     /** Best effort: an unknown or already terminal Execution is not an error. */
     readonly terminate: (
-      kind: ExecutionKind,
-      id: string,
+      input: TerminateExecutionInput,
     ) => Effect.Effect<void, ExecutionsError>
   }
 >()("@digital-shelf/core/Scheduling/Executions") {}

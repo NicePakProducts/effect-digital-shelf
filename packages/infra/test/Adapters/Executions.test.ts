@@ -115,11 +115,10 @@ describe("Executions adapter", () => {
         return Effect.gen(function* () {
           const executions = yield* Executions
           expect(
-            yield* executions.start(kind, [
-              request("one"),
-              request("old"),
-              request("two"),
-            ]),
+            yield* executions.start({
+              kind,
+              instances: [request("one"), request("old"), request("two")],
+            }),
           ).toEqual({ started: ["one", "two"], skipped: ["old"] })
           expect(env[kind].calls).toEqual([
             {
@@ -137,7 +136,10 @@ describe("Executions adapter", () => {
             env[kind === "scrape" ? "extraction" : "scrape"].calls,
           ).toEqual([])
           expect(
-            yield* executions.start(kind, [request("one"), request("old")]),
+            yield* executions.start({
+              kind,
+              instances: [request("one"), request("old")],
+            }),
           ).toEqual({ started: [], skipped: ["one", "old"] })
         }).pipe(Effect.provide(Adapter.layer(env.handles)))
       },
@@ -150,11 +152,10 @@ describe("Executions adapter", () => {
     return Effect.gen(function* () {
       const executions = yield* Executions
       expect(
-        yield* executions.start("scrape", [
-          request("a"),
-          request("old"),
-          request("b"),
-        ]),
+        yield* executions.start({
+          kind: "scrape",
+          instances: [request("a"), request("old"), request("b")],
+        }),
       ).toEqual({ started: ["a", "b"], skipped: ["old"] })
     }).pipe(
       Effect.provide(
@@ -178,11 +179,10 @@ describe("Executions adapter", () => {
       return Effect.gen(function* () {
         const executions = yield* Executions
         expect(
-          yield* executions.start("scrape", [
-            request("old"),
-            request("partial"),
-            request("new"),
-          ]),
+          yield* executions.start({
+            kind: "scrape",
+            instances: [request("old"), request("partial"), request("new")],
+          }),
         ).toEqual({ started: ["new"], skipped: ["old", "partial"] })
         expect(env.scrape.states.get("old")).toBe("complete")
         expect(env.scrape.states.get("new")).toBe("queued")
@@ -217,7 +217,9 @@ describe("Executions adapter", () => {
     return Effect.gen(function* () {
       const executions = yield* Executions
       expect(
-        yield* Effect.flip(executions.start("scrape", [request("one")])),
+        yield* Effect.flip(
+          executions.start({ kind: "scrape", instances: [request("one")] }),
+        ),
       ).toEqual(
         new ExecutionsError({ operation: "start", kind: "scrape", cause }),
       )
@@ -242,7 +244,9 @@ describe("Executions adapter", () => {
     return Effect.gen(function* () {
       const executions = yield* Executions
       expect(
-        yield* Effect.flip(executions.start("scrape", [request("one")])),
+        yield* Effect.flip(
+          executions.start({ kind: "scrape", instances: [request("one")] }),
+        ),
       ).toEqual(
         new ExecutionsError({ operation: "start", kind: "scrape", cause }),
       )
@@ -267,17 +271,21 @@ describe("Executions adapter", () => {
 
       return Effect.gen(function* () {
         const executions = yield* Executions
-        expect(yield* executions.start("scrape", [])).toEqual({
+        expect(
+          yield* executions.start({ kind: "scrape", instances: [] }),
+        ).toEqual({
           started: [],
           skipped: [],
         })
         expect(env.scrape.calls).toEqual([])
         expect(
           yield* Effect.flip(
-            executions.start(
-              "scrape",
-              Array.from({ length: 101 }, (_, i) => request(String(i))),
-            ),
+            executions.start({
+              kind: "scrape",
+              instances: Array.from({ length: 101 }, (_, i) =>
+                request(String(i)),
+              ),
+            }),
           ),
         ).toMatchObject({
           // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- This partial assertion omits cause; it does not construct an ExecutionsError.
@@ -287,10 +295,12 @@ describe("Executions adapter", () => {
         })
         expect(env.scrape.calls).toEqual([])
         expect(
-          (yield* executions.start(
-            "scrape",
-            Array.from({ length: 100 }, (_, i) => request(String(i))),
-          )).started,
+          (yield* executions.start({
+            kind: "scrape",
+            instances: Array.from({ length: 100 }, (_, i) =>
+              request(String(i)),
+            ),
+          })).started,
         ).toHaveLength(100)
         expect(env.scrape.calls).toHaveLength(1)
       }).pipe(Effect.provide(Adapter.layer(env.handles)))
@@ -303,7 +313,10 @@ describe("Executions adapter", () => {
     return Effect.gen(function* () {
       const executions = yield* Executions
       expect(
-        yield* executions.start("scrape", [request("one"), request("one")]),
+        yield* executions.start({
+          kind: "scrape",
+          instances: [request("one"), request("one")],
+        }),
       ).toEqual({ started: ["one"], skipped: [] })
       expect(env.scrape.calls[0]?.input).toEqual([
         { id: "one", params: { scrapeId: "one", traceparent } },
@@ -321,18 +334,18 @@ describe("Executions adapter", () => {
 
         for (const status of ExecutionStatuses) {
           env.extraction.states.set("id", status)
-          expect(yield* executions.status("extraction", "id")).toEqual(
-            Option.some(status),
-          )
+          expect(
+            yield* executions.status({ kind: "extraction", id: "id" }),
+          ).toEqual(Option.some(status))
         }
 
         env.extraction.states.set("id", "new-platform-status")
-        expect(yield* executions.status("extraction", "id")).toEqual(
-          Option.some("unknown"),
-        )
-        expect(yield* executions.status("extraction", "absent")).toEqual(
-          Option.none(),
-        )
+        expect(
+          yield* executions.status({ kind: "extraction", id: "id" }),
+        ).toEqual(Option.some("unknown"))
+        expect(
+          yield* executions.status({ kind: "extraction", id: "absent" }),
+        ).toEqual(Option.none())
       }).pipe(Effect.provide(Adapter.layer(env.handles)))
     },
   )
@@ -344,7 +357,9 @@ describe("Executions adapter", () => {
 
       return Effect.gen(function* () {
         const executions = yield* Executions
-        expect(yield* executions.status("scrape", "one")).toEqual(Option.none())
+        expect(yield* executions.status({ kind: "scrape", id: "one" })).toEqual(
+          Option.none(),
+        )
       }).pipe(
         Effect.provide(
           Adapter.layer({
@@ -370,9 +385,9 @@ describe("Executions adapter", () => {
 
     return Effect.gen(function* () {
       const executions = yield* Executions
-      yield* executions.terminate("extraction", "id")
+      yield* executions.terminate({ kind: "extraction", id: "id" })
       expect(env.extraction.states.get("id")).toBe("terminated")
-      yield* executions.terminate("extraction", "absent")
+      yield* executions.terminate({ kind: "extraction", id: "absent" })
     }).pipe(Effect.provide(Adapter.layer(env.handles)))
   })
 
@@ -386,7 +401,7 @@ describe("Executions adapter", () => {
 
       return Effect.gen(function* () {
         const executions = yield* Executions
-        yield* executions.terminate("scrape", "id")
+        yield* executions.terminate({ kind: "scrape", id: "id" })
       }).pipe(
         Effect.provide(
           Adapter.layer({
@@ -415,7 +430,9 @@ describe("Executions adapter", () => {
         return Effect.gen(function* () {
           const executions = yield* Executions
           expect(
-            yield* Effect.flip(executions[operation]("scrape", "id")),
+            yield* Effect.flip(
+              executions[operation]({ kind: "scrape", id: "id" }),
+            ),
           ).toEqual(new ExecutionsError({ operation, kind: "scrape", cause }))
         }).pipe(
           Effect.provide(
@@ -448,7 +465,7 @@ describe("Executions adapter", () => {
         const executions = yield* Executions
 
         const exit = yield* Effect.exit(
-          executions.start("scrape", [request("id")]),
+          executions.start({ kind: "scrape", instances: [request("id")] }),
         )
 
         expect(Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)).toBe(
@@ -473,6 +490,7 @@ describe("Executions adapter", () => {
 
     const observe = (operation: string) =>
       Effect.gen(function* () {
+        // SAFETY: The real adapter calls this observer inside its Effect.fn operation span; a missing span is a test setup bug.
         const span = yield* Effect.currentSpan.pipe(Effect.orDie)
         seen.push({
           operation,
@@ -496,9 +514,9 @@ describe("Executions adapter", () => {
       const executions = yield* Executions
 
       for (const kind of ["scrape", "extraction"] satisfies ExecutionKind[]) {
-        yield* executions.start(kind, [request("one")])
-        yield* executions.status(kind, "one")
-        yield* executions.terminate(kind, "one")
+        yield* executions.start({ kind, instances: [request("one")] })
+        yield* executions.status({ kind, id: "one" })
+        yield* executions.terminate({ kind, id: "one" })
       }
 
       expect(seen).toEqual(

@@ -11,9 +11,11 @@ export const layer = Layer.unwrap(
 
     const handle = (request: HttpServerRequest.HttpServerRequest) =>
       HttpServerRequest.toWeb(request).pipe(
-        Effect.orDie,
         Effect.flatMap(auth.handle),
         Effect.map(HttpServerResponse.fromWeb),
+        Effect.catch(() =>
+          Effect.succeed(HttpServerResponse.empty({ status: 400 })),
+        ),
       )
 
     return Layer.mergeAll(

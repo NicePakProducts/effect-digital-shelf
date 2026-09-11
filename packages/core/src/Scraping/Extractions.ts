@@ -206,13 +206,13 @@ export class Extractions extends Context.Service<
             Effect.gen(function* () {
               const caller = yield* Effect.currentSpan.pipe(Effect.option)
 
-              const report = yield* executions.start(
-                "extraction",
-                batch.map((row) => ({
+              const report = yield* executions.start({
+                kind: "extraction",
+                instances: batch.map((row) => ({
                   id: row.id,
                   traceparent: traceparentOf(row.scrapeId, row.rootSpanId),
                 })),
-              )
+              })
 
               for (const row of batch)
                 yield* Effect.void.pipe(
@@ -404,7 +404,10 @@ export class Extractions extends Context.Service<
 
     const reconcile = (row: DispatchRow) =>
       Effect.gen(function* () {
-        const status = yield* executions.status("extraction", row.id)
+        const status = yield* executions.status({
+          kind: "extraction",
+          id: row.id,
+        })
 
         if (Option.isNone(status)) return "unresolved" as const
 

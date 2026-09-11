@@ -1,4 +1,5 @@
 import * as Layers from "@digital-shelf/core/Layers"
+import { Sweeps } from "@digital-shelf/core/Scheduling/Sweeps"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Layer from "effect/Layer"
 import * as DbTest from "./Db.ts"
@@ -13,6 +14,7 @@ export const layerTest = Layer.mergeAll(
   Layers.Catalog,
   Layers.Api,
   Layers.Cron,
+  Sweeps.layer,
   Layers.ScrapeWorkflow,
   Layers.ExtractionWorkflow,
 ).pipe(

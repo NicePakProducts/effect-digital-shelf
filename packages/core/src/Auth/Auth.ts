@@ -4,6 +4,7 @@ import { jwt } from "better-auth/plugins/jwt"
 import { mcp } from "@better-auth/mcp"
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
+import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -19,6 +20,12 @@ export interface AuthenticatedUser {
   readonly id: string
   readonly email: string
 }
+
+export class SessionLookupFailed extends Data.TaggedError(
+  "SessionLookupFailed",
+)<{
+  readonly cause: unknown
+}> {}
 
 const make = Effect.gen(function* () {
   const secret = yield* Config.redacted("AUTH_SECRET")
@@ -95,9 +102,11 @@ const make = Effect.gen(function* () {
   const getSession = Effect.fn("Auth.getSession")(function* (
     headers: Headers.Headers | globalThis.Headers,
   ) {
-    const session = yield* Effect.tryPromise(() =>
-      auth.api.getSession({ headers: new globalThis.Headers(headers) }),
-    ).pipe(Effect.orDie)
+    const session = yield* Effect.tryPromise({
+      try: () =>
+        auth.api.getSession({ headers: new globalThis.Headers(headers) }),
+      catch: (cause) => new SessionLookupFailed({ cause }),
+    })
 
     return session === null
       ? Option.none<AuthenticatedUser>()

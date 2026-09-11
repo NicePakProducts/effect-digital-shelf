@@ -1,6 +1,7 @@
 import type { ScrapeEnvelope } from "@digital-shelf/domain/Scraping/ScrapeEnvelope"
 import type { ScrapeMode } from "@digital-shelf/domain/Scraping/Vocabulary"
 import * as Config from "effect/Config"
+import type { ConfigError } from "effect/Config"
 import * as Context from "effect/Context"
 import * as Data from "effect/Data"
 import * as Duration from "effect/Duration"
@@ -195,18 +196,16 @@ const make = (options: { readonly launch: Playwright.Launch }) =>
 
     const deadline = yield* Config.duration("FETCH_ATTEMPT_DEADLINE").pipe(
       Config.withDefault(Duration.seconds(30)),
-      Effect.orDie,
     )
 
-    const browserRetry = yield* policy("BROWSER").pipe(Effect.orDie)
-    const scrappeyRetry = yield* policy("SCRAPPEY").pipe(Effect.orDie)
+    const browserRetry = yield* policy("BROWSER")
+    const scrappeyRetry = yield* policy("SCRAPPEY")
 
     const endpoint = yield* Config.string("SCRAPPEY_ENDPOINT").pipe(
       Config.withDefault(Scrappey.ENDPOINT),
-      Effect.orDie,
     )
 
-    const apiKey = yield* Config.redacted("SCRAPPEY_API_KEY").pipe(Effect.orDie)
+    const apiKey = yield* Config.redacted("SCRAPPEY_API_KEY")
     const scrappey = Scrappey.clientFor(http, apiKey)
 
     const fetch = Effect.fn("ScrapeProviders.fetch")(function* (
@@ -244,7 +243,7 @@ export const layerWith = (options: {
   readonly launch: Playwright.Launch
 }): Layer.Layer<
   ScrapeProviders,
-  never,
+  ConfigError,
   BrowserRendering | HttpClient.HttpClient
 > => Layer.effect(ScrapeProviders, make(options))
 
@@ -257,6 +256,6 @@ export const layerWith = (options: {
  */
 export const layer: Layer.Layer<
   ScrapeProviders,
-  never,
+  ConfigError,
   BrowserRendering | HttpClient.HttpClient
 > = layerWith({ launch: (binding) => Playwright.launchOnWorkerd(binding) })

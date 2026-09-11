@@ -14,7 +14,16 @@ export const layer = Layer.effect(
     return (httpEffect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
-        const user = yield* auth.getSession(request.headers)
+
+        const user = yield* auth.getSession(request.headers).pipe(
+          Effect.catchTag("SessionLookupFailed", (error) =>
+            Effect.gen(function* () {
+              yield* Effect.logError("Session lookup failed", error)
+
+              return yield* new HttpApiError.InternalServerError({})
+            }),
+          ),
+        )
 
         if (Option.isNone(user)) return yield* new HttpApiError.Unauthorized({})
         yield* Effect.annotateCurrentSpan("shelf.user.id", user.value.id)

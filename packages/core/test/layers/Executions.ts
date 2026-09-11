@@ -48,18 +48,23 @@ const make = Effect.gen(function* () {
   })
 
   const service: Executions["Service"] = {
-    start: (kind, instances) =>
+    start: (input) =>
       Effect.gen(function* () {
         yield* Ref.update(calls, (calls) => [
           ...calls,
-          { operation: "start", kind, instances, id: null } satisfies Call,
+          {
+            operation: "start",
+            kind: input.kind,
+            instances: input.instances,
+            id: null,
+          } satisfies Call,
         ])
 
         if (yield* Ref.getAndSet(failure, false))
           return yield* Effect.fail(
             new ExecutionsError({
               operation: "start",
-              kind,
+              kind: input.kind,
               cause: "scripted start failure",
             }),
           )
@@ -70,53 +75,67 @@ const make = Effect.gen(function* () {
           const started: string[] = [],
             skipped: string[] = []
 
-          for (const instance of instances) {
-            if (next.has(`${kind}:${instance.id}`)) skipped.push(instance.id)
-            else {
-              next.set(`${kind}:${instance.id}`, "queued")
-              started.push(instance.id)
+          for (const instance of input.instances) {
+            if (next.has(`${input.kind}:${instance.id}`)) {
+              skipped.push(instance.id)
+              continue
             }
+
+            next.set(`${input.kind}:${instance.id}`, "queued")
+            started.push(instance.id)
           }
 
           return [{ started, skipped }, next]
         })
       }),
-    status: (kind, id) =>
+    status: (input) =>
       Effect.gen(function* () {
         yield* Ref.update(calls, (calls) => [
           ...calls,
-          { operation: "status", kind, instances: [], id } satisfies Call,
+          {
+            operation: "status",
+            kind: input.kind,
+            instances: [],
+            id: input.id,
+          } satisfies Call,
         ])
 
-        if ((yield* Ref.get(statusFailures)).has(`${kind}:${id}`))
+        if ((yield* Ref.get(statusFailures)).has(`${input.kind}:${input.id}`))
           return yield* Effect.fail(
             new ExecutionsError({
               operation: "status",
-              kind,
+              kind: input.kind,
               cause: "scripted status failure",
             }),
           )
 
         return Option.fromUndefinedOr(
-          (yield* Ref.get(statuses)).get(`${kind}:${id}`),
+          (yield* Ref.get(statuses)).get(`${input.kind}:${input.id}`),
         )
       }),
-    terminate: (kind, id) =>
+    terminate: (input) =>
       Effect.gen(function* () {
         yield* Ref.update(calls, (calls) => [
           ...calls,
-          { operation: "terminate", kind, instances: [], id } satisfies Call,
+          {
+            operation: "terminate",
+            kind: input.kind,
+            instances: [],
+            id: input.id,
+          } satisfies Call,
         ])
 
-        if ((yield* Ref.get(terminateFailures)).has(`${kind}:${id}`))
+        if (
+          (yield* Ref.get(terminateFailures)).has(`${input.kind}:${input.id}`)
+        )
           return yield* Effect.fail(
             new ExecutionsError({
               operation: "terminate",
-              kind,
+              kind: input.kind,
               cause: "scripted termination failure",
             }),
           )
-        yield* setStatus(kind, id, "terminated")
+        yield* setStatus(input.kind, input.id, "terminated")
       }),
   }
 

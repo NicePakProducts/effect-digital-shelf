@@ -49,7 +49,11 @@ export const Scraping: Layer.Layer<
 
 export const Api = Layer.mergeAll(Catalog, Scraping, Auth.layer)
 
-export const Cron = CronService.layer.pipe(
+export const Cron: Layer.Layer<
+  CronService,
+  ConfigError,
+  Db | R2Bucket | Executions
+> = CronService.layer.pipe(
   Layer.provideMerge(
     Layer.mergeAll(Sweeps.layer, Scrapes.layer, Extractions.layer),
   ),
