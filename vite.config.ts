@@ -34,6 +34,9 @@ export default defineConfig({
       },
     ],
     rules: {
+      "prefer-const": "error",
+      "no-else-return": "error",
+      "no-lonely-if": "error",
       "vite-plus/prefer-vite-plus-imports": "error",
       "oxc/no-accumulating-spread": "error",
       "anti-slop/no-array-filter-map": "error",
