@@ -66,7 +66,7 @@ const setup = Effect.gen(function* () {
 
 const configured = (config: Record<string, number>) =>
   ExtractionRunner.make.pipe(
-    Effect.provide(ConfigProvider.layer(ConfigProvider.fromUnknown(config))),
+    Effect.provide(ConfigProvider.layerAdd(ConfigProvider.fromUnknown(config))),
   )
 
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
@@ -381,6 +381,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           expect(parse(request.headers["cf-aig-metadata"]!)).toEqual({
             extractionId: row.id,
             scrapeId: target.scrapeId,
+            gatewayId: "digital-shelf-ai-gateway-dev",
           })
           expect(request.body._tag).toBe("Uint8Array")
 

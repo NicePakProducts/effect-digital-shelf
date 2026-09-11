@@ -17,6 +17,7 @@ export const secretKeys = [
 ] as const
 
 export const optionalKeys = [
+  "AXIOM_DOMAIN",
   "AUTH_ALLOWED_EMAIL_DOMAINS",
   "POSTMARK_MESSAGE_STREAM",
   "SCRAPPEY_ENDPOINT",
@@ -42,7 +43,14 @@ export const optionalKeys = [
   "EXTRACTION_MAX_OUTPUT_TOKENS",
 ] as const
 
-export const configKeys = [...requiredKeys, ...secretKeys, ...optionalKeys]
+export const optionalSecretKeys = ["AXIOM_TOKEN"] as const
+
+export const configKeys = [
+  ...requiredKeys,
+  ...secretKeys,
+  ...optionalKeys,
+  ...optionalSecretKeys,
+]
 
 export const bind = Effect.gen(function* () {
   for (const key of requiredKeys) yield* Config.string(key)
@@ -50,4 +58,7 @@ export const bind = Effect.gen(function* () {
   for (const key of secretKeys) yield* Config.redacted(key)
 
   for (const key of optionalKeys) yield* Config.option(Config.string(key))
+
+  for (const key of optionalSecretKeys)
+    yield* Config.option(Config.redacted(key))
 })

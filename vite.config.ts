@@ -9,6 +9,7 @@ const agentAssets = [
   ".continue/**",
   ".cursor/**",
   ".gemini/**",
+  ".lavish/**",
   ".opencode/**",
   ".pi/**",
   ".roo/**",

@@ -26,4 +26,5 @@ pnpm-debug.log*
 # Agent tooling (per-machine)
 .claude/
 .agents/
+.lavish/
 skills-lock.json

@@ -44,73 +44,74 @@ const orNotFound =
       }),
     )
 
-export const find = Effect.fn("ProductsRepo.find")(function* (id: ProductId) {
-  const db = yield* Db
+export const find = Effect.fn("ProductsRepo.find", { level: "Debug" })(
+  function* (id: ProductId) {
+    const db = yield* Db
 
-  return yield* one(
-    yield* query(db.select().from(products).where(eq(products.id, id))),
-  )
-})
+    return yield* one(
+      yield* query(db.select().from(products).where(eq(products.id, id))),
+    )
+  },
+)
 
 export const get = (id: ProductId) => find(id).pipe(orNotFound(id))
 
 export type Filter = { brandId?: BrandId }
 
-export const list = Effect.fn("ProductsRepo.list")(function* (
-  filter: Filter = {},
-) {
-  const db = yield* Db
+export const list = Effect.fn("ProductsRepo.list", { level: "Debug" })(
+  function* (filter: Filter = {}) {
+    const db = yield* Db
 
-  return yield* all(
-    yield* query(
-      db
-        .select()
-        .from(products)
-        .where(
-          and(
-            filter.brandId === undefined
-              ? undefined
-              : eq(products.brandId, filter.brandId),
-          ),
-        )
-        .orderBy(asc(products.name), asc(products.createdAt)),
-    ),
-  )
-})
+    return yield* all(
+      yield* query(
+        db
+          .select()
+          .from(products)
+          .where(
+            and(
+              filter.brandId === undefined
+                ? undefined
+                : eq(products.brandId, filter.brandId),
+            ),
+          )
+          .orderBy(asc(products.name), asc(products.createdAt)),
+      ),
+    )
+  },
+)
 
-export const insert = Effect.fn("ProductsRepo.insert")(function* (
-  product: ProductInsert,
-) {
-  const db = yield* Db
+export const insert = Effect.fn("ProductsRepo.insert", { level: "Debug" })(
+  function* (product: ProductInsert) {
+    const db = yield* Db
 
-  return yield* exactlyOne(
-    yield* query(db.insert(products).values(toRow(product)).returning()),
-  )
-})
+    return yield* exactlyOne(
+      yield* query(db.insert(products).values(toRow(product)).returning()),
+    )
+  },
+)
 
-export const update = Effect.fn("ProductsRepo.update")(function* (
-  id: ProductId,
-  patch: ProductUpdate,
-) {
-  const values = toPatch(patch)
+export const update = Effect.fn("ProductsRepo.update", { level: "Debug" })(
+  function* (id: ProductId, patch: ProductUpdate) {
+    const values = toPatch(patch)
 
-  if (Object.keys(values).length === 0) return yield* get(id)
-  const db = yield* Db
+    if (Object.keys(values).length === 0) return yield* get(id)
+    const db = yield* Db
 
-  return yield* one(
-    yield* query(
-      db.update(products).set(values).where(eq(products.id, id)).returning(),
-    ),
-  ).pipe(orNotFound(id))
-})
+    return yield* one(
+      yield* query(
+        db.update(products).set(values).where(eq(products.id, id)).returning(),
+      ),
+    ).pipe(orNotFound(id))
+  },
+)
 
 /** The raw row delete; Catalog/Cascade collects what the cascade drops first. */
-export const remove = Effect.fn("ProductsRepo.remove")(function* (
-  id: ProductId,
-) {
-  const db = yield* Db
+export const remove = Effect.fn("ProductsRepo.remove", { level: "Debug" })(
+  function* (id: ProductId) {
+    const db = yield* Db
 
-  return yield* one(
-    yield* query(db.delete(products).where(eq(products.id, id)).returning()),
-  ).pipe(orNotFound(id))
-})
+    return yield* one(
+      yield* query(db.delete(products).where(eq(products.id, id)).returning()),
+    ).pipe(orNotFound(id))
+  },
+)

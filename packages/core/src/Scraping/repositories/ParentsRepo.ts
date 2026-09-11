@@ -157,9 +157,9 @@ const pageNotInFlight = notExists(
   sql`(SELECT 1 FROM ${scrapes} WHERE ${scrapes.pageId} = ${pages.id} AND ${scrapes.status} IN ('pending', 'running'))`,
 )
 
-export const findTarget = Effect.fn("ParentsRepo.findTarget")(function* (
-  parent: ScrapeParent,
-) {
+export const findTarget = Effect.fn("ParentsRepo.findTarget", {
+  level: "Debug",
+})(function* (parent: ScrapeParent) {
   const db = yield* Db
 
   const rows = Predicate.isTagged(parent, "Listing")
@@ -179,7 +179,9 @@ export const findTarget = Effect.fn("ParentsRepo.findTarget")(function* (
  * queries (Listings, Pages) merged in memory: each is bounded by `limit`,
  * so the merge sees at most `2 * limit` rows.
  */
-export const cadenceDue = Effect.fn("ParentsRepo.cadenceDue")(function* (
+export const cadenceDue = Effect.fn("ParentsRepo.cadenceDue", {
+  level: "Debug",
+})(function* (
   now: DateTime.Utc,
   failureRetryInterval: Duration.Duration,
   limit: number,
@@ -250,83 +252,82 @@ const idOf = (target: ScrapeTarget): string =>
  * effective pause. Paused and in-flight candidates reach the caller so bulk
  * can report both as skipped. A Product scope has no Pages.
  */
-export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates")(
-  function* (scope: BulkScrape) {
-    const db = yield* Db
-    const l = listingBase(db)
-    const p = pageBase(db)
+export const bulkCandidates = Effect.fn("ParentsRepo.bulkCandidates", {
+  level: "Debug",
+})(function* (scope: BulkScrape) {
+  const db = yield* Db
+  const l = listingBase(db)
+  const p = pageBase(db)
 
-    const listingScope = Match.value(scope).pipe(
-      Match.tag("Brand", (scope) => eq(brands.id, scope.brandId)),
-      Match.tag("Product", (scope) => eq(products.id, scope.productId)),
-      Match.tag("Retailer", (scope) => eq(retailers.id, scope.retailerId)),
-      Match.exhaustive,
-    )
+  const listingScope = Match.value(scope).pipe(
+    Match.tag("Brand", (scope) => eq(brands.id, scope.brandId)),
+    Match.tag("Product", (scope) => eq(products.id, scope.productId)),
+    Match.tag("Retailer", (scope) => eq(retailers.id, scope.retailerId)),
+    Match.exhaustive,
+  )
 
-    const listingRows = yield* query(
-      l.select
-        .where(listingScope)
-        .orderBy(asc(listings.createdAt), asc(listings.id)),
-    )
+  const listingRows = yield* query(
+    l.select
+      .where(listingScope)
+      .orderBy(asc(listings.createdAt), asc(listings.id)),
+  )
 
-    const pageRows = Predicate.isTagged(scope, "Product")
-      ? []
-      : yield* query(
-          p.select
-            .where(
-              Predicate.isTagged(scope, "Brand")
-                ? eq(brands.id, scope.brandId)
-                : eq(retailers.id, scope.retailerId),
-            )
-            .orderBy(asc(pages.createdAt), asc(pages.id)),
-        )
+  const pageRows = Predicate.isTagged(scope, "Product")
+    ? []
+    : yield* query(
+        p.select
+          .where(
+            Predicate.isTagged(scope, "Brand")
+              ? eq(brands.id, scope.brandId)
+              : eq(retailers.id, scope.retailerId),
+          )
+          .orderBy(asc(pages.createdAt), asc(pages.id)),
+      )
 
-    return yield* decodeTargets([...listingRows, ...pageRows])
-  },
-)
+  return yield* decodeTargets([...listingRows, ...pageRows])
+})
 
 /** Whether the bulk scope's container row exists. */
-export const containerExists = Effect.fn("ParentsRepo.containerExists")(
-  function* (scope: BulkScrape) {
-    const db = yield* Db
+export const containerExists = Effect.fn("ParentsRepo.containerExists", {
+  level: "Debug",
+})(function* (scope: BulkScrape) {
+  const db = yield* Db
 
-    const rows = yield* Match.value(scope).pipe(
-      Match.tag("Brand", (scope) =>
-        query(
-          db
-            .select({ id: brands.id })
-            .from(brands)
-            .where(eq(brands.id, scope.brandId)),
-        ),
+  const rows = yield* Match.value(scope).pipe(
+    Match.tag("Brand", (scope) =>
+      query(
+        db
+          .select({ id: brands.id })
+          .from(brands)
+          .where(eq(brands.id, scope.brandId)),
       ),
-      Match.tag("Product", (scope) =>
-        query(
-          db
-            .select({ id: products.id })
-            .from(products)
-            .where(eq(products.id, scope.productId)),
-        ),
+    ),
+    Match.tag("Product", (scope) =>
+      query(
+        db
+          .select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, scope.productId)),
       ),
-      Match.tag("Retailer", (scope) =>
-        query(
-          db
-            .select({ id: retailers.id })
-            .from(retailers)
-            .where(eq(retailers.id, scope.retailerId)),
-        ),
+    ),
+    Match.tag("Retailer", (scope) =>
+      query(
+        db
+          .select({ id: retailers.id })
+          .from(retailers)
+          .where(eq(retailers.id, scope.retailerId)),
       ),
-      Match.exhaustive,
-    )
+    ),
+    Match.exhaustive,
+  )
 
-    return rows.length > 0
-  },
-)
+  return rows.length > 0
+})
 
 /** Last scraped at advances only on fetch success (CONTEXT.md). */
-export const markScraped = Effect.fn("ParentsRepo.markScraped")(function* (
-  parent: ScrapeParent,
-  at: DateTime.Utc,
-) {
+export const markScraped = Effect.fn("ParentsRepo.markScraped", {
+  level: "Debug",
+})(function* (parent: ScrapeParent, at: DateTime.Utc) {
   const db = yield* Db
   const lastScrapedAt = DateTime.toDateUtc(at)
 

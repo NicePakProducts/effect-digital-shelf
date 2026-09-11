@@ -64,128 +64,132 @@ const orNotFound =
       }),
     )
 
-export const find = Effect.fn("ListingsRepo.find")(function* (id: ListingId) {
-  const db = yield* Db
+export const find = Effect.fn("ListingsRepo.find", { level: "Debug" })(
+  function* (id: ListingId) {
+    const db = yield* Db
 
-  return yield* one(
-    yield* query(db.select().from(listings).where(eq(listings.id, id))),
-  )
-})
+    return yield* one(
+      yield* query(db.select().from(listings).where(eq(listings.id, id))),
+    )
+  },
+)
 
 export const get = (id: ListingId) => find(id).pipe(orNotFound(id))
 
 export type Filter = { productId?: ProductId; retailerId?: RetailerId }
 
-export const list = Effect.fn("ListingsRepo.list")(function* (
-  filter: Filter = {},
-) {
-  const db = yield* Db
-
-  return yield* all(
-    yield* query(
-      db
-        .select()
-        .from(listings)
-        .where(
-          and(
-            filter.productId === undefined
-              ? undefined
-              : eq(listings.productId, filter.productId),
-            filter.retailerId === undefined
-              ? undefined
-              : eq(listings.retailerId, filter.retailerId),
-          ),
-        )
-        .orderBy(asc(listings.createdAt), asc(listings.id)),
-    ),
-  )
-})
-
-export const insert = Effect.fn("ListingsRepo.insert")(function* (
-  listing: ListingInsert,
-) {
-  const db = yield* Db
-
-  return yield* exactlyOne(
-    yield* query(db.insert(listings).values(toRow(listing)).returning()),
-  )
-})
-
-export const update = Effect.fn("ListingsRepo.update")(function* (
-  id: ListingId,
-  patch: ListingUpdate,
-) {
-  const values = toPatch(patch)
-
-  if (Object.keys(values).length === 0) return yield* get(id)
-  const db = yield* Db
-
-  return yield* one(
-    yield* query(
-      db.update(listings).set(values).where(eq(listings.id, id)).returning(),
-    ),
-  ).pipe(orNotFound(id))
-})
-
-/** The raw row delete; Catalog/Cascade collects what the cascade drops first. */
-export const remove = Effect.fn("ListingsRepo.remove")(function* (
-  id: ListingId,
-) {
-  const db = yield* Db
-
-  return yield* one(
-    yield* query(db.delete(listings).where(eq(listings.id, id)).returning()),
-  ).pipe(orNotFound(id))
-})
-
-const coverage = Effect.fn("ListingsRepo.coverage")(function* (
-  ids: ReadonlyArray<ListingId>,
-) {
-  if (ids.length === 0) return []
-  const db = yield* Db
-
-  return yield* Rows.decodeAll(ListingVariant)(
-    yield* query(
-      db
-        .select({
-          listingId: listingVariants.listingId,
-          variantId: listingVariants.variantId,
-        })
-        .from(listingVariants)
-        .innerJoin(variants, eq(variants.id, listingVariants.variantId))
-        .where(inArray(listingVariants.listingId, ids))
-        .orderBy(asc(variants.name), asc(variants.createdAt), asc(variants.id)),
-    ),
-  )
-})
-
-export const coverageOf = Effect.fn("ListingsRepo.coverageOf")(function* (
-  id: ListingId,
-) {
-  return (yield* coverage([id])).map((row) => row.variantId)
-})
-
-export const replaceCoverage = Effect.fn("ListingsRepo.replaceCoverage")(
-  function* (listingId: ListingId, variantIds: ReadonlyArray<VariantId>) {
+export const list = Effect.fn("ListingsRepo.list", { level: "Debug" })(
+  function* (filter: Filter = {}) {
     const db = yield* Db
-    yield* query(
-      db
-        .delete(listingVariants)
-        .where(eq(listingVariants.listingId, listingId)),
-    )
-    const ids = [...new Set(variantIds)]
 
-    if (ids.length > 0)
+    return yield* all(
       yield* query(
         db
-          .insert(listingVariants)
-          .values(ids.map((variantId) => ({ listingId, variantId }))),
-      )
+          .select()
+          .from(listings)
+          .where(
+            and(
+              filter.productId === undefined
+                ? undefined
+                : eq(listings.productId, filter.productId),
+              filter.retailerId === undefined
+                ? undefined
+                : eq(listings.retailerId, filter.retailerId),
+            ),
+          )
+          .orderBy(asc(listings.createdAt), asc(listings.id)),
+      ),
+    )
   },
 )
 
+export const insert = Effect.fn("ListingsRepo.insert", { level: "Debug" })(
+  function* (listing: ListingInsert) {
+    const db = yield* Db
+
+    return yield* exactlyOne(
+      yield* query(db.insert(listings).values(toRow(listing)).returning()),
+    )
+  },
+)
+
+export const update = Effect.fn("ListingsRepo.update", { level: "Debug" })(
+  function* (id: ListingId, patch: ListingUpdate) {
+    const values = toPatch(patch)
+
+    if (Object.keys(values).length === 0) return yield* get(id)
+    const db = yield* Db
+
+    return yield* one(
+      yield* query(
+        db.update(listings).set(values).where(eq(listings.id, id)).returning(),
+      ),
+    ).pipe(orNotFound(id))
+  },
+)
+
+/** The raw row delete; Catalog/Cascade collects what the cascade drops first. */
+export const remove = Effect.fn("ListingsRepo.remove", { level: "Debug" })(
+  function* (id: ListingId) {
+    const db = yield* Db
+
+    return yield* one(
+      yield* query(db.delete(listings).where(eq(listings.id, id)).returning()),
+    ).pipe(orNotFound(id))
+  },
+)
+
+const coverage = Effect.fn("ListingsRepo.coverage", { level: "Debug" })(
+  function* (ids: ReadonlyArray<ListingId>) {
+    if (ids.length === 0) return []
+    const db = yield* Db
+
+    return yield* Rows.decodeAll(ListingVariant)(
+      yield* query(
+        db
+          .select({
+            listingId: listingVariants.listingId,
+            variantId: listingVariants.variantId,
+          })
+          .from(listingVariants)
+          .innerJoin(variants, eq(variants.id, listingVariants.variantId))
+          .where(inArray(listingVariants.listingId, ids))
+          .orderBy(
+            asc(variants.name),
+            asc(variants.createdAt),
+            asc(variants.id),
+          ),
+      ),
+    )
+  },
+)
+
+export const coverageOf = Effect.fn("ListingsRepo.coverageOf", {
+  level: "Debug",
+})(function* (id: ListingId) {
+  return (yield* coverage([id])).map((row) => row.variantId)
+})
+
+export const replaceCoverage = Effect.fn("ListingsRepo.replaceCoverage", {
+  level: "Debug",
+})(function* (listingId: ListingId, variantIds: ReadonlyArray<VariantId>) {
+  const db = yield* Db
+  yield* query(
+    db.delete(listingVariants).where(eq(listingVariants.listingId, listingId)),
+  )
+  const ids = [...new Set(variantIds)]
+
+  if (ids.length > 0)
+    yield* query(
+      db
+        .insert(listingVariants)
+        .values(ids.map((variantId) => ({ listingId, variantId }))),
+    )
+})
+
 export const variantsNotInProduct = Effect.fn(
   "ListingsRepo.variantsNotInProduct",
+  { level: "Debug" },
 )(function* (productId: ProductId, variantIds: ReadonlyArray<VariantId>) {
   if (variantIds.length === 0) return []
   const db = yield* Db
@@ -248,49 +252,48 @@ const withStatus = (db: Db["Service"]) => {
     .leftJoinLateral(extraction, sql`true`)
 }
 
-const readStatus = Effect.fn("ListingsRepo.readStatus")(function* (
-  filter: Filter,
-  id?: ListingId,
-) {
-  const db = yield* Db
+const readStatus = Effect.fn("ListingsRepo.readStatus", { level: "Debug" })(
+  function* (filter: Filter, id?: ListingId) {
+    const db = yield* Db
 
-  const rows = yield* Rows.decodeAll(StatusRow)(
-    yield* query(
-      withStatus(db)
-        .where(
-          and(
-            id === undefined ? undefined : eq(listings.id, id),
-            filter.productId === undefined
-              ? undefined
-              : eq(listings.productId, filter.productId),
-            filter.retailerId === undefined
-              ? undefined
-              : eq(listings.retailerId, filter.retailerId),
-          ),
-        )
-        .orderBy(asc(listings.createdAt), asc(listings.id)),
-    ),
-  )
+    const rows = yield* Rows.decodeAll(StatusRow)(
+      yield* query(
+        withStatus(db)
+          .where(
+            and(
+              id === undefined ? undefined : eq(listings.id, id),
+              filter.productId === undefined
+                ? undefined
+                : eq(listings.productId, filter.productId),
+              filter.retailerId === undefined
+                ? undefined
+                : eq(listings.retailerId, filter.retailerId),
+            ),
+          )
+          .orderBy(asc(listings.createdAt), asc(listings.id)),
+      ),
+    )
 
-  const edges = yield* coverage(rows.map((row) => row.id))
+    const edges = yield* coverage(rows.map((row) => row.id))
 
-  return rows.map(({ scrapeStatus, extractionStatus, ...row }) => ({
-    ...row,
-    variantIds: edges
-      .filter((edge) => edge.listingId === row.id)
-      .map((edge) => edge.variantId),
-    combinedStatus: combinedStatus(scrapeStatus, extractionStatus),
-  }))
+    return rows.map(({ scrapeStatus, extractionStatus, ...row }) => ({
+      ...row,
+      variantIds: edges
+        .filter((edge) => edge.listingId === row.id)
+        .map((edge) => edge.variantId),
+      combinedStatus: combinedStatus(scrapeStatus, extractionStatus),
+    }))
+  },
+)
+
+export const findWithStatus = Effect.fn("ListingsRepo.findWithStatus", {
+  level: "Debug",
+})(function* (id: ListingId) {
+  return Option.fromUndefinedOr((yield* readStatus({}, id))[0])
 })
 
-export const findWithStatus = Effect.fn("ListingsRepo.findWithStatus")(
-  function* (id: ListingId) {
-    return Option.fromUndefinedOr((yield* readStatus({}, id))[0])
-  },
-)
-
-export const listWithStatus = Effect.fn("ListingsRepo.listWithStatus")(
-  function* (filter: Filter = {}) {
-    return yield* readStatus(filter)
-  },
-)
+export const listWithStatus = Effect.fn("ListingsRepo.listWithStatus", {
+  level: "Debug",
+})(function* (filter: Filter = {}) {
+  return yield* readStatus(filter)
+})

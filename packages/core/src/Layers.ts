@@ -71,3 +71,5 @@ export const ExtractionWorkflow = ExtractionRunner.layer
 export { layer as LanguageModelLive } from "./Providers/LanguageModel.ts"
 
 export const EmailSenderLive = EmailSender.layerPostmark
+
+export { layer as TraceIdentity } from "./Scraping/Trace.ts"

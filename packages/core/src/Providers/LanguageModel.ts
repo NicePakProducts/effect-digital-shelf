@@ -13,9 +13,11 @@ export const extractionModel = Config.string("EXTRACTION_MODEL").pipe(
   Config.withDefault("@cf/zai-org/glm-4.7-flash"),
 )
 
+export const aiGatewayId = Config.string("AI_GATEWAY_ID")
+
 export const layer = Layer.unwrap(
   Effect.gen(function* () {
-    const gateway = yield* Config.string("AI_GATEWAY_ID")
+    const gateway = yield* aiGatewayId
     const model = yield* extractionModel
 
     const client = OpenAiClient.layerConfig({

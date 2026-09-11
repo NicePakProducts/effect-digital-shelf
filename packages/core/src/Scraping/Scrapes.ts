@@ -29,6 +29,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as Tracer from "effect/Tracer"
 import {
   isActiveExecutionStatus,
   isTerminalExecutionStatus,
@@ -42,7 +43,7 @@ import { R2Bucket } from "../Storage/R2Bucket.ts"
 import { Executions, startBatchLimit } from "../Scheduling/Executions.ts"
 import * as ParentsRepo from "./repositories/ParentsRepo.ts"
 import * as ScrapesRepo from "./repositories/ScrapesRepo.ts"
-import { traceparentOf } from "./Trace.ts"
+import { RootTraceId, traceIdOf, traceparentOf } from "./Trace.ts"
 
 class InFlightConflict extends Data.TaggedError("InFlightConflict") {}
 
@@ -95,6 +96,13 @@ const make = Effect.gen(function* () {
           return yield* Effect.die(
             new Error("Scrape.created needs a real span; tracing is disabled"),
           )
+
+        if (span.traceId !== traceIdOf(id))
+          return yield* Effect.die(
+            new Error(
+              "Scrape.created span does not carry the Scrape trace id; provide TraceIdentity.layer (core Scraping/Trace.ts) above the tracer",
+            ),
+          )
         const now = yield* DateTime.now
 
         const values = {
@@ -127,6 +135,7 @@ const make = Effect.gen(function* () {
       }).pipe(
         Effect.withSpan("Scrape.created", {
           root: true,
+          annotations: Context.make(RootTraceId, Option.some(traceIdOf(id))),
           attributes: {
             "shelf.scrape.id": id,
             "shelf.parent.kind": target.parentKind,
@@ -142,18 +151,40 @@ const make = Effect.gen(function* () {
 
   const start = Effect.fn("Scrapes.start")(function* (
     rows: ReadonlyArray<Scrape>,
+    caller: Option.Option<Tracer.Span>,
   ) {
     let started = 0
     const skipped: string[] = []
 
     for (let i = 0; i < rows.length; i += startBatchLimit) {
+      const batch = rows.slice(i, i + startBatchLimit)
+
       const report = yield* executions.start(
         "scrape",
-        rows.slice(i, i + startBatchLimit).map((row) => ({
+        batch.map((row) => ({
           id: row.id,
           traceparent: traceparentOf(row.id, row.rootSpanId),
         })),
       )
+
+      for (const row of batch)
+        yield* Effect.void.pipe(
+          Effect.withSpan("Scrape.dispatch", {
+            parent: Tracer.externalSpan({
+              traceId: traceIdOf(row.id),
+              spanId: row.rootSpanId,
+            }),
+            links:
+              Option.isSome(caller) && caller.value.spanId !== "noop"
+                ? [{ span: caller.value, attributes: {} }]
+                : [],
+            attributes: {
+              "shelf.scrape.id": row.id,
+              "shelf.execution.kind": "scrape",
+              "shelf.dispatch.started": report.started.includes(row.id),
+            },
+          }),
+        )
 
       started += report.started.length
       skipped.push(...report.skipped)
@@ -200,7 +231,10 @@ const make = Effect.gen(function* () {
       )
 
       if (Option.isSome(created)) {
-        yield* start([created.value])
+        yield* start(
+          [created.value],
+          yield* Effect.currentSpan.pipe(Effect.option),
+        )
 
         return created.value
       }
@@ -276,7 +310,10 @@ const make = Effect.gen(function* () {
       "bulk",
     )
 
-    const started = yield* start(report.created.slice(0, startBatchLimit))
+    const started = yield* start(
+      report.created.slice(0, startBatchLimit),
+      yield* Effect.currentSpan.pipe(Effect.option),
+    )
 
     return {
       created: report.created.map((row) => row.id),
@@ -295,7 +332,10 @@ const make = Effect.gen(function* () {
       "cadence",
     )
 
-    const started = yield* start(report.created)
+    const started = yield* start(
+      report.created,
+      yield* Effect.currentSpan.pipe(Effect.option),
+    )
 
     return {
       created: report.created.map((row) => row.id),
@@ -308,7 +348,12 @@ const make = Effect.gen(function* () {
     limit: number,
   ) {
     const rows = yield* ScrapesRepo.listPending(limit)
-    const report = yield* start(rows)
+
+    const report = yield* start(
+      rows,
+      yield* Effect.currentSpan.pipe(Effect.option),
+    )
+
     let alreadyActive = 0
     let recoveredFailed = 0
     let unresolved = 0
@@ -359,6 +404,13 @@ const make = Effect.gen(function* () {
             Effect.logError("Scrape reconcile failed", cause),
             "unresolved" as const,
           ),
+        ),
+        Effect.annotateSpans("shelf.scrape.id", row.id),
+        Effect.linkSpans(
+          Tracer.externalSpan({
+            traceId: traceIdOf(row.id),
+            spanId: row.rootSpanId,
+          }),
         ),
       )
 
