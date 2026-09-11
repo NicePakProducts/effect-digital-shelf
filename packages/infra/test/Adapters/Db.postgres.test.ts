@@ -34,6 +34,7 @@ describe.skipIf(url === undefined)("Db adapter on PostgreSQL", () => {
             yield* db.transaction(() =>
               db.execute(sql`INSERT INTO infra_rollback_probe VALUES (1)`),
             )
+
             const failed = yield* Effect.flip(
               db.transaction(() =>
                 Effect.gen(function* () {
@@ -49,10 +50,12 @@ describe.skipIf(url === undefined)("Db adapter on PostgreSQL", () => {
                       ),
                     ),
                   ).toEqual([{ id: 1 }, { id: 2 }])
+
                   return yield* Effect.fail("rollback probe")
                 }),
               ),
             )
+
             expect(failed).toBe("rollback probe")
             expect(
               rowsOf(

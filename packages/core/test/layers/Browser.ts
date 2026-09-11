@@ -52,6 +52,7 @@ const rejection = (cause: unknown) =>
 export const scripted = (script: Script = {}): Scripted => {
   let launched = 0
   let closed = 0
+
   const response: PageResponse = {
     status: () => script.status ?? 200,
     allHeaders: () => Promise.resolve(script.responseHeaders ?? {}),
@@ -59,11 +60,14 @@ export const scripted = (script: Script = {}): Scripted => {
       allHeaders: () => Promise.resolve(script.requestHeaders ?? {}),
     }),
   }
+
   const page: Page = {
     goto: () => {
       if (script.failGoto !== undefined)
         return Promise.reject(rejection(script.failGoto))
+
       if (script.hang === true) return new Promise<never>(() => {})
+
       return Promise.resolve(script.noResponse === true ? null : response)
     },
     url: () => script.finalUrl ?? "https://example.com/",
@@ -79,24 +83,30 @@ export const scripted = (script: Script = {}): Scripted => {
     content: () =>
       Promise.resolve(script.html ?? "<html><body>Hello</body></html>"),
   }
+
   const context: BrowserContext = {
     newPage: () => Promise.resolve(page),
     cookies: () => Promise.resolve(script.cookies ?? []),
   }
+
   const browser: Browser = {
     newContext: () => Promise.resolve(context),
     sessionId: () => script.sessionId ?? "session-1",
     close: () => {
       closed += 1
+
       return Promise.resolve()
     },
   }
+
   return {
     launch: () => {
       if (script.failLaunch !== undefined)
         return Promise.reject(rejection(script.failLaunch))
+
       if (script.hangLaunch === true) return new Promise<never>(() => {})
       launched += 1
+
       return Promise.resolve(browser)
     },
     launched: () => launched,

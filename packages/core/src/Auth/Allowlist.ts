@@ -10,6 +10,7 @@ export const isAllowlisted = (
 ): boolean => {
   const at = email.lastIndexOf("@")
   const domain = email.slice(at + 1).toLowerCase()
+
   return (
     at > 0 &&
     domain.length > 0 &&

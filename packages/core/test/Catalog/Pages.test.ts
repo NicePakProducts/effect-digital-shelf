@@ -21,6 +21,7 @@ import * as CoreTest from "../layers/Core.ts"
 import * as DbTest from "../layers/Db.ts"
 import { seed } from "../fixtures/Catalog.ts"
 import { history, extraction } from "../fixtures/Scraping.ts"
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
   it.effect(
     "removes two descendant Scrapes, their Extractions and R2 objects",
@@ -29,23 +30,29 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         yield* DbTest.reset
         const c = yield* seed()
         const service = yield* Pages
+
         const row = yield* service.create({
           brandId: c.brandId,
           retailerId: c.retailerId,
           url: c.url("/remove"),
         })
+
         const bucket = yield* R2BucketTest
         yield* bucket.reset
+
         for (const age of ["2 hours", "1 hour"] as const) {
           const scrape = yield* history(
             { _tag: "Page", pageId: row.id },
             "success",
             age,
           )
+
           yield* extraction(scrape.id, 1, "success")
+
           for (const key of keysOf(scrape.id))
             yield* bucket.service.put(key, "payload", "text/plain")
         }
+
         const db = yield* Db
         expect(yield* query(db.select().from(scrapes))).toHaveLength(2)
         expect(yield* query(db.select().from(extractions))).toHaveLength(2)
@@ -66,11 +73,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         yield* DbTest.reset
         const c = yield* seed()
         const pages = yield* Pages
+
         const command = {
           brandId: c.brandId,
           retailerId: c.retailerId,
           url: c.url("/brand"),
         }
+
         const page = yield* pages.create(command)
         expect(page.cadence).toBe("monthly")
         expect(page.paused).toBe(false)
@@ -84,6 +93,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         expect(yield* pages.get(page.id)).toEqual(page)
       }),
   )
+
   for (const source of ["Brand", "Retailer", "Page", "Product"] as const) {
     it.effect(
       `reads effective pause from ${source}${source === "Product" ? " as false" : " as true"}`,
@@ -92,17 +102,22 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
           yield* DbTest.reset
           const c = yield* seed()
           const pages = yield* Pages
+
           const page = yield* pages.create({
             brandId: c.brandId,
             retailerId: c.retailerId,
             url: c.url("/brand"),
           })
+
           if (source === "Brand")
             yield* (yield* Brands).update(c.brandId, { paused: true })
+
           if (source === "Retailer")
             yield* (yield* Retailers).update(c.retailerId, { paused: true })
+
           if (source === "Product")
             yield* (yield* Products).update(c.productId, { paused: true })
+
           if (source === "Page") yield* pages.update(page.id, { paused: true })
           expect((yield* pages.get(page.id)).effectivePaused).toBe(
             source !== "Product",
@@ -110,6 +125,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         }),
     )
   }
+
   it.effect(
     "reads none without a Scrape and running with a running Scrape",
     () =>
@@ -117,11 +133,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         yield* DbTest.reset
         const c = yield* seed()
         const pages = yield* Pages
+
         const page = yield* pages.create({
           brandId: c.brandId,
           retailerId: c.retailerId,
           url: c.url("/brand"),
         })
+
         expect(page.combinedStatus).toBe("none")
         yield* history({ _tag: "Page", pageId: page.id }, "running", "1 minute")
         expect((yield* pages.get(page.id)).combinedStatus).toBe("running")
@@ -134,16 +152,19 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
       const a = yield* seed()
       const b = yield* seed()
       const pages = yield* Pages
+
       const first = yield* pages.create({
         brandId: a.brandId,
         retailerId: a.retailerId,
         url: a.url("/a"),
       })
+
       const second = yield* pages.create({
         brandId: a.brandId,
         retailerId: b.retailerId,
         url: b.url("/b"),
       })
+
       yield* pages.create({
         brandId: b.brandId,
         retailerId: b.retailerId,
@@ -170,9 +191,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
       yield* DbTest.reset
       const c = yield* seed()
       const pages = yield* Pages
+
       const brandId = Schema.decodeUnknownSync(BrandId)(
         "00000000-0000-4000-8000-000000000404",
       )
+
       const retailerId = Schema.decodeUnknownSync(RetailerId)(brandId)
       const id = Schema.decodeUnknownSync(PageId)(brandId)
       expect(

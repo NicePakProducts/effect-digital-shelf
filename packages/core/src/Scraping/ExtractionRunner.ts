@@ -34,7 +34,9 @@ export const ExtractTarget = Schema.Struct({
   model: Schema.String,
   rootSpanId: Schema.String,
 })
+
 export type ExtractTarget = typeof ExtractTarget.Type
+
 export const ExtractOutcome = Schema.Union([
   Schema.TaggedStruct("extracted", {
     data: Schema.Json,
@@ -50,37 +52,47 @@ export const ExtractOutcome = Schema.Union([
     message: Schema.String,
   }),
 ])
+
 export type ExtractOutcome = typeof ExtractOutcome.Type
+
 const make = Effect.gen(function* () {
   const db = yield* Db
   const withDb = Effect.provideService(Db, db)
   const bucket = yield* R2Bucket
   const model = yield* LanguageModel.LanguageModel
   yield* Executions
+
   const deadline = yield* Config.duration("EXTRACTION_DEADLINE").pipe(
     Config.withDefault(Duration.seconds(120)),
     Effect.orDie,
   )
+
   const retries = yield* Config.int("EXTRACTION_RETRIES").pipe(
     Config.withDefault(0),
     Effect.orDie,
   )
+
   const cap = yield* Config.int("EXTRACTION_INPUT_CAP_BYTES").pipe(
     Config.withDefault(300000),
     Effect.orDie,
   )
+
   const maxOutputTokens = yield* Config.int(
     "EXTRACTION_MAX_OUTPUT_TOKENS",
   ).pipe(Config.withDefault(8192), Effect.orDie)
+
   const claim = Effect.fn("ExtractionRunner.claim")(function* (
     id: ExtractionId,
   ) {
     const now = yield* DateTime.now
+
     const { row } = yield* transitionExtraction(id, "pending", "running", {
       startedAt: Option.some(now),
       updatedAt: now,
     })
+
     const scrape = yield* ScrapesRepo.get(row.scrapeId)
+
     return {
       scrapeId: scrape.id,
       htmlKey: Option.getOrElse(scrape.htmlR2Key, () => ""),
@@ -90,6 +102,7 @@ const make = Effect.gen(function* () {
       rootSpanId: scrape.rootSpanId,
     }
   }, withDb)
+
   const extract = Effect.fn("ExtractionRunner.extract")(function* (
     id: ExtractionId,
     target: ExtractTarget,
@@ -99,6 +112,7 @@ const make = Effect.gen(function* () {
       unknown
     > {
       const html = yield* bucket.get(target.htmlKey)
+
       if (Option.isNone(html))
         return {
           _tag: "failed",
@@ -107,14 +121,17 @@ const make = Effect.gen(function* () {
         }
       const user = sanitise(html.value)
       const bytes = new TextEncoder().encode(user).length
+
       if (bytes > cap)
         return {
           _tag: "failed",
           code: "context_overflow",
           message: `Sanitised input of ${bytes} bytes exceeds the cap of ${cap} bytes`,
         }
+
       const response = yield* Effect.gen(function* () {
         const span = yield* Effect.currentSpan.pipe(Effect.option)
+
         const headers: Record<string, string> = {
           "cf-aig-metadata": yield* Schema.encodeEffect(
             Schema.fromJsonString(
@@ -125,15 +142,18 @@ const make = Effect.gen(function* () {
             ),
           )({ extractionId: id, scrapeId: target.scrapeId }).pipe(Effect.orDie),
         }
+
         if (Option.isSome(span) && span.value.spanId !== "noop") {
           headers["cf-aig-otel-trace-id"] = traceIdOf(target.scrapeId)
           headers["cf-aig-otel-parent-span-id"] = span.value.spanId
         }
+
         yield* Effect.annotateCurrentSpan({
           "gen_ai.request.model": target.model,
           "shelf.extraction.id": id,
           "shelf.scrape.id": target.scrapeId,
         })
+
         const call = completeJson({
           system: target.prompt,
           user,
@@ -141,6 +161,7 @@ const make = Effect.gen(function* () {
           headers,
           model: target.model,
         }).pipe(Effect.provideService(LanguageModel.LanguageModel, model))
+
         const retrying = call.pipe(
           Effect.retry(
             Schedule.recurs(retries).pipe(
@@ -154,15 +175,20 @@ const make = Effect.gen(function* () {
             ),
           ),
         )
+
         const response = yield* retrying.pipe(Effect.timeout(deadline))
         yield* Effect.annotateCurrentSpan({
           "gen_ai.usage.input_tokens": response.usage.input,
           "gen_ai.usage.output_tokens": response.usage.output,
         })
+
         return response
       }).pipe(Effect.withSpan("Extraction.llm"))
+
       const parsed = parseExtractedJson(response.text, response.finishReason)
+
       if (parsed._tag === "failed") return parsed
+
       return {
         _tag: "extracted",
         data: parsed.value,
@@ -188,6 +214,7 @@ const make = Effect.gen(function* () {
       ),
     )
   })
+
   const finish = Effect.fn("ExtractionRunner.finish")(function* (
     id: ExtractionId,
     outcome: ExtractOutcome,
@@ -218,12 +245,14 @@ const make = Effect.gen(function* () {
       }),
     )
   }, withDb)
+
   const fail = Effect.fn("ExtractionRunner.fail")(function* (
     id: ExtractionId,
     code: ExtractionErrorCode,
     message: string,
   ) {
     const row = yield* ExtractionsRepo.get(id)
+
     if (isTerminal(row.status)) return
     const now = yield* DateTime.now
     yield* transitionExtraction(
@@ -238,6 +267,7 @@ const make = Effect.gen(function* () {
       },
     )
   }, withDb)
+
   const underScrape = <A, E, R>(
     id: ExtractionId,
     target: { scrapeId: ScrapeId; rootSpanId: string },
@@ -255,6 +285,7 @@ const make = Effect.gen(function* () {
         "shelf.scrape.id": target.scrapeId,
       }),
     )
+
   const withRowTrace = <A, E, R>(
     id: ExtractionId,
     work: Effect.Effect<A, E, R>,
@@ -262,12 +293,14 @@ const make = Effect.gen(function* () {
     Effect.gen(function* () {
       const row = yield* ExtractionsRepo.get(id)
       const scrape = yield* ScrapesRepo.get(row.scrapeId)
+
       return yield* underScrape(
         id,
         { scrapeId: scrape.id, rootSpanId: scrape.rootSpanId },
         work,
       ).pipe(Effect.annotateSpans({ "shelf.attempt": row.attempt }))
     }).pipe(withDb)
+
   return {
     claim: (id: ExtractionId) => withRowTrace(id, claim(id)),
     extract: (id: ExtractionId, target: ExtractTarget) =>
@@ -278,6 +311,7 @@ const make = Effect.gen(function* () {
       withRowTrace(id, fail(id, code, message)),
   }
 })
+
 export class ExtractionRunner extends Context.Service<
   ExtractionRunner,
   Effect.Success<typeof make>

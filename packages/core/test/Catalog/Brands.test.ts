@@ -53,14 +53,17 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const db = yield* Db
+
       const rolledBack = yield* Effect.flip(
         db.transaction(() =>
           Effect.gen(function* () {
             yield* BrandsRepo.insert({ name: "Rolled back" })
+
             return yield* Effect.fail("boom" as const)
           }),
         ),
       )
+
       expect(rolledBack).toBe("boom")
       expect(yield* BrandsRepo.list()).toEqual([])
 

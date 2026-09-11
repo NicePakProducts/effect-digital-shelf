@@ -17,6 +17,7 @@ export const layer = Layer.unwrap(
   Effect.gen(function* () {
     const gateway = yield* Config.string("AI_GATEWAY_ID")
     const model = yield* extractionModel
+
     const client = OpenAiClient.layerConfig({
       apiKey: Config.redacted("AI_GATEWAY_TOKEN"),
       apiUrl: Config.string("AI_GATEWAY_ACCOUNT_ID").pipe(
@@ -28,6 +29,7 @@ export const layer = Layer.unwrap(
         HttpClientRequest.setHeader("cf-aig-gateway-id", gateway),
       ),
     }).pipe(Layer.provide(FetchHttpClient.layer))
+
     return OpenAiLanguageModel.layer({
       model,
       config: { chat_template_kwargs: { enable_thinking: false } },

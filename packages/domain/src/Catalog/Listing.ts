@@ -22,6 +22,7 @@ export const Listing = createSelectSchema(listings, {
   createdAt: Timestamp,
   updatedAt: Timestamp,
 })
+
 export type Listing = typeof Listing.Type
 
 export const ListingInsert = createInsertSchema(listings, {
@@ -33,6 +34,7 @@ export const ListingInsert = createInsertSchema(listings, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type ListingInsert = typeof ListingInsert.Type
 
 export const ListingUpdate = createUpdateSchema(listings, {
@@ -44,6 +46,7 @@ export const ListingUpdate = createUpdateSchema(listings, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type ListingUpdate = typeof ListingUpdate.Type
 
 /** One row of Variant coverage. */
@@ -51,6 +54,7 @@ export const ListingVariant = createSelectSchema(listingVariants, {
   listingId: ListingId,
   variantId: VariantId,
 })
+
 export type ListingVariant = typeof ListingVariant.Type
 
 /** A Listing as the api reads it, with its derived pause and status readings. */
@@ -60,4 +64,5 @@ export const ListingWithStatus = Schema.Struct({
   effectivePaused: Schema.Boolean,
   combinedStatus: CombinedStatus,
 })
+
 export type ListingWithStatus = typeof ListingWithStatus.Type

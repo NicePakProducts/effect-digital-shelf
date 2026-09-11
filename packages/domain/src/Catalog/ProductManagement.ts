@@ -9,10 +9,12 @@ export const CreateProduct = Schema.Struct({
   name: Name,
   paused: Schema.optionalKey(Schema.Boolean),
 })
+
 export type CreateProduct = typeof CreateProduct.Type
 
 export const UpdateProduct = Schema.Struct({
   name: Schema.optionalKey(Name),
   paused: Schema.optionalKey(Schema.Boolean),
 })
+
 export type UpdateProduct = typeof UpdateProduct.Type

@@ -11,6 +11,7 @@ import * as Ref from "effect/Ref"
 const make = Effect.gen(function* () {
   const messages = yield* Ref.make<ReadonlyArray<EmailMessage>>([])
   const failure = yield* Ref.make(false)
+
   const service: EmailSender["Service"] = {
     send: (message) =>
       Effect.gen(function* () {
@@ -21,6 +22,7 @@ const make = Effect.gen(function* () {
         yield* Ref.update(messages, (sent) => [...sent, message])
       }),
   }
+
   return {
     service,
     sent: Ref.get(messages),
@@ -31,10 +33,12 @@ const make = Effect.gen(function* () {
     fail: Ref.set(failure, true),
   }
 })
+
 export class EmailSenderTest extends Context.Service<
   EmailSenderTest,
   Effect.Success<typeof make>
 >()("test/EmailSender", { make }) {}
+
 export const layerTest = Layer.effect(
   EmailSender,
   Effect.map(EmailSenderTest, (test) => test.service),

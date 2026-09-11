@@ -43,13 +43,16 @@ import * as Rows from "../../Sql/Rows.ts"
 /** Extraction queries and conditional writes; features own transactions. */
 
 const one = Rows.decodeOptional(Extraction)
+
 const exactlyOne = Rows.decodeOne(Extraction)
+
 const toRow = Rows.encode(ExtractionInsert)
 
 export const insert = Effect.fn("ExtractionsRepo.insert")(function* (
   extraction: ExtractionInsert,
 ) {
   const db = yield* Db
+
   return yield* exactlyOne(
     yield* query(db.insert(extractions).values(toRow(extraction)).returning()),
   )
@@ -60,6 +63,7 @@ export const findPending = Effect.fn("ExtractionsRepo.findPending")(function* (
   scrapeId: ScrapeId,
 ) {
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db
@@ -82,6 +86,7 @@ export const findInitial = Effect.fn("ExtractionsRepo.findInitial")(function* (
   scrapeId: ScrapeId,
 ) {
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db
@@ -98,10 +103,12 @@ export const find = Effect.fn("ExtractionsRepo.find")(function* (
   id: ExtractionId,
 ) {
   const db = yield* Db
+
   return yield* one(
     yield* query(db.select().from(extractions).where(eq(extractions.id, id))),
   )
 })
+
 export const get = (id: ExtractionId) =>
   find(id).pipe(
     Effect.flatMap(
@@ -119,6 +126,7 @@ export const allocate = Effect.fn("ExtractionsRepo.allocate")(function* (
 ) {
   const db = yield* Db
   const now = yield* DateTime.now
+
   const encoded = toRow({
     ...values,
     attempt: 1,
@@ -130,17 +138,20 @@ export const allocate = Effect.fn("ExtractionsRepo.allocate")(function* (
     createdAt: values.createdAt ?? now,
     updatedAt: values.updatedAt ?? now,
   })
+
   const fields = Object.entries(getTableColumns(extractions)).map(
     ([key, column]) =>
       key === "attempt"
         ? sql`coalesce(max(${extractions.attempt}), 0) + 1`
         : sql`${sql.param(encoded[key as keyof typeof encoded] ?? null, column)}`,
   )
+
   const statement = db
     .insert(extractions)
     .select(
       sql`SELECT ${sql.join(fields, sql`, `)} FROM ${extractions} WHERE ${extractions.scrapeId} = ${values.scrapeId}`,
     )
+
   return yield* one(
     yield* query(
       options.tolerateConflict
@@ -153,6 +164,7 @@ export const allocate = Effect.fn("ExtractionsRepo.allocate")(function* (
 export const findInFlight = Effect.fn("ExtractionsRepo.findInFlight")(
   function* (scrapeId: ScrapeId) {
     const db = yield* Db
+
     return yield* one(
       yield* query(
         db
@@ -169,6 +181,7 @@ export const findInFlight = Effect.fn("ExtractionsRepo.findInFlight")(
     )
   },
 )
+
 export const transition = Effect.fn("ExtractionsRepo.transition")(function* (
   id: ExtractionId,
   from: ExtractionStatus,
@@ -176,6 +189,7 @@ export const transition = Effect.fn("ExtractionsRepo.transition")(function* (
   patch: ExtractionUpdate,
 ) {
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db
@@ -186,15 +200,18 @@ export const transition = Effect.fn("ExtractionsRepo.transition")(function* (
     ),
   )
 })
+
 export const PendingExtraction = Schema.Struct({
   ...Extraction.fields,
   rootSpanId: SpanId,
 })
+
 export const listPending = Effect.fn("ExtractionsRepo.listPending")(function* (
   limit: number,
 ) {
   if (limit <= 0) return []
   const db = yield* Db
+
   return yield* Rows.decodeAll(PendingExtraction)(
     yield* query(
       db
@@ -210,10 +227,12 @@ export const listPending = Effect.fn("ExtractionsRepo.listPending")(function* (
     ),
   )
 })
+
 export const listStuck = Effect.fn("ExtractionsRepo.listStuck")(function* (
   before: DateTime.Utc,
 ) {
   const db = yield* Db
+
   return yield* Rows.decodeAll(Extraction)(
     yield* query(
       db
@@ -229,9 +248,11 @@ export const listStuck = Effect.fn("ExtractionsRepo.listStuck")(function* (
     ),
   )
 })
+
 export const listByScrape = Effect.fn("ExtractionsRepo.listByScrape")(
   function* (scrapeId: ScrapeId) {
     const db = yield* Db
+
     return yield* Rows.decodeAll(Extraction)(
       yield* query(
         db
@@ -243,9 +264,11 @@ export const listByScrape = Effect.fn("ExtractionsRepo.listByScrape")(
     )
   },
 )
+
 export const latestSuccessful = Effect.fn("ExtractionsRepo.latestSuccessful")(
   function* (scrapeId: ScrapeId) {
     const db = yield* Db
+
     return yield* one(
       yield* query(
         db
@@ -279,6 +302,7 @@ const dataColumns = {
   model: extractions.model,
   data: extractions.extractedJson,
 }
+
 const dataQuery = (db: Db["Service"], condition: SQL) =>
   db
     .select(dataColumns)
@@ -297,6 +321,7 @@ const dataQuery = (db: Db["Service"], condition: SQL) =>
       desc(extractions.attempt),
     )
     .limit(1)
+
 const decodeData = (
   parent: ScrapeParent,
   row: {
@@ -319,6 +344,7 @@ export const latestExtractedData = Effect.fn(
   "ExtractionsRepo.latestExtractedData",
 )(function* (parent: ScrapeParent) {
   const db = yield* Db
+
   const rows = yield* query(
     dataQuery(
       db,
@@ -327,15 +353,18 @@ export const latestExtractedData = Effect.fn(
         : eq(scrapes.pageId, parent.pageId),
     ),
   )
+
   return rows[0] === undefined
     ? Option.none()
     : Option.some(yield* decodeData(parent, rows[0]))
 })
+
 export const latestExtractedDataForProduct = Effect.fn(
   "ExtractionsRepo.latestExtractedDataForProduct",
 )(function* (productId: ProductId) {
   const db = yield* Db
   const latest = dataQuery(db, eq(scrapes.listingId, listings.id)).as("latest")
+
   const rows = yield* query(
     db
       .select({
@@ -355,6 +384,7 @@ export const latestExtractedDataForProduct = Effect.fn(
       .where(eq(listings.productId, productId))
       .orderBy(asc(listings.createdAt), asc(listings.id)),
   )
+
   return yield* Effect.forEach(rows, (row) =>
     decodeData(
       {
@@ -376,6 +406,7 @@ export const bulkCandidates = Effect.fn("ExtractionsRepo.bulkCandidates")(
   ) {
     const db = yield* Db
     const parents = promptKind === "listing" ? listings : pages
+
     const newest = db
       .select({
         id: scrapes.id,
@@ -394,6 +425,7 @@ export const bulkCandidates = Effect.fn("ExtractionsRepo.bulkCandidates")(
       .orderBy(desc(scrapes.createdAt), desc(scrapes.id))
       .limit(1)
       .as("newest")
+
     const last = db
       .select({ prompt: extractions.promptSnapshot, model: extractions.model })
       .from(extractions)
@@ -406,6 +438,7 @@ export const bulkCandidates = Effect.fn("ExtractionsRepo.bulkCandidates")(
       .orderBy(desc(extractions.attempt))
       .limit(1)
       .as("last")
+
     const rows = yield* query(
       db
         .select({
@@ -420,6 +453,7 @@ export const bulkCandidates = Effect.fn("ExtractionsRepo.bulkCandidates")(
         .where(eq(parents.retailerId, retailerId))
         .orderBy(asc(parents.createdAt), asc(parents.id)),
     )
+
     return yield* Rows.decodeAll(
       Schema.Struct({
         scrapeId: ScrapeId,
@@ -432,9 +466,11 @@ export const bulkCandidates = Effect.fn("ExtractionsRepo.bulkCandidates")(
     )
   },
 )
+
 export const retailerPrompt = Effect.fn("ExtractionsRepo.retailerPrompt")(
   function* (retailerId: RetailerId, kind: PromptKind) {
     const db = yield* Db
+
     const rows = yield* query(
       db
         .select({
@@ -446,6 +482,7 @@ export const retailerPrompt = Effect.fn("ExtractionsRepo.retailerPrompt")(
         .from(retailers)
         .where(eq(retailers.id, retailerId)),
     )
+
     return Option.fromUndefinedOr(rows[0]?.prompt)
   },
 )
@@ -461,6 +498,7 @@ export const list = Effect.fn("ExtractionsRepo.list")(function* (options: {
   readonly limit: number
 }) {
   const db = yield* Db
+
   const rows = yield* Rows.decodeAll(Extraction)(
     yield* query(
       db
@@ -481,6 +519,7 @@ export const list = Effect.fn("ExtractionsRepo.list")(function* (options: {
         .limit(options.limit + 1),
     ),
   )
+
   return {
     items: rows.slice(0, options.limit),
     hasMore: rows.length > options.limit,

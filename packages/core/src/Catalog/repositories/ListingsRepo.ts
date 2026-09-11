@@ -42,9 +42,13 @@ import * as Rows from "../../Sql/Rows.ts"
  */
 
 const one = Rows.decodeOptional(Listing)
+
 const all = Rows.decodeAll(Listing)
+
 const exactlyOne = Rows.decodeOne(Listing)
+
 const toRow = Rows.encode(ListingInsert)
+
 const toPatch = Rows.encode(ListingUpdate)
 
 const orNotFound =
@@ -62,6 +66,7 @@ const orNotFound =
 
 export const find = Effect.fn("ListingsRepo.find")(function* (id: ListingId) {
   const db = yield* Db
+
   return yield* one(
     yield* query(db.select().from(listings).where(eq(listings.id, id))),
   )
@@ -70,10 +75,12 @@ export const find = Effect.fn("ListingsRepo.find")(function* (id: ListingId) {
 export const get = (id: ListingId) => find(id).pipe(orNotFound(id))
 
 export type Filter = { productId?: ProductId; retailerId?: RetailerId }
+
 export const list = Effect.fn("ListingsRepo.list")(function* (
   filter: Filter = {},
 ) {
   const db = yield* Db
+
   return yield* all(
     yield* query(
       db
@@ -98,6 +105,7 @@ export const insert = Effect.fn("ListingsRepo.insert")(function* (
   listing: ListingInsert,
 ) {
   const db = yield* Db
+
   return yield* exactlyOne(
     yield* query(db.insert(listings).values(toRow(listing)).returning()),
   )
@@ -108,8 +116,10 @@ export const update = Effect.fn("ListingsRepo.update")(function* (
   patch: ListingUpdate,
 ) {
   const values = toPatch(patch)
+
   if (Object.keys(values).length === 0) return yield* get(id)
   const db = yield* Db
+
   return yield* one(
     yield* query(
       db.update(listings).set(values).where(eq(listings.id, id)).returning(),
@@ -122,6 +132,7 @@ export const remove = Effect.fn("ListingsRepo.remove")(function* (
   id: ListingId,
 ) {
   const db = yield* Db
+
   return yield* one(
     yield* query(db.delete(listings).where(eq(listings.id, id)).returning()),
   ).pipe(orNotFound(id))
@@ -132,6 +143,7 @@ const coverage = Effect.fn("ListingsRepo.coverage")(function* (
 ) {
   if (ids.length === 0) return []
   const db = yield* Db
+
   return yield* Rows.decodeAll(ListingVariant)(
     yield* query(
       db
@@ -146,11 +158,13 @@ const coverage = Effect.fn("ListingsRepo.coverage")(function* (
     ),
   )
 })
+
 export const coverageOf = Effect.fn("ListingsRepo.coverageOf")(function* (
   id: ListingId,
 ) {
   return (yield* coverage([id])).map((row) => row.variantId)
 })
+
 export const replaceCoverage = Effect.fn("ListingsRepo.replaceCoverage")(
   function* (listingId: ListingId, variantIds: ReadonlyArray<VariantId>) {
     const db = yield* Db
@@ -160,6 +174,7 @@ export const replaceCoverage = Effect.fn("ListingsRepo.replaceCoverage")(
         .where(eq(listingVariants.listingId, listingId)),
     )
     const ids = [...new Set(variantIds)]
+
     if (ids.length > 0)
       yield* query(
         db
@@ -168,11 +183,13 @@ export const replaceCoverage = Effect.fn("ListingsRepo.replaceCoverage")(
       )
   },
 )
+
 export const variantsNotInProduct = Effect.fn(
   "ListingsRepo.variantsNotInProduct",
 )(function* (productId: ProductId, variantIds: ReadonlyArray<VariantId>) {
   if (variantIds.length === 0) return []
   const db = yield* Db
+
   const rows = yield* Rows.decodeAll(Schema.Struct({ id: VariantId }))(
     yield* query(
       db
@@ -186,7 +203,9 @@ export const variantsNotInProduct = Effect.fn(
         ),
     ),
   )
+
   const valid = new Set(rows.map((row) => row.id))
+
   return variantIds.filter((id) => !valid.has(id))
 })
 
@@ -196,6 +215,7 @@ const StatusRow = Schema.Struct({
   scrapeStatus: nullable(ScrapeStatus),
   extractionStatus: nullable(ExtractionStatus),
 })
+
 const withStatus = (db: Db["Service"]) => {
   const last = db
     .select({ id: scrapes.id, status: scrapes.status })
@@ -204,6 +224,7 @@ const withStatus = (db: Db["Service"]) => {
     .orderBy(desc(scrapes.createdAt), desc(scrapes.id))
     .limit(1)
     .as("last_scrape")
+
   const extraction = db
     .select({ status: extractions.status })
     .from(extractions)
@@ -211,6 +232,7 @@ const withStatus = (db: Db["Service"]) => {
     .orderBy(desc(extractions.attempt))
     .limit(1)
     .as("last_extraction")
+
   return db
     .select({
       ...getTableColumns(listings),
@@ -225,11 +247,13 @@ const withStatus = (db: Db["Service"]) => {
     .leftJoinLateral(last, sql`true`)
     .leftJoinLateral(extraction, sql`true`)
 }
+
 const readStatus = Effect.fn("ListingsRepo.readStatus")(function* (
   filter: Filter,
   id?: ListingId,
 ) {
   const db = yield* Db
+
   const rows = yield* Rows.decodeAll(StatusRow)(
     yield* query(
       withStatus(db)
@@ -247,7 +271,9 @@ const readStatus = Effect.fn("ListingsRepo.readStatus")(function* (
         .orderBy(asc(listings.createdAt), asc(listings.id)),
     ),
   )
+
   const edges = yield* coverage(rows.map((row) => row.id))
+
   return rows.map(({ scrapeStatus, extractionStatus, ...row }) => ({
     ...row,
     variantIds: edges
@@ -256,11 +282,13 @@ const readStatus = Effect.fn("ListingsRepo.readStatus")(function* (
     combinedStatus: combinedStatus(scrapeStatus, extractionStatus),
   }))
 })
+
 export const findWithStatus = Effect.fn("ListingsRepo.findWithStatus")(
   function* (id: ListingId) {
     return Option.fromUndefinedOr((yield* readStatus({}, id))[0])
   },
 )
+
 export const listWithStatus = Effect.fn("ListingsRepo.listWithStatus")(
   function* (filter: Filter = {}) {
     return yield* readStatus(filter)

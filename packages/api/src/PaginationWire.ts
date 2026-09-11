@@ -20,6 +20,7 @@ export const Cursor = Schema.String.check(
     },
   ),
 )
+
 export type Cursor = typeof Cursor.Type
 
 /**
@@ -44,6 +45,7 @@ export interface Keyset {
 
 export const parseCursor = (cursor: Cursor): Keyset => {
   const separator = cursor.indexOf(":")
+
   return {
     createdAt: DateTime.makeUnsafe(Number(cursor.slice(0, separator))),
     id: cursor.slice(separator + 1),
@@ -59,6 +61,7 @@ export const page = <A extends Keyset, W>(
   toWire: (row: A) => W,
 ): { readonly items: ReadonlyArray<W>; readonly nextCursor: string | null } => {
   const last = result.items[result.items.length - 1]
+
   return {
     items: result.items.map(toWire),
     nextCursor:

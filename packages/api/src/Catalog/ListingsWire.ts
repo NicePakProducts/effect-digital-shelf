@@ -15,13 +15,18 @@ export const ListingWire = Schema.Struct({
   updatedAt: TimestampWire,
   lastScrapedAt: Schema.NullOr(TimestampWire),
 })
+
 export type ListingWire = typeof ListingWire.Type
+
 export const toWire = (entity: ListingWithStatus): ListingWire => ({
   ...entity,
   lastScrapedAt: Option.getOrNull(entity.lastScrapedAt),
 })
+
 export const ListingList = Schema.Struct({ items: Schema.Array(ListingWire) })
+
 export const IdParams = Schema.Struct({ id: ListingId })
+
 export const ListingsQuery = Schema.Struct({
   productId: Schema.optionalKey(ProductId),
   retailerId: Schema.optionalKey(RetailerId),

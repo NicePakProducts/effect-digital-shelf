@@ -15,13 +15,16 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const stage = stageOf(yield* Alchemy.Stage)
     const databaseUrl = yield* Config.redacted("DATABASE_URL")
+
     const hostname = (yield* Config.option(
       Config.string("SERVER_HOSTNAME"),
     )).pipe(Option.filter((name) => name !== ""))
+
     const hyperdrive = yield* Postgres.make({ stage, databaseUrl })
     const bucket = yield* Bucket.make(stage)
     yield* AiGateway.make(stage)
     const server = yield* makeServer({ stage, hostname, hyperdrive, bucket })
+
     return { url: server.url }
   }),
 )

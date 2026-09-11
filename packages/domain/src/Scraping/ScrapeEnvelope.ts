@@ -7,6 +7,7 @@ import * as Schema from "effect/Schema"
  * for forensics only and stored in R2 by core.
  */
 export const Headers = Schema.Record(Schema.String, Schema.String)
+
 export type Headers = typeof Headers.Type
 
 export const ScrapeEnvelope = Schema.Struct({
@@ -23,4 +24,5 @@ export const ScrapeEnvelope = Schema.Struct({
   /** Fetch attempts the provider made for this one Scrape. */
   attempts: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
 })
+
 export type ScrapeEnvelope = typeof ScrapeEnvelope.Type

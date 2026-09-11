@@ -7,6 +7,7 @@ describe("sanitise — strip set", () => {
 <script>alert('hi');</script>
 <script type="application/ld+json">{"@type":"Product","name":"Widget"}</script>
 </head></html>`
+
     const out = sanitise(input)
     expect(out).not.toContain("alert('hi')")
     expect(out).toContain('"@type":"Product"')
@@ -16,6 +17,7 @@ describe("sanitise — strip set", () => {
   it("removes <style> blocks", () => {
     const input =
       "<html><head><style>body { color: red; }</style></head><body>x</body></html>"
+
     const out = sanitise(input)
     expect(out).not.toContain("color: red")
     expect(out).not.toContain("<style")
@@ -24,6 +26,7 @@ describe("sanitise — strip set", () => {
   it("removes <noscript> blocks", () => {
     const input =
       "<html><body><noscript>js disabled</noscript><p>hi</p></body></html>"
+
     const out = sanitise(input)
     expect(out).not.toContain("js disabled")
     expect(out).not.toContain("<noscript")
@@ -55,6 +58,7 @@ describe("sanitise — strip set", () => {
   it("removes <svg> blocks entirely", () => {
     const input =
       '<div>before<svg viewBox="0 0 10 10"><path d="M0 0"/></svg>after</div>'
+
     const out = sanitise(input)
     expect(out).not.toContain("<svg")
     expect(out).not.toContain("viewBox")
@@ -66,6 +70,7 @@ describe("sanitise — strip set", () => {
   it("strips tracking data-* attributes (data-ga, data-gtm, data-track, data-analytics, data-tealium)", () => {
     const input =
       '<div data-ga-id="abc" data-gtm-event="click" data-track="pageview" data-analytics="x" data-tealium="y" data-product-id="123">hi</div>'
+
     const out = sanitise(input)
     expect(out).not.toContain("data-ga-id")
     expect(out).not.toContain("data-gtm-event")
@@ -81,6 +86,7 @@ describe("sanitise — keep set", () => {
   it("keeps <iframe> blocks (PRD pins this for embedded YouTube widgets)", () => {
     const input =
       '<div><iframe src="https://www.youtube.com/embed/abc123" allow="autoplay"></iframe></div>'
+
     const out = sanitise(input)
     expect(out).toContain("<iframe")
     expect(out).toContain("youtube.com/embed/abc123")
@@ -89,6 +95,7 @@ describe("sanitise — keep set", () => {
   it("keeps semantic HTML5 elements (article, section, header, footer, nav, main, aside)", () => {
     const input =
       "<article><header>title</header><section>body</section><footer>foot</footer></article>"
+
     const out = sanitise(input)
     expect(out).toContain("<article")
     expect(out).toContain("<header")
@@ -99,6 +106,7 @@ describe("sanitise — keep set", () => {
   it("keeps microdata attributes (itemprop, itemscope, itemtype)", () => {
     const input =
       '<div itemscope itemtype="https://schema.org/Product"><span itemprop="name">Widget</span></div>'
+
     const out = sanitise(input)
     expect(out).toContain("itemscope")
     expect(out).toContain("itemtype")
@@ -109,6 +117,7 @@ describe("sanitise — keep set", () => {
   it("keeps <meta> tags", () => {
     const input =
       '<head><meta property="og:title" content="Widget"><meta name="description" content="A widget"></head>'
+
     const out = sanitise(input)
     expect(out).toContain("<meta")
     expect(out).toContain("og:title")
@@ -118,6 +127,7 @@ describe("sanitise — keep set", () => {
   it("keeps href / src / alt attributes", () => {
     const input =
       '<a href="https://example.com/x"><img src="https://example.com/i.jpg" alt="Widget photo"></a>'
+
     const out = sanitise(input)
     expect(out).toContain('href="https://example.com/x"')
     expect(out).toContain('src="https://example.com/i.jpg"')

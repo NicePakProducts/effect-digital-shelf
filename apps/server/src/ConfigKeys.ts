@@ -8,12 +8,14 @@ export const requiredKeys = [
   "AUTH_BASE_URL",
   "POSTMARK_FROM",
 ] as const
+
 export const secretKeys = [
   "AI_GATEWAY_TOKEN",
   "AUTH_SECRET",
   "POSTMARK_SERVER_TOKEN",
   "SCRAPPEY_API_KEY",
 ] as const
+
 export const optionalKeys = [
   "AUTH_ALLOWED_EMAIL_DOMAINS",
   "POSTMARK_MESSAGE_STREAM",
@@ -39,10 +41,13 @@ export const optionalKeys = [
   "EXTRACTION_INPUT_CAP_BYTES",
   "EXTRACTION_MAX_OUTPUT_TOKENS",
 ] as const
+
 export const configKeys = [...requiredKeys, ...secretKeys, ...optionalKeys]
 
 export const bind = Effect.gen(function* () {
   for (const key of requiredKeys) yield* Config.string(key)
+
   for (const key of secretKeys) yield* Config.redacted(key)
+
   for (const key of optionalKeys) yield* Config.option(Config.string(key))
 })

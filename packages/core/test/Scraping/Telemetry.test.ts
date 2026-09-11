@@ -23,13 +23,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const { parent } = yield* fixture.listing
           const base = yield* Tracer.Tracer
           const spans: Tracer.Span[] = []
+
           const tracer = Tracer.make({
             span(options) {
               const span = base.span(options)
               spans.push(span)
+
               return span
             },
           })
+
           yield* Effect.gen(function* () {
             const scrapes = yield* Scrapes
             const runner = yield* ScrapeRunner
@@ -64,9 +67,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
                 "in-flight-skip",
             ),
           ).toBe(true)
+
           const transitions = spans.filter(
             (span) => span.name === "Scrape.transition",
           )
+
           expect(
             transitions.map((span) => span.attributes.get("shelf.transition")),
           ).toEqual(["applied", "already_applied", "applied", "rejected"])
@@ -76,6 +81,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           expect(transitions[0]?.attributes.get("shelf.transition.to")).toBe(
             "running",
           )
+
           for (const name of [
             "stuck",
             "extractionDrain",
@@ -97,32 +103,41 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           yield* reset
+
           const scrape = yield* successfulScrape(
             (yield* (yield* seed()).listing).parent,
           )
+
           const base = yield* Tracer.Tracer
           const spans: Tracer.Span[] = []
+
           const tracer = Tracer.make({
             span(options) {
               const span = base.span(options)
               spans.push(span)
+
               return span
             },
           })
+
           const row = yield* Effect.gen(function* () {
             const row = yield* (yield* Extractions).trigger({
               _tag: "Scrape",
               scrapeId: scrape.id,
             })
+
             const runner = yield* ExtractionRunner
             const target = yield* runner.claim(row.id)
             yield* runner.claim(row.id)
             yield* runner.finish(row.id, yield* runner.extract(row.id, target))
+
             return row
           }).pipe(Effect.withTracer(tracer))
+
           const created = spans.find(
             (span) => span.name === "Extraction.created",
           )
+
           expect(created?.attributes.get("shelf.extraction.id")).toBe(row.id)
           expect(created?.attributes.get("shelf.scrape.id")).toBe(scrape.id)
           expect(created?.attributes.get("shelf.attempt")).toBe(1)
@@ -131,6 +146,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           expect(Option.getOrUndefined(created!.parent)?.spanId).toBe(
             scrape.rootSpanId,
           )
+
           for (const name of [
             "ExtractionRunner.claim",
             "ExtractionRunner.extract",
@@ -144,6 +160,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             expect(step?.attributes.get("shelf.extraction.id")).toBe(row.id)
             expect(step?.attributes.get("shelf.scrape.id")).toBe(scrape.id)
           }
+
           expect(
             spans
               .filter((span) => span.name === "Extraction.transition")

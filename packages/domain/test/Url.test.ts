@@ -4,6 +4,7 @@ import { hostMatches } from "@digital-shelf/domain/Catalog/Retailer"
 import { Url } from "@digital-shelf/domain/Shared/Refine"
 
 const decode = Schema.decodeUnknownSync(Url)
+
 const encode = Schema.encodeSync(Url)
 
 /**
@@ -25,6 +26,7 @@ describe("Url", () => {
   it("preserves duplicate keys, their order and encoded bytes", () => {
     const url =
       "https://shop.example.com/Path%20A?b=2&a=1&a=3&q=%E2%9C%93&empty=&flag"
+
     expect(decode(`${url}&utm_source=news&gclid=abc`)).toBe(url)
   })
 

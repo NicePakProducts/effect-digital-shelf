@@ -12,6 +12,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
     const handler = Effect.gen(function* () {
       const context =
         yield* Effect.context<Layer.Success<typeof CoreTest.layerTest>>()
+
       return yield* Http.fetch(
         Http.layer("dev").pipe(Layer.provide(Layer.succeedContext(context))),
       )
@@ -21,9 +22,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       Effect.gen(function* () {
         const context =
           yield* Effect.context<Layer.Success<typeof CoreTest.layerTest>>()
+
         const webHandler = HttpEffect.toWebHandler(
           handler.pipe(Effect.provide(context)),
         )
+
         return yield* Effect.promise(() =>
           webHandler(new Request(`http://localhost${path}`)),
         )
@@ -40,6 +43,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           ),
           Effect.flip,
         )
+
         expect(error).toMatchObject({
           _tag: "HttpServerError",
           reason: { _tag: "RouteNotFound" },

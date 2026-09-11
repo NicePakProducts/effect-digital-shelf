@@ -9,6 +9,7 @@ import * as TestClock from "effect/testing/TestClock"
 import * as Browser from "../layers/Browser.ts"
 
 const request = { url: "https://example.com/", country: Option.none() }
+
 const cookies: ReadonlyArray<Playwright.Cookie> = [
   {
     name: "smoke",
@@ -32,6 +33,7 @@ const cookies: ReadonlyArray<Playwright.Cookie> = [
     partitionKey: "https://example.com",
   },
 ]
+
 const fetchOnce = (
   browser: Browser.Scripted,
   deadline = Duration.seconds(30),
@@ -57,6 +59,7 @@ describe("Playwright provider — envelope", () => {
         userAgent: "Chrome/119 from the page",
         html: "<html><body>Rendered text</body></html>",
       })
+
       const { envelope, html } = yield* fetchOnce(browser)
       expect(envelope.finalUrl).toBe("https://example.com/final")
       expect(envelope.statusCode).toBe(201)
@@ -88,6 +91,7 @@ describe("Playwright provider — envelope", () => {
         userAgent: undefined,
         requestHeaders: { "user-agent": "Chrome/119" },
       })
+
       const { envelope } = yield* fetchOnce(browser)
       expect(envelope.userAgent).toBe("")
     }),
@@ -131,6 +135,7 @@ describe("Playwright provider — classification", () => {
           'page.goto: net::ERR_CONNECTION_RESET at https://nonexistent.invalid/\nCall log:\n  - navigating to "https://nonexistent.invalid/"',
         ),
       })
+
       expect(error.code).toBe("navigation_failed")
       expect(error.retryable).toBe(false)
       expect(error.message).toContain("ERR_CONNECTION_RESET")
@@ -142,6 +147,7 @@ describe("Playwright provider — classification", () => {
       const error = yield* failing({
         failGoto: new Error("page.goto: Cannot navigate to invalid URL"),
       })
+
       expect(error.code).toBe("invalid_url")
     }),
   )
@@ -151,6 +157,7 @@ describe("Playwright provider — classification", () => {
       const error = yield* failing({
         failGoto: new Error("page.goto: net::ERR_BLOCKED_BY_RESPONSE"),
       })
+
       expect(error.code).toBe("blocked")
       expect(error.retryable).toBe(false)
     }),
@@ -168,6 +175,7 @@ describe("Playwright provider — classification", () => {
       const error = yield* failing({
         failCapture: new Error("Target page has been closed"),
       })
+
       expect(error).toBeInstanceOf(ScrapeProviderError)
       expect(error.code).toBe("provider_error")
       expect(error.retryable).toBe(false)
@@ -190,6 +198,7 @@ describe("Playwright provider — the session is always released", () => {
       const browser = Browser.scripted({
         failGoto: new Error("net::ERR_FAILED"),
       })
+
       yield* Effect.flip(fetchOnce(browser))
       expect(browser.closed()).toBe(1)
     }),
@@ -198,9 +207,11 @@ describe("Playwright provider — the session is always released", () => {
   it.effect("closes the browser when the attempt deadline expires", () =>
     Effect.gen(function* () {
       const browser = Browser.scripted({ hang: true })
+
       const fiber = yield* Effect.flip(
         fetchOnce(browser, Duration.seconds(30)),
       ).pipe(Effect.forkChild)
+
       yield* TestClock.adjust(Duration.seconds(31))
       const error = yield* Fiber.join(fiber)
       expect(error.code).toBe("navigation_failed")
@@ -224,9 +235,11 @@ describe("Playwright provider — a launch that never answers", () => {
   it.effect("is cut off by the attempt deadline as a navigation failure", () =>
     Effect.gen(function* () {
       const browser = Browser.scripted({ hangLaunch: true })
+
       const fiber = yield* Effect.flip(
         fetchOnce(browser, Duration.seconds(30)),
       ).pipe(Effect.forkChild)
+
       yield* TestClock.adjust(Duration.seconds(31))
       const error = yield* Fiber.join(fiber)
       expect(error).toBeInstanceOf(ScrapeProviderError)
@@ -243,11 +256,13 @@ describe("Playwright provider — a launch that never answers", () => {
       // The runner's Scrape deadline wraps the attempt; it must be able to
       // fire while Browser Rendering is still acquiring.
       const browser = Browser.scripted({ hangLaunch: true })
+
       const fiber = yield* fetchOnce(browser, Duration.minutes(5)).pipe(
         Effect.timeout(Duration.seconds(10)),
         Effect.flip,
         Effect.forkChild,
       )
+
       yield* TestClock.adjust(Duration.seconds(11))
       const error = yield* Fiber.join(fiber)
       expect(error._tag).toBe("TimeoutError")

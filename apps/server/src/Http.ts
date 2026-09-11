@@ -31,6 +31,7 @@ const platform = Layer.mergeAll(
 export const fetch = <A, E, R>(appLayer: Layer.Layer<A, E, R>) =>
   Effect.gen(function* () {
     const handler = yield* HttpRouter.toHttpEffect(appLayer).pipe(Effect.orDie)
+
     return yield* handler
   }).pipe(Effect.scoped, Effect.withSpan("Server.fetch", { root: true }))
 
@@ -41,11 +42,13 @@ export const layer = (stage: Stage) =>
     Layer.unwrap(
       Effect.gen(function* () {
         const db = yield* Db
+
         return HttpRouter.add(
           "GET",
           "/health",
           Effect.gen(function* () {
             yield* db.execute("select 1").pipe(Effect.orDie)
+
             return yield* HttpServerResponse.json({ ok: true, stage, db: "ok" })
           }),
         )

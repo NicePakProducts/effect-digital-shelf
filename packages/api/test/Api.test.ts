@@ -23,17 +23,20 @@ const platform = HttpPlatform.layer.pipe(
     Layer.mergeAll(FileSystem.layerNoop({}), Etag.layer, Path.layer),
   ),
 )
+
 const auth = Layer.succeed(Auth, {
   getSession: () => Effect.succeed(Option.none()),
   handle: () => Effect.die(new Error("Auth routes are mounted by the app")),
   api: undefined as never,
 })
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
   "Api.layer composition",
   (it) => {
     const app = Effect.gen(function* () {
       const context =
         yield* Effect.context<Layer.Success<typeof CoreTest.layerTest>>()
+
       return yield* Effect.acquireRelease(
         Effect.sync(() =>
           HttpRouter.toWebHandler(
@@ -48,21 +51,26 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         (app) => Effect.promise(() => app.dispose()),
       )
     })
+
     it.effect("denies GET /api/v1/brands without a session", () =>
       Effect.gen(function* () {
         const server = yield* app
+
         const response = yield* Effect.promise(() =>
           server.handler(new Request("http://localhost/api/v1/brands")),
         )
+
         expect(response.status).toBe(401)
       }).pipe(Effect.scoped),
     )
     it.effect("serves GET /api/docs as HTML", () =>
       Effect.gen(function* () {
         const server = yield* app
+
         const response = yield* Effect.promise(() =>
           server.handler(new Request("http://localhost/api/docs")),
         )
+
         expect(response.status).toBe(200)
         expect(response.headers.get("content-type")).toContain("text/html")
         expect(yield* Effect.promise(() => response.text())).toContain("<html")
@@ -71,9 +79,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
     it.effect("serves GET /api/openapi.json with the API title", () =>
       Effect.gen(function* () {
         const server = yield* app
+
         const response = yield* Effect.promise(() =>
           server.handler(new Request("http://localhost/api/openapi.json")),
         )
+
         expect(response.status).toBe(200)
         expect(yield* Effect.promise(() => response.json())).toMatchObject({
           info: { title: "Digital Shelf" },

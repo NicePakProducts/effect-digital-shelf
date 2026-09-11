@@ -19,6 +19,7 @@ export const toSqlError = (error: EffectDrizzleQueryError): SqlError => {
   const failure = Cause.isCause(error.cause)
     ? Option.getOrUndefined(Cause.findErrorOption(error.cause))
     : error.cause
+
   return isSqlError(failure)
     ? failure
     : new SqlError({
@@ -48,6 +49,7 @@ export const onUniqueViolation =
   ): Effect.Effect<A, SqlError | E2, R> =>
     Effect.catch(self, (error): Effect.Effect<never, SqlError | E2> => {
       const violated = uniqueViolation(error)
+
       return Option.isSome(violated) && violated.value === constraint
         ? Effect.fail(orFail())
         : Effect.fail(error)

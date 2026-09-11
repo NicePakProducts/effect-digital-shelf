@@ -33,6 +33,7 @@ export interface PageResponse {
     readonly allHeaders: () => Promise<Record<string, string>>
   }
 }
+
 export interface Page {
   readonly goto: (
     url: string,
@@ -48,6 +49,7 @@ export interface Page {
   readonly evaluate: (expression: string) => Promise<unknown>
   readonly content: () => Promise<string>
 }
+
 /** The cookie record `BrowserContext.cookies` resolves, as Playwright types it. */
 export type Cookie = {
   readonly name: string
@@ -61,15 +63,18 @@ export type Cookie = {
   readonly sameSite: "Strict" | "Lax" | "None"
   readonly partitionKey?: string
 }
+
 export interface BrowserContext {
   readonly newPage: () => Promise<Page>
   readonly cookies: () => Promise<ReadonlyArray<Cookie>>
 }
+
 export interface Browser {
   readonly newContext: () => Promise<BrowserContext>
   readonly sessionId: () => string
   readonly close: () => Promise<void>
 }
+
 export type Launch = (binding: BrowserBinding) => Promise<Browser>
 
 /**
@@ -84,6 +89,7 @@ export const launchOnWorkerd: Launch = async (binding) => {
   const playwright = (await import("@cloudflare/playwright")) as unknown as {
     readonly launch: (endpoint: unknown) => Promise<Browser>
   }
+
   return playwright.launch(binding)
 }
 
@@ -101,18 +107,23 @@ export const classify = (
   cause: unknown,
 ): { readonly code: ScrapeProviderErrorCode; readonly retryable: boolean } => {
   const message = messageOf(cause)
+
   // A session that never launched is the provider failing, not the target.
   if (phase === "session") return { code: "provider_error", retryable: true }
+
   if (
     /invalid URL|Protocol ".+" not supported|unsupported protocol/i.test(
       message,
     )
   )
     return { code: "invalid_url", retryable: false }
+
   if (/ERR_BLOCKED_BY_(CLIENT|RESPONSE)|ERR_ACCESS_DENIED/i.test(message))
     return { code: "blocked", retryable: false }
+
   if (/net::ERR_|Timeout .* exceeded|navigating to |ERR_ABORTED/i.test(message))
     return { code: "navigation_failed", retryable: false }
+
   return { code: "provider_error", retryable: false }
 }
 
@@ -153,14 +164,17 @@ export const fetchOnce = (options: {
         }).pipe(Effect.ignore),
       { interruptible: true },
     )
+
     const context = yield* step("session", () => browser.newContext())
     const page = yield* step("session", () => context.newPage())
+
     const response = yield* step("navigate", () =>
       page.goto(options.request.url, {
         waitUntil: "load",
         timeout: Duration.toMillis(options.deadline),
       }),
     )
+
     if (response === null)
       return yield* Effect.fail(
         new ScrapeProviderError({
@@ -173,16 +187,21 @@ export const fetchOnce = (options: {
       )
     const statusCode = response.status()
     const responseHeaders = yield* step("capture", () => response.allHeaders())
+
     const requestHeaders = yield* step("capture", () =>
       response.request().allHeaders(),
     )
+
     const cookies = yield* step("capture", () => context.cookies())
     const innerText = yield* step("capture", () => page.innerText("body"))
+
     // A string expression, never a function: see `Page.evaluate` above.
     const userAgent = yield* step("capture", () =>
       page.evaluate("navigator.userAgent"),
     )
+
     const html = yield* step("capture", () => page.content())
+
     const envelope: ScrapeEnvelope = {
       finalUrl: page.url(),
       statusCode,
@@ -198,6 +217,7 @@ export const fetchOnce = (options: {
       raw: { requestHeaders, responseHeaders },
       attempts: 1,
     }
+
     return { envelope, html }
   }).pipe(
     Effect.scoped,

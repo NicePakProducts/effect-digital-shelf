@@ -35,6 +35,7 @@ export const respondingWith = (
 ): Effect.Effect<Fixture> =>
   Effect.gen(function* () {
     const requests = yield* Ref.make<ReadonlyArray<Recorded>>([])
+
     const record = (
       request: HttpClientRequest.HttpClientRequest,
       url: URL,
@@ -47,12 +48,15 @@ export const respondingWith = (
           ? new TextDecoder().decode(request.body.body)
           : "",
     })
+
     const client = HttpClient.make((request, url) =>
       Effect.gen(function* () {
         const recorded = record(request, url)
         yield* Ref.update(requests, (all) => [...all, recorded])
         const response = respond(recorded)
+
         if (response === "never") return yield* Effect.never
+
         if (response === "unreachable")
           return yield* Effect.fail(
             new HttpClientError.HttpClientError({
@@ -62,12 +66,14 @@ export const respondingWith = (
               }),
             }),
           )
+
         return HttpClientResponse.fromWeb(
           request,
           yield* Effect.promise(async () => response),
         )
       }),
     )
+
     return { client, requests: Ref.get(requests) }
   })
 

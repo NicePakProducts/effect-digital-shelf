@@ -28,6 +28,7 @@ export const ScrapeProviderErrorCodes = [
   "provider_error",
   "invalid_url",
 ] as const
+
 export type ScrapeProviderErrorCode = (typeof ScrapeProviderErrorCodes)[number]
 
 export class ScrapeProviderError extends Data.TaggedError(
@@ -102,8 +103,10 @@ const attempted = (
 ) =>
   Effect.gen(function* () {
     const counter = yield* Ref.make(0)
+
     const attempt = Effect.gen(function* () {
       const n = yield* Ref.updateAndGet(counter, (made) => made + 1)
+
       return yield* once.pipe(
         Effect.tap((result) =>
           Effect.annotateCurrentSpan({
@@ -119,6 +122,7 @@ const attempted = (
         }),
       )
     })
+
     return yield* attempt.pipe(
       Effect.retry(
         Schedule.exponential(retry.baseDelay).pipe(
@@ -181,16 +185,20 @@ const make = (options: { readonly launch: Playwright.Launch }) =>
   Effect.gen(function* () {
     const binding = yield* BrowserRendering
     const http = yield* HttpClient.HttpClient
+
     const deadline = yield* Config.duration("FETCH_ATTEMPT_DEADLINE").pipe(
       Config.withDefault(Duration.seconds(30)),
       Effect.orDie,
     )
+
     const browserRetry = yield* policy("BROWSER").pipe(Effect.orDie)
     const scrappeyRetry = yield* policy("SCRAPPEY").pipe(Effect.orDie)
+
     const endpoint = yield* Config.string("SCRAPPEY_ENDPOINT").pipe(
       Config.withDefault(Scrappey.ENDPOINT),
       Effect.orDie,
     )
+
     const apiKey = yield* Config.redacted("SCRAPPEY_API_KEY").pipe(Effect.orDie)
     const scrappey = Scrappey.clientFor(http, apiKey)
 
@@ -220,6 +228,7 @@ const make = (options: { readonly launch: Playwright.Launch }) =>
             }),
           )
     })
+
     return { fetch } satisfies ScrapeProviders["Service"]
   })
 

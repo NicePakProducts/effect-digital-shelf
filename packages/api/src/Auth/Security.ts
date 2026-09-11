@@ -6,6 +6,7 @@ export class CurrentUser extends Context.Service<
   CurrentUser,
   { readonly id: string; readonly email: string }
 >()("@digital-shelf/api/Auth/CurrentUser") {}
+
 export class CurrentUserMiddleware extends HttpApiMiddleware.Service<
   CurrentUserMiddleware,
   { provides: CurrentUser }

@@ -17,9 +17,11 @@ const storedUrl = Effect.fn("HostRuleFixture.storedUrl")(function* (
   id: string,
 ) {
   const db = yield* Db
+
   const rows = rowsOf(
     yield* query(db.execute(sql`select url from listings where id = ${id}`)),
   ) as ReadonlyArray<{ url: string }>
+
   return rows[0]?.url
 })
 
@@ -29,11 +31,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
       yield* DbTest.reset
       const c = yield* catalog("bigw.com.au")
       const listings = yield* Listings
+
       const command = {
         productId: c.productId,
         retailerId: c.retailerId,
         url: "https://evilbigw.com.au/p/123",
       }
+
       expect(yield* Effect.flip(listings.create(command))).toEqual(
         new UrlHostMismatch({
           url: "https://evilbigw.com.au/p/123",
@@ -52,6 +56,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
       const c = yield* catalog("www.BigW.com.au")
       expect(c.domain).toBe("bigw.com.au")
       const listings = yield* Listings
+
       for (const url of [
         "https://www.bigw.com.au/p/1",
         "https://bigw.com.au/p/2",
@@ -71,11 +76,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
       yield* DbTest.reset
       const c = yield* catalog("bigw.com.au")
       const listings = yield* Listings
+
       const row = yield* listings.create({
         productId: c.productId,
         retailerId: c.retailerId,
         url: "https://www.bigw.com.au/p/1",
       })
+
       expect(
         yield* Effect.flip(
           listings.update(row.id, { url: "https://coles.com.au/p/1" }),
@@ -99,11 +106,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
       yield* DbTest.reset
       const c = yield* catalog("bigw.com.au")
       const listings = yield* Listings
+
       const row = yield* listings.create({
         productId: c.productId,
         retailerId: c.retailerId,
         url: "  HTTPS://WWW.BigW.com.au/p/1?utm_source=a&th=1  ",
       })
+
       yield* listings.update(row.id, {
         url: "  HTTPS://WWW.BigW.com.au/p/2?utm_source=a&th=1  ",
       })
@@ -134,11 +143,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
           pageIds: [],
         }),
       )
+
       const row = yield* pages.create({
         brandId: c.brandId,
         retailerId: c.retailerId,
         url: "https://www.bigw.com.au/brand/gaia",
       })
+
       expect(
         yield* Effect.flip(
           pages.update(row.id, { url: "https://bigw.com.au.evil.com/x" }),
@@ -163,16 +174,19 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const c = yield* catalog("a.example.com")
+
         const listing = yield* (yield* Listings).create({
           productId: c.productId,
           retailerId: c.retailerId,
           url: "https://a.example.com/p/1",
         })
+
         const page = yield* (yield* Pages).create({
           brandId: c.brandId,
           retailerId: c.retailerId,
           url: "https://a.example.com/brand",
         })
+
         const retailers = yield* Retailers
         expect(
           yield* Effect.flip(
@@ -214,9 +228,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
     read: Effect.Effect<unknown, never, Db>,
   ) {
     const db = yield* Db
+
     const result: unknown = yield* db.transaction(() =>
       Effect.gen(function* () {
         yield* read
+
         return yield* query(
           db.execute(sql`
             select l.mode
@@ -227,6 +243,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
         )
       }),
     )
+
     return (rowsOf(result) as ReadonlyArray<{ mode: string }>).map(
       (row) => row.mode,
     )
@@ -240,6 +257,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
       expect(
         yield* locksHeld(RetailersRepo.get(c.retailerId).pipe(Effect.orDie)),
       ).toEqual(["AccessShareLock"])
+
       // Both locking reads make PostgreSQL take a row lock on the table; the
       // tuple-level difference between SHARE and UPDATE only becomes visible
       // to a second connection, which PGlite cannot give us.
@@ -263,11 +281,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
 
         // Child first: the domain change then sees it and is refused by id.
         const first = yield* catalog("a.example.com")
+
         const row = yield* listings.create({
           productId: first.productId,
           retailerId: first.retailerId,
           url: "https://a.example.com/p/1",
         })
+
         expect(
           yield* Effect.flip(
             retailers.update(first.retailerId, { domain: "b.example.com" }),

@@ -10,6 +10,7 @@ import * as Option from "effect/Option"
 
 const fake = () => {
   const objects = new Map<string, { body: string; contentType: string }>()
+
   const client: Adapter.BucketClient = {
     put: (key, body, { httpMetadata }) =>
       Effect.sync(() => {
@@ -18,6 +19,7 @@ const fake = () => {
     get: (key) =>
       Effect.sync(() => {
         const object = objects.get(key)
+
         return object === undefined
           ? null
           : { text: () => Effect.succeed(object.body) }
@@ -27,6 +29,7 @@ const fake = () => {
         objects.delete(key)
       }),
   }
+
   return { client, objects }
 }
 
@@ -41,6 +44,7 @@ describe("R2 adapter", () => {
     "round-trips text and content type, with absence and idempotent deletes",
     () => {
       const { client, objects } = fake()
+
       return Effect.gen(function* () {
         const bucket = yield* R2Bucket
         expect(yield* bucket.get("missing")).toEqual(Option.none())
@@ -69,18 +73,23 @@ describe("R2 adapter", () => {
         () => {
           const { client } = fake()
           const cause = new Error("storage offline")
+
           const fail = () => {
             if (mode === "throw") throw cause
+
             return mode === "failure" ? Effect.fail(cause) : Effect.die(cause)
           }
+
           return Effect.gen(function* () {
             const bucket = yield* R2Bucket
+
             const call =
               operation === "put"
                 ? bucket.put("key", "body", "text/plain")
                 : operation === "get"
                   ? bucket.get("key")
                   : bucket.delete(["key"])
+
             expect(yield* Effect.flip(call)).toEqual(
               new StorageError({ operation, key: "key", cause }),
             )
@@ -95,6 +104,7 @@ describe("R2 adapter", () => {
   it.effect("attributes a text-body failure to get", () => {
     const { client } = fake()
     const cause = new Error("body read failed")
+
     return Effect.gen(function* () {
       const bucket = yield* R2Bucket
       expect(yield* Effect.flip(bucket.get("html/one"))).toEqual(
@@ -114,12 +124,15 @@ describe("R2 adapter", () => {
     class Binding extends Context.Service<Binding, string>()(
       "test/R2Binding",
     ) {}
+
     const { client } = fake()
+
     const needsBinding: Adapter.BucketClient<Binding> = {
       ...client,
       get: () =>
         Effect.map(Binding, (body) => ({ text: () => Effect.succeed(body) })),
     }
+
     return Effect.gen(function* () {
       const bucket = yield* R2Bucket
       expect(yield* bucket.get("key")).toEqual(Option.some("from binding"))

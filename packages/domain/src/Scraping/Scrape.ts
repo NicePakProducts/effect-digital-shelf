@@ -17,6 +17,7 @@ export const ScrapeParent = Schema.Union([
   Schema.TaggedStruct("Listing", { listingId: ListingId }),
   Schema.TaggedStruct("Page", { pageId: PageId }),
 ])
+
 export type ScrapeParent = typeof ScrapeParent.Type
 
 export const parentKind = (parent: ScrapeParent): ParentKind =>
@@ -64,6 +65,7 @@ export const Scrape = createSelectSchema(scrapes, {
   createdAt: Timestamp,
   updatedAt: Timestamp,
 }).check(exactlyOneParent)
+
 export type Scrape = typeof Scrape.Type
 
 /** Total on a decoded Scrape: the check above guarantees one side is set. */
@@ -106,6 +108,7 @@ export const ScrapeInsert = createInsertSchema(scrapes, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type ScrapeInsert = typeof ScrapeInsert.Type
 
 export const ScrapeUpdate = createUpdateSchema(scrapes, {
@@ -134,4 +137,5 @@ export const ScrapeUpdate = createUpdateSchema(scrapes, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type ScrapeUpdate = typeof ScrapeUpdate.Type

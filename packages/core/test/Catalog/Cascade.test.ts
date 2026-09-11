@@ -22,56 +22,69 @@ import * as DbTest from "../layers/Db.ts"
 import { R2BucketTest } from "../layers/R2Bucket.ts"
 import { seed } from "../fixtures/Catalog.ts"
 import { history, extraction } from "../fixtures/Scraping.ts"
+
 const tree = Effect.gen(function* () {
   const c = yield* seed()
+
   const product = yield* (yield* Products).create({
     brandId: c.brandId,
     name: "Second",
   })
+
   const variants = yield* Variants
   const first = yield* variants.create({ productId: c.productId, name: "A" })
   yield* variants.create({ productId: c.productId, name: "B" })
   yield* variants.create({ productId: product.id, name: "C" })
   const listings = yield* Listings
+
   const l1 = yield* listings.create({
     productId: c.productId,
     retailerId: c.retailerId,
     url: c.url("/one"),
     variantIds: [first.id],
   })
+
   const l2 = yield* listings.create({
     productId: product.id,
     retailerId: c.retailerId,
     url: c.url("/two"),
   })
+
   const page = yield* (yield* Pages).create({
     brandId: c.brandId,
     retailerId: c.retailerId,
     url: c.url("/brand"),
   })
+
   const s1 = yield* history(
     { _tag: "Listing", listingId: l1.id },
     "success",
     "1 hour",
   )
+
   const s2 = yield* history(
     { _tag: "Listing", listingId: l2.id },
     "success",
     "1 hour",
   )
+
   const s3 = yield* history(
     { _tag: "Page", pageId: page.id },
     "success",
     "1 hour",
   )
+
   yield* extraction(s1.id, 1, "success")
   const keys = [s1.id, s2.id, s3.id].flatMap(keysOf)
   const bucket = yield* R2BucketTest
   yield* bucket.reset
+
   for (const key of keys)
     yield* bucket.service.put(key, "payload", "text/plain")
+
   return { ...c, variantId: first.id, listingId: l1.id, pageId: page.id, keys }
 })
+
 const brandImpact = {
   products: 2,
   variants: 3,
@@ -79,8 +92,10 @@ const brandImpact = {
   pages: 1,
   scrapes: 3,
 }
+
 const remaining = Effect.gen(function* () {
   const db = yield* Db
+
   return yield* query(
     db
       .select({
@@ -97,6 +112,7 @@ const remaining = Effect.gen(function* () {
       .from(sql`(values (1)) as counts(n)`),
   )
 })
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
   it.effect(
     "counts each root's descendants, excludes the root and does not count Extractions",
@@ -189,9 +205,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         yield* DbTest.reset
         const c = yield* tree
         const before = yield* remaining
+
         const id = Schema.decodeUnknownSync(BrandId)(
           "00000000-0000-4000-8000-000000000404",
         )
+
         expect(yield* Effect.flip((yield* Brands).remove(id))).toEqual(
           new BrandNotFound({ brandId: id }),
         )
@@ -258,6 +276,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         const c = yield* tree
         const bucket = yield* R2BucketTest
         const sizes: number[] = []
+
         const cascade = yield* Cascade.make.pipe(
           Effect.provideService(R2Bucket, {
             ...bucket.service,
@@ -269,26 +288,32 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
               }),
           }),
         )
+
         const variant = yield* cascade.remove(
           { _tag: "Variant", id: c.variantId },
           VariantsRepo.remove(c.variantId),
         )
+
         expect(variant.removed.id).toBe(c.variantId)
         expect(variant.impact).toEqual(emptyImpact)
         expect(sizes).toEqual([])
+
         for (let i = 0; i < 498; i++) {
           const scrape = yield* history(
             { _tag: "Listing", listingId: c.listingId },
             "success",
             "1 hour",
           )
+
           for (const key of keysOf(scrape.id))
             yield* bucket.service.put(key, "payload", "text/plain")
         }
+
         const removed = yield* cascade.remove(
           { _tag: "Brand", id: c.brandId },
           BrandsRepo.remove(c.brandId),
         )
+
         expect(removed.removed.id).toBe(c.brandId)
         expect(removed.impact.scrapes).toBe(501)
         expect(sizes).toEqual([1000, 2])

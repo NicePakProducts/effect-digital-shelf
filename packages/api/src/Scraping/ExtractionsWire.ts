@@ -42,6 +42,7 @@ export const ExtractionWire = Schema.Struct({
   createdAt: TimestampWire,
   updatedAt: TimestampWire,
 })
+
 export type ExtractionWire = typeof ExtractionWire.Type
 
 export const toWire = (entity: Extraction): ExtractionWire => ({
@@ -86,6 +87,7 @@ export const LatestExtractedDataWire = Schema.Struct({
     model: Schema.String,
   }),
 })
+
 export type LatestExtractedDataWire = typeof LatestExtractedDataWire.Type
 
 /** Timestamps aside, the domain value is already the wire shape. */
@@ -104,8 +106,11 @@ export const BulkReExtractReport = Schema.Struct({
 })
 
 export const IdParams = Schema.Struct({ id: ExtractionId })
+
 export const ListingIdParams = Schema.Struct({ id: ListingId })
+
 export const PageIdParams = Schema.Struct({ id: PageId })
+
 export const ProductIdParams = Schema.Struct({ id: ProductId })
 
 export const ExtractionsQuery = Schema.Struct({

@@ -18,23 +18,28 @@ export interface AuthenticatedUser {
   readonly id: string
   readonly email: string
 }
+
 const make = Effect.gen(function* () {
   const secret = yield* Config.redacted("AUTH_SECRET")
   const baseURL = yield* Config.string("AUTH_BASE_URL")
+
   const domains = parseDomains(
     yield* Config.string("AUTH_ALLOWED_EMAIL_DOMAINS").pipe(
       Config.withDefault("npbrands.com.au"),
     ),
   )
+
   const db = yield* Db
   const context = yield* Effect.context<Db>()
   const emails = yield* EmailSender
   const emailContext = yield* Effect.context<EmailSender>()
+
   const mcpPlugin = mcp({
     loginPage: "/sign-in",
     consentPage: "/consent",
     resource: `${baseURL}/mcp`,
   })
+
   const auth = betterAuth({
     appName: "Digital Shelf",
     baseURL,
@@ -84,6 +89,7 @@ const make = Effect.gen(function* () {
       },
     ],
   })
+
   // getSession slides expiresAt but discards Set-Cookie; the browser cookie refreshes via /api/auth/get-session (issue #14's /me).
   const getSession = Effect.fn("Auth.getSession")(function* (
     headers: Headers.Headers | globalThis.Headers,
@@ -91,6 +97,7 @@ const make = Effect.gen(function* () {
     const session = yield* Effect.tryPromise(() =>
       auth.api.getSession({ headers: new globalThis.Headers(headers) }),
     ).pipe(Effect.orDie)
+
     return session === null
       ? Option.none<AuthenticatedUser>()
       : Option.some<AuthenticatedUser>({
@@ -98,6 +105,7 @@ const make = Effect.gen(function* () {
           email: session.user.email,
         })
   })
+
   const handle = Effect.fn("Auth.handle")(function* (
     request: globalThis.Request,
   ) {
@@ -105,11 +113,15 @@ const make = Effect.gen(function* () {
       "http.request.method": request.method,
       "url.path": new URL(request.url).pathname,
     })
+
     return yield* Effect.promise(() => auth.handler(request))
   })
+
   return { getSession, handle, api: auth.api }
 })
+
 export type BetterAuthApi = Effect.Success<typeof make>["api"]
+
 export class Auth extends Context.Service<Auth, Effect.Success<typeof make>>()(
   "@digital-shelf/core/Auth/Auth",
   { make },

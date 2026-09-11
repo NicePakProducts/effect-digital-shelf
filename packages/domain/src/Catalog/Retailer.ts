@@ -19,6 +19,7 @@ export const RetailerDomain = Schema.String.check(
     description: "a canonical host such as chemistwarehouse.com.au",
   }),
 ).pipe(Schema.brand("RetailerDomain"))
+
 export type RetailerDomain = typeof RetailerDomain.Type
 
 /**
@@ -32,6 +33,7 @@ export const hostMatches = (url: string, domain: string): boolean => {
   if (!URL.canParse(url)) return false
   const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "")
   const target = domain.toLowerCase().replace(/^www\./, "")
+
   return host === target || host.endsWith(`.${target}`)
 }
 
@@ -42,6 +44,7 @@ export const Retailer = createSelectSchema(retailers, {
   createdAt: Timestamp,
   updatedAt: Timestamp,
 })
+
 export type Retailer = typeof Retailer.Type
 
 export const RetailerInsert = createInsertSchema(retailers, {
@@ -50,6 +53,7 @@ export const RetailerInsert = createInsertSchema(retailers, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type RetailerInsert = typeof RetailerInsert.Type
 
 export const RetailerUpdate = createUpdateSchema(retailers, {
@@ -58,4 +62,5 @@ export const RetailerUpdate = createUpdateSchema(retailers, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type RetailerUpdate = typeof RetailerUpdate.Type

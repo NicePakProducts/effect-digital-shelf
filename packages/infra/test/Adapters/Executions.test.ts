@@ -16,36 +16,47 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
 const traceparent = "00-00000000000040008000000000000001-0123456789abcdef-01"
+
 const request = (id: string) => ({ id, traceparent })
+
 const rpcDefect = (message: string) =>
   new Cause.UnknownError(new Error(message))
+
 const missing = rpcDefect("instance.not_found")
+
 const duplicate = rpcDefect("Workflow instance with this id already exists")
 
 const fake = <Params>() => {
   const states = new Map<string, string>()
   const calls: { operation: string; input: unknown }[] = []
+
   const handle: Adapter.WorkflowHandle<Params> = {
     createBatch: (batch) =>
       Effect.sync(() => {
         calls.push({ operation: "createBatch", input: batch })
+
         return batch.flatMap(({ id }) => {
           if (states.has(id)) return []
           states.set(id, "queued")
+
           return [{ id }]
         })
       }),
     create: ({ id, params }) =>
       Effect.suspend(() => {
         calls.push({ operation: "create", input: { id, params } })
+
         if (states.has(id)) return Effect.die(duplicate)
         states.set(id, "queued")
+
         return Effect.succeed({ id })
       }),
     get: (id) =>
       Effect.suspend(() => {
         calls.push({ operation: "get", input: id })
+
         if (!states.has(id)) return Effect.die(missing)
+
         return Effect.succeed({
           id,
           status: () =>
@@ -57,12 +68,14 @@ const fake = <Params>() => {
         })
       }),
   }
+
   return { handle, calls, states }
 }
 
 const setup = () => {
   const scrape = fake<Adapter.ScrapeParams>()
   const extraction = fake<Adapter.ExtractionParams>()
+
   return {
     scrape,
     extraction,
@@ -98,6 +111,7 @@ describe("Executions adapter", () => {
       () => {
         const env = setup()
         env[kind].states.set("old", "complete")
+
         return Effect.gen(function* () {
           const executions = yield* Executions
           expect(
@@ -132,6 +146,7 @@ describe("Executions adapter", () => {
 
   it.effect("reports by id even if the batch result is reordered", () => {
     const env = setup()
+
     return Effect.gen(function* () {
       const executions = yield* Executions
       expect(
@@ -159,6 +174,7 @@ describe("Executions adapter", () => {
     () => {
       const env = setup()
       env.scrape.states.set("old", "complete")
+
       return Effect.gen(function* () {
         const executions = yield* Executions
         expect(
@@ -184,6 +200,7 @@ describe("Executions adapter", () => {
               createBatch: () =>
                 Effect.suspend(() => {
                   env.scrape.states.set("partial", "queued")
+
                   return Effect.die(duplicate)
                 }),
             },
@@ -196,6 +213,7 @@ describe("Executions adapter", () => {
   it.effect("does not fall back on other batch failures", () => {
     const env = setup()
     const cause = rpcDefect("workflow not found in env")
+
     return Effect.gen(function* () {
       const executions = yield* Executions
       expect(
@@ -220,6 +238,7 @@ describe("Executions adapter", () => {
   it.effect("keeps a non-duplicate per-id failure as an error", () => {
     const env = setup()
     const cause = rpcDefect("rate limit exceeded")
+
     return Effect.gen(function* () {
       const executions = yield* Executions
       expect(
@@ -245,6 +264,7 @@ describe("Executions adapter", () => {
     "accepts 100, refuses 101 before calling the binding, and ignores empty batches",
     () => {
       const env = setup()
+
       return Effect.gen(function* () {
         const executions = yield* Executions
         expect(yield* executions.start("scrape", [])).toEqual({
@@ -278,6 +298,7 @@ describe("Executions adapter", () => {
 
   it.effect("deduplicates input IDs", () => {
     const env = setup()
+
     return Effect.gen(function* () {
       const executions = yield* Executions
       expect(
@@ -293,14 +314,17 @@ describe("Executions adapter", () => {
     "decodes every domain status, mapping future strings to unknown",
     () => {
       const env = setup()
+
       return Effect.gen(function* () {
         const executions = yield* Executions
+
         for (const status of ExecutionStatuses) {
           env.extraction.states.set("id", status)
           expect(yield* executions.status("extraction", "id")).toEqual(
             Option.some(status),
           )
         }
+
         env.extraction.states.set("id", "new-platform-status")
         expect(yield* executions.status("extraction", "id")).toEqual(
           Option.some("unknown"),
@@ -316,6 +340,7 @@ describe("Executions adapter", () => {
     "returns None when the status call itself reports not found",
     () => {
       const env = setup()
+
       return Effect.gen(function* () {
         const executions = yield* Executions
         expect(yield* executions.status("scrape", "one")).toEqual(Option.none())
@@ -341,6 +366,7 @@ describe("Executions adapter", () => {
   it.effect("terminates a live instance and ignores missing instances", () => {
     const env = setup()
     env.extraction.states.set("id", "running")
+
     return Effect.gen(function* () {
       const executions = yield* Executions
       yield* executions.terminate("extraction", "id")
@@ -356,6 +382,7 @@ describe("Executions adapter", () => {
   ]) {
     it.effect(`swallows terminal/missing terminate defect: ${message}`, () => {
       const env = setup()
+
       return Effect.gen(function* () {
         const executions = yield* Executions
         yield* executions.terminate("scrape", "id")
@@ -383,6 +410,7 @@ describe("Executions adapter", () => {
       it.effect(`maps unrelated ${phase} defects during ${operation}`, () => {
         const env = setup()
         const cause = rpcDefect("permission denied")
+
         return Effect.gen(function* () {
           const executions = yield* Executions
           expect(
@@ -414,11 +442,14 @@ describe("Executions adapter", () => {
     "preserves interruption instead of converting it to a port error",
     () => {
       const env = setup()
+
       return Effect.gen(function* () {
         const executions = yield* Executions
+
         const exit = yield* Effect.exit(
           executions.start("scrape", [request("id")]),
         )
+
         expect(Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)).toBe(
           true,
         )
@@ -438,6 +469,7 @@ describe("Executions adapter", () => {
 
   it.effect("annotates each operation's span with the execution kind", () => {
     const seen: { operation: string; kind: unknown }[] = []
+
     const observe = (operation: string) =>
       Effect.gen(function* () {
         const span = yield* Effect.currentSpan.pipe(Effect.orDie)
@@ -446,6 +478,7 @@ describe("Executions adapter", () => {
           kind: span.attributes.get("shelf.execution.kind"),
         })
       })
+
     const handle = <Params>(): Adapter.WorkflowHandle<Params> => ({
       createBatch: (batch) => observe("start").pipe(Effect.as(batch)),
       create: ({ id }) => Effect.succeed({ id }),
@@ -457,13 +490,16 @@ describe("Executions adapter", () => {
           terminate: () => observe("terminate"),
         }),
     })
+
     return Effect.gen(function* () {
       const executions = yield* Executions
+
       for (const kind of ["scrape", "extraction"] satisfies ExecutionKind[]) {
         yield* executions.start(kind, [request("one")])
         yield* executions.status(kind, "one")
         yield* executions.terminate(kind, "one")
       }
+
       expect(seen).toEqual(
         ["scrape", "extraction"].flatMap((kind) =>
           ["start", "status", "terminate"].map((operation) => ({

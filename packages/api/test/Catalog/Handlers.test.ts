@@ -19,6 +19,7 @@ import * as HttpApiTest from "effect/unstable/httpapi/HttpApiTest"
 import { RootApi } from "@digital-shelf/api/RootApi"
 
 const layer = ApiTest.layerTest
+
 const client = HttpApiTest.groups(RootApi, [
   "brands",
   "products",
@@ -27,6 +28,7 @@ const client = HttpApiTest.groups(RootApi, [
   "listings",
   "pages",
 ])
+
 const missingId = Schema.decodeUnknownSync(BrandId)(
   "00000000-0000-4000-8000-000000000404",
 )
@@ -38,11 +40,13 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
       const api = yield* client
       const brand = yield* api.brands.create({ payload: { name: "Patch" } })
       yield* TestClock.adjust("1 second")
+
       const [updated, response] = yield* api.brands.update({
         params: { id: brand.id },
         payload: { paused: true },
         responseMode: "decoded-and-response",
       })
+
       expect(response.status).toBe(200)
       expect(updated.paused).toBe(true)
       expect(yield* response.json).toEqual({
@@ -61,17 +65,21 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const api = yield* client
+
       const holder = yield* api.retailers.create({
         payload: { name: "Holder", domain: "taken.example.com" },
       })
+
       const other = yield* api.retailers.create({
         payload: { name: "Other", domain: "other.example.com" },
       })
+
       const response = yield* api.retailers.update({
         params: { id: other.id },
         payload: { domain: holder.domain },
         responseMode: "response-only",
       })
+
       expect(response.status).toBe(409)
       expect(yield* response.json).toEqual({
         _tag: "RetailerDomainTaken",
@@ -83,6 +91,7 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
   it.effect("returns HTTP 400 for an invalid Brand id", () =>
     Effect.gen(function* () {
       const context = yield* Effect.context<Layer.Success<typeof layer>>()
+
       const app = yield* Effect.acquireRelease(
         Effect.sync(() =>
           HttpRouter.toWebHandler(
@@ -94,9 +103,11 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
         ),
         (app) => Effect.promise(() => app.dispose()),
       )
+
       const response = yield* Effect.promise(() =>
         app.handler(new Request("http://localhost/api/v1/brands/nope")),
       )
+
       expect(response.status).toBe(400)
     }).pipe(Effect.scoped),
   )
@@ -106,10 +117,12 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const api = yield* client
+
         const [brand, response] = yield* api.brands.create({
           payload: { name: "Gaia" },
           responseMode: "decoded-and-response",
         })
+
         expect(response.status).toBe(201)
         expect(brand.paused).toBe(false)
         expect(yield* response.json).toMatchObject({
@@ -128,15 +141,19 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const api = yield* client
+
         const error = yield* Effect.flip(
           api.brands.get({ params: { id: missingId } }),
         )
+
         expect(error).toBeInstanceOf(BrandNotFound)
         expect(error).toEqual(new BrandNotFound({ brandId: missingId }))
+
         const response = yield* api.brands.get({
           params: { id: missingId },
           responseMode: "response-only",
         })
+
         expect(response.status).toBe(404)
         expect(yield* response.json).toEqual({
           _tag: "BrandNotFound",
@@ -152,9 +169,11 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
         const api = yield* client
         const a = yield* api.brands.create({ payload: { name: "A" } })
         const b = yield* api.brands.create({ payload: { name: "B" } })
+
         const product = yield* api.products.create({
           payload: { brandId: a.id, name: "Wash" },
         })
+
         yield* api.products.create({
           payload: { brandId: b.id, name: "Other" },
         })
@@ -177,9 +196,11 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
         yield* DbTest.reset
         const api = yield* client
         const brand = yield* api.brands.create({ payload: { name: "Gaia" } })
+
         const product = yield* api.products.create({
           payload: { brandId: brand.id, name: "Wash" },
         })
+
         yield* api.variants.create({
           payload: { productId: product.id, name: "500 ML" },
         })
@@ -201,9 +222,11 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const api = yield* client
+
         const retailer = yield* api.retailers.create({
           payload: { name: "Shop", domain: "https://www.Example.com.au/x" },
         })
+
         expect(retailer.domain).toBe("example.com.au")
         expect(
           yield* Effect.flip(
@@ -236,27 +259,34 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
         yield* DbTest.reset
         const api = yield* client
         const brand = yield* api.brands.create({ payload: { name: "Gaia" } })
+
         const product = yield* api.products.create({
           payload: { brandId: brand.id, name: "Wash" },
         })
+
         const other = yield* api.products.create({
           payload: { brandId: brand.id, name: "Other" },
         })
+
         const variant = yield* api.variants.create({
           payload: { productId: product.id, name: "500 ml" },
         })
+
         const foreign = yield* api.variants.create({
           payload: { productId: other.id, name: "500 ml" },
         })
+
         const retailer = yield* api.retailers.create({
           payload: { name: "Shop", domain: "example.com.au" },
         })
+
         const payload = {
           productId: product.id,
           retailerId: retailer.id,
           url: "https://example.com.au/item",
           variantIds: [variant.id],
         }
+
         const listing = yield* api.listings.create({ payload })
         expect(listing).toMatchObject({
           variantIds: [variant.id],
@@ -285,14 +315,17 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
         yield* DbTest.reset
         const api = yield* client
         const brand = yield* api.brands.create({ payload: { name: "Gaia" } })
+
         const retailer = yield* api.retailers.create({
           payload: { name: "Shop", domain: "example.com.au" },
         })
+
         const payload = {
           brandId: brand.id,
           retailerId: retailer.id,
           url: "https://example.com.au/brand",
         }
+
         const page = yield* api.pages.create({ payload })
         expect(yield* Effect.flip(api.pages.create({ payload }))).toEqual(
           new PageAlreadyExists({
@@ -310,19 +343,24 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
         yield* DbTest.reset
         const api = yield* client
         const brand = yield* api.brands.create({ payload: { name: "Gaia" } })
+
         const product = yield* api.products.create({
           payload: { brandId: brand.id, name: "Wash" },
         })
+
         const retailer = yield* api.retailers.create({
           payload: { name: "Shop", domain: "example.com.au" },
         })
+
         const off = "https://elsewhere.com.au/item"
+
         const mismatch = {
           url: off,
           domain: "example.com.au",
           listingIds: [],
           pageIds: [],
         }
+
         expect(
           yield* Effect.flip(
             api.listings.create({
@@ -355,6 +393,7 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
             responseMode: "response-only",
           })).status,
         ).toBe(422)
+
         const page = yield* api.pages.create({
           payload: {
             brandId: brand.id,
@@ -362,6 +401,7 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
             url: "https://www.example.com.au/brand",
           },
         })
+
         expect(
           yield* Effect.flip(
             api.retailers.update({
@@ -386,15 +426,19 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
         yield* DbTest.reset
         const api = yield* client
         const brand = yield* api.brands.create({ payload: { name: "Gaia" } })
+
         const product = yield* api.products.create({
           payload: { brandId: brand.id, name: "Wash" },
         })
+
         const variant = yield* api.variants.create({
           payload: { productId: product.id, name: "500 ml" },
         })
+
         const retailer = yield* api.retailers.create({
           payload: { name: "Shop", domain: "example.com.au" },
         })
+
         yield* api.listings.create({
           payload: {
             productId: product.id,
@@ -411,6 +455,7 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
           },
         })
         const params = { id: brand.id }
+
         const impact = {
           products: 1,
           variants: 1,
@@ -418,11 +463,14 @@ it.layer(layer, { timeout: "60 seconds" })("Catalog handlers", (it) => {
           pages: 1,
           scrapes: 0,
         }
+
         expect(yield* api.brands.impact({ params })).toEqual(impact)
+
         const [removed, response] = yield* api.brands.remove({
           params,
           responseMode: "decoded-and-response",
         })
+
         expect(removed).toEqual(impact)
         expect(response.status).toBe(200)
         expect(yield* Effect.flip(api.brands.get({ params }))).toEqual(

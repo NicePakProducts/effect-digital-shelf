@@ -10,6 +10,7 @@ import { toWire } from "./ScrapesWire.ts"
 export const layer = HttpApiBuilder.group(RootApi, "scrapes", (handlers) =>
   Effect.gen(function* () {
     const scrapes = yield* Scrapes
+
     return handlers
       .handle("list", ({ query }) =>
         scrapes

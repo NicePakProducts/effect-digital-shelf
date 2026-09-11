@@ -3,21 +3,28 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 
 const src = resolve(import.meta.dirname, "../src")
+
 const packages = resolve(src, "../..")
+
 const walk = (dir: string): ReadonlyArray<string> =>
   readdirSync(dir).flatMap((entry) => {
     const file = join(dir, entry)
+
     return statSync(file).isDirectory() ? walk(file) : [file]
   })
+
 const files = walk(src).filter((file) => file.endsWith(".ts"))
+
 const classify = (file: string): "contract" | "execution" | "unknown" => {
   const name = relative(src, file)
+
   if (
     name === "Api.ts" ||
     name.endsWith("Handlers.ts") ||
     ["Auth/CurrentUserMiddleware.ts", "Auth/AuthRoutes.ts"].includes(name)
   )
     return "execution"
+
   // index.ts is package metadata only, and is checked as a contract too.
   if (
     name === "index.ts" ||
@@ -27,8 +34,10 @@ const classify = (file: string): "contract" | "execution" | "unknown" => {
     /(^|\/)Errors\.ts$/.test(name)
   )
     return "contract"
+
   return "unknown"
 }
+
 const importsOf = (file: string): ReadonlyArray<string> =>
   Array.from(
     readFileSync(file, "utf8").matchAll(
@@ -36,16 +45,21 @@ const importsOf = (file: string): ReadonlyArray<string> =>
     ),
     (match) => match[1]!,
   )
+
 const sourceOf = (from: string, specifier: string): string | undefined => {
   let path: string
+
   if (specifier.startsWith(".")) path = resolve(dirname(from), specifier)
   else if (specifier.startsWith("@digital-shelf/")) {
     const [pkg, ...parts] = specifier.slice("@digital-shelf/".length).split("/")
     path = resolve(packages, pkg!, "src", parts.join("/") || "index")
   } else return undefined
+
   if (path.endsWith(".ts")) return path
+
   return existsSync(`${path}.ts`) ? `${path}.ts` : join(path, "index.ts")
 }
+
 /** Follow re-exports and domain imports as well as direct api imports. */
 const violations = (
   roots: ReadonlyArray<string>,
@@ -53,12 +67,15 @@ const violations = (
 ): ReadonlyArray<string> => {
   const seen = new Set<string>()
   const errors: string[] = []
+
   const visit = (file: string, chain: ReadonlyArray<string>) => {
     if (seen.has(file)) return
     seen.add(file)
+
     for (const specifier of readImports(file)) {
       const target = sourceOf(file, specifier)
       const next = [...chain, specifier]
+
       if (
         /^@digital-shelf\/core(?:\/|$)/.test(specifier) ||
         /(^|\/)test(\/|$)/.test(specifier) ||
@@ -82,7 +99,9 @@ const violations = (
       }
     }
   }
+
   for (const root of roots) visit(root, [relative(src, root)])
+
   return errors
 }
 

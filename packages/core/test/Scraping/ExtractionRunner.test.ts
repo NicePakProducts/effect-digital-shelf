@@ -35,20 +35,25 @@ import {
 } from "../fixtures/Scraping.ts"
 
 const stringify = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
+
 const parse = Schema.decodeSync(Schema.fromJsonString(Schema.Json))
 
 const aiError = (reason: AiError.AiErrorReason) =>
   new AiError.AiError({ module: "test", method: "generateText", reason })
+
 const setup = Effect.gen(function* () {
   yield* reset
   const catalog = yield* seed()
+
   const scrape = yield* successfulScrape((yield* catalog.listing).parent, {
     html: '<p class="x">Hello</p><script>bad()</script>',
   })
+
   const row = yield* extraction(scrape.id, 1, "pending", {
     prompt: "Snapshot",
     model: "snapshot-model",
   })
+
   return {
     catalog,
     scrape,
@@ -57,10 +62,12 @@ const setup = Effect.gen(function* () {
     fake: yield* LanguageModelTest,
   }
 })
+
 const configured = (config: Record<string, number>) =>
   ExtractionRunner.make.pipe(
     Effect.provide(ConfigProvider.layer(ConfigProvider.fromUnknown(config))),
   )
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
   "ExtractionRunner",
   (it) => {
@@ -115,6 +122,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           const { row, runner, fake } = yield* setup
           const target = yield* runner.claim(row.id)
+
           for (const [text, finishReason, code] of [
             ['{"ok":true}', "length", "json_mode_unmet"],
             ["", "stop", "json_mode_unmet"],
@@ -129,6 +137,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               code,
             })
           }
+
           yield* fake.answer('{"a":1,', { usage: { input: 7, output: 3 } })
           expect(yield* runner.extract(row.id, target)).toMatchObject({
             _tag: "extracted",
@@ -175,9 +184,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             ),
           )
           yield* fake.answer('{"retry":true}')
+
           const fiber = yield* runner
             .extract(row.id, target)
             .pipe(Effect.forkChild)
+
           yield* TestClock.adjust("4 seconds")
           expect(yield* fake.calls).toHaveLength(1)
           yield* TestClock.adjust("1 second")
@@ -209,9 +220,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const { row, runner, fake } = yield* setup
           const target = yield* runner.claim(row.id)
           yield* fake.delay("10 minutes")
+
           const fiber = yield* runner
             .extract(row.id, target)
             .pipe(Effect.forkChild)
+
           yield* TestClock.adjust("121 seconds")
           expect(yield* Fiber.join(fiber)).toMatchObject({
             _tag: "failed",
@@ -223,9 +236,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               new AiError.RateLimitError({ retryAfter: Duration.minutes(10) }),
             ),
           )
+
           const retried = yield* retrying
             .extract(row.id, target)
             .pipe(Effect.forkChild)
+
           yield* TestClock.adjust("121 seconds")
           expect(yield* Fiber.join(retried)).toMatchObject({
             _tag: "failed",
@@ -268,10 +283,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           yield* runner.fail(row.id, "unknown", "before claim")
           expect((yield* Repo.get(row.id)).status).toBe("failed")
           const next = yield* extraction(scrape.id, 2, "pending")
+
           const outcome = yield* runner.extract(
             next.id,
             yield* runner.claim(next.id),
           )
+
           yield* runner.fail(next.id, "llm_timeout", "swept")
           expect(
             yield* Effect.flip(runner.finish(next.id, outcome)),
@@ -288,9 +305,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           const { row } = yield* setup
           const requests: HttpClientRequest.HttpClientRequest[] = []
+
           const http = HttpClient.make((request) =>
             Effect.sync(() => {
               requests.push(request)
+
               return HttpClientResponse.fromWeb(
                 request,
                 new Response(
@@ -317,6 +336,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               )
             }),
           )
+
           const model = OpenAiLanguageModel.layer({
             model: "changed-global-model",
             config: { chat_template_kwargs: { enable_thinking: false } },
@@ -327,9 +347,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
               ),
             ),
           )
+
           const runner = yield* ExtractionRunner.make.pipe(
             Effect.provide(model),
           )
+
           const target = yield* runner.claim(row.id)
           expect(yield* runner.extract(row.id, target)).toMatchObject({
             _tag: "extracted",
@@ -349,6 +371,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             scrapeId: target.scrapeId,
           })
           expect(request.body._tag).toBe("Uint8Array")
+
           if (request.body._tag === "Uint8Array")
             expect(
               parse(new TextDecoder().decode(request.body.body)),
@@ -378,6 +401,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           const { row, runner, fake } = yield* setup
           const target = yield* runner.claim(row.id)
+
           for (const [description, code] of [
             ["invalid parameter context_id", "provider_error"],
             [

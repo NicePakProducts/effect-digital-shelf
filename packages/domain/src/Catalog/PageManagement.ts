@@ -10,6 +10,7 @@ export const CreatePage = Schema.Struct({
   cadence: Schema.optionalKey(Cadence),
   paused: Schema.optionalKey(Schema.Boolean),
 })
+
 export type CreatePage = typeof CreatePage.Type
 
 export const UpdatePage = Schema.Struct({
@@ -17,4 +18,5 @@ export const UpdatePage = Schema.Struct({
   cadence: Schema.optionalKey(Cadence),
   paused: Schema.optionalKey(Schema.Boolean),
 })
+
 export type UpdatePage = typeof UpdatePage.Type

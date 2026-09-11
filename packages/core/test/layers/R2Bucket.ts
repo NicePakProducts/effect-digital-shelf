@@ -9,7 +9,9 @@ const make = Effect.gen(function* () {
   const objects = yield* Ref.make(
     new Map<string, { readonly body: string; readonly contentType: string }>(),
   )
+
   const failDelete = yield* Ref.make(false)
+
   const service: R2Bucket["Service"] = {
     put: (key, body, contentType) =>
       Ref.update(objects, (map) =>
@@ -31,11 +33,14 @@ const make = Effect.gen(function* () {
           )
         yield* Ref.update(objects, (map) => {
           const next = new Map(map)
+
           for (const key of keys) next.delete(key)
+
           return next
         })
       }),
   }
+
   return {
     service,
     inspect: Ref.get(objects),
@@ -46,10 +51,12 @@ const make = Effect.gen(function* () {
     }),
   }
 })
+
 export class R2BucketTest extends Context.Service<
   R2BucketTest,
   Effect.Success<typeof make>
 >()("test/R2Bucket", { make }) {}
+
 export const layerTest = Layer.effect(
   R2Bucket,
   Effect.map(R2BucketTest, (test) => test.service),

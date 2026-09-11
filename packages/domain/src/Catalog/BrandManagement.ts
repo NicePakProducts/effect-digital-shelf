@@ -7,10 +7,12 @@ export const CreateBrand = Schema.Struct({
   name: Name,
   paused: Schema.optionalKey(Schema.Boolean),
 })
+
 export type CreateBrand = typeof CreateBrand.Type
 
 export const UpdateBrand = Schema.Struct({
   name: Schema.optionalKey(Name),
   paused: Schema.optionalKey(Schema.Boolean),
 })
+
 export type UpdateBrand = typeof UpdateBrand.Type

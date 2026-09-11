@@ -11,12 +11,15 @@ export const rowsOf = (result: unknown): ReadonlyArray<unknown> =>
 
 export const seed = Effect.fn("CatalogFixture.seed")(function* () {
   const brand = yield* (yield* Brands).create({ name: "Gaia" })
+
   const product = yield* (yield* Products).create({
     brandId: brand.id,
     name: "Wash",
   })
+
   const domain = `${crypto.randomUUID()}.example.com`
   const retailer = yield* (yield* Retailers).create({ name: "Shop", domain })
+
   return {
     brandId: brand.id,
     productId: product.id,
@@ -33,5 +36,6 @@ export const catalog = Effect.fn("CatalogFixture.catalog")(function* (
 ) {
   const base = yield* seed()
   const retailer = yield* (yield* Retailers).create({ name: "Shop", domain })
+
   return { ...base, retailerId: retailer.id, domain: retailer.domain }
 })

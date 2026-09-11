@@ -27,32 +27,39 @@ const parts = (
     },
   },
 ]
+
 const make = Effect.gen(function* () {
   const calls = yield* Ref.make<
     ReadonlyArray<{ system: string; user: string; maxOutputTokens?: number }>
   >([])
+
   const scripts = yield* Ref.make<
     ReadonlyArray<Effect.Effect<Array<Response.PartEncoded>, AiError.AiError>>
   >([])
+
   const script = (
     effect: Effect.Effect<Array<Response.PartEncoded>, AiError.AiError>,
   ) => Ref.update(scripts, (values) => [...values, effect])
+
   const service = yield* LanguageModel.make({
     generateText: (options) =>
       Effect.gen(function* () {
         const config = yield* Effect.serviceOption(
           OpenAiLanguageModel.Config,
         ).pipe(Effect.map(Option.getOrUndefined))
+
         const system = options.prompt.content
           .filter((message) => message.role === "system")
           .map((message) => message.content)
           .join("\n")
+
         const user = options.prompt.content
           .filter((message) => message.role === "user")
           .flatMap((message) => message.content)
           .filter((part) => part.type === "text")
           .map((part) => part.text)
           .join("\n")
+
         yield* Ref.update(calls, (calls) => [
           ...calls,
           {
@@ -63,14 +70,17 @@ const make = Effect.gen(function* () {
               : { maxOutputTokens: config.max_output_tokens }),
           },
         ])
+
         const next = yield* Ref.modify(scripts, (scripts) => [
           scripts[0],
           scripts.slice(1),
         ])
+
         return yield* next ?? Effect.succeed(parts('{"title":"Hello"}'))
       }),
     streamText: () => Stream.die("not scripted"),
   })
+
   return {
     service,
     script,
@@ -88,10 +98,12 @@ const make = Effect.gen(function* () {
     }),
   }
 })
+
 export class LanguageModelTest extends Context.Service<
   LanguageModelTest,
   Effect.Success<typeof make>
 >()("test/LanguageModel", { make }) {}
+
 export const layerTest = Layer.effect(
   LanguageModel.LanguageModel,
   Effect.map(LanguageModelTest, (test) => test.service),

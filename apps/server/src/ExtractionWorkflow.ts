@@ -16,22 +16,28 @@ export const run = <E, R>(
     const params = yield* Schema.decodeUnknownEffect(ExtractionParams)(
       input,
     ).pipe(Effect.orDie)
+
     const id = yield* Schema.decodeUnknownEffect(ExtractionId)(
       params.extractionId,
     ).pipe(Effect.orDie)
+
     const parent = yield* parentSpan(params.traceparent)
+
     const claim = Effect.fn("ExtractionWorkflow.claim")(function* () {
       return yield* (yield* ExtractionRunner).claim(id)
     })
+
     const sequence = Effect.gen(function* () {
       const target = yield* step(
         "claim",
         claim().pipe(Effect.provide(layer)),
         parent,
       )
+
       const extract = Effect.fn("ExtractionWorkflow.extract")(function* () {
         return yield* (yield* ExtractionRunner).extract(id, target)
       })
+
       const outcome = yield* step(
         "extract",
         extract().pipe(Effect.provide(layer)),
@@ -41,12 +47,16 @@ export const run = <E, R>(
           retries: { limit: 0, delay: "1 second" },
         },
       )
+
       const finish = Effect.fn("ExtractionWorkflow.finish")(function* () {
         yield* (yield* ExtractionRunner).finish(id, outcome)
+
         return null
       })
+
       yield* step("finish", finish().pipe(Effect.provide(layer)), parent)
     })
+
     return yield* sequence.pipe(
       Effect.catchTag("WorkflowStopped", () => Effect.void),
       Effect.catchCause((cause) => {
@@ -56,8 +66,10 @@ export const run = <E, R>(
             "unknown",
             "Extraction Workflow execution failed",
           )
+
           return null
         })
+
         return step("fail", fail().pipe(Effect.provide(layer)), parent).pipe(
           Effect.catchTag("WorkflowStopped", () => Effect.void),
           Effect.andThen(Effect.failCause(cause)),
@@ -71,6 +83,7 @@ export class ExtractionWorkflow extends Cloudflare.Workflow<ExtractionWorkflow>(
   "ExtractionWorkflow",
   Effect.gen(function* () {
     const layers = yield* WorkflowLayers
+
     return (input: ExtractionParams) => run(input, layers.extraction)
   }),
 ) {}

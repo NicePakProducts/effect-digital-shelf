@@ -45,6 +45,7 @@ const holdOpen = <A, E>(body: Effect.Effect<A, E, Db>) =>
     const db = yield* Db
     const release = yield* Deferred.make<void>()
     const ran = yield* Deferred.make<A, E>()
+
     const fiber = yield* Effect.forkChild(
       db.transaction(() =>
         body.pipe(
@@ -61,6 +62,7 @@ const holdOpen = <A, E>(body: Effect.Effect<A, E, Db>) =>
         ),
       ),
     )
+
     return {
       held: Deferred.await(ran),
       commit: Effect.andThen(
@@ -73,6 +75,7 @@ const holdOpen = <A, E>(body: Effect.Effect<A, E, Db>) =>
 /** Whether another backend on this database is blocked on a lock. */
 const someoneWaits = Effect.gen(function* () {
   const db = yield* Db
+
   const rows = rowsOf(
     yield* query(
       db.execute(sql`
@@ -82,6 +85,7 @@ const someoneWaits = Effect.gen(function* () {
       `),
     ),
   ) as ReadonlyArray<{ waiting: number }>
+
   return (rows[0]?.waiting ?? 0) > 0
 })
 
@@ -89,9 +93,11 @@ const someoneWaits = Effect.gen(function* () {
 const blocksWithin = (attempts: number): Effect.Effect<boolean, SqlError, Db> =>
   Effect.gen(function* () {
     if (yield* someoneWaits) return true
+
     if (attempts === 0) return false
     // Wall-clock time: the test clock of `it.effect` never advances alone.
     yield* Effect.promise(() => new Promise((tick) => setTimeout(tick, 50)))
+
     return yield* blocksWithin(attempts - 1)
   })
 
@@ -106,6 +112,7 @@ describe.skipIf(PostgresTest.url === undefined)(
             yield* DbTest.reset
             const c = yield* catalog("a.example.com")
             const listings = yield* Listings
+
             const change = yield* holdOpen(
               Effect.gen(function* () {
                 yield* RetailersRepo.getForUpdate(c.retailerId)
@@ -114,7 +121,9 @@ describe.skipIf(PostgresTest.url === undefined)(
                 })
               }),
             )
+
             yield* change.held
+
             const write = yield* Effect.forkChild(
               Effect.flip(
                 listings.create({
@@ -124,6 +133,7 @@ describe.skipIf(PostgresTest.url === undefined)(
                 }),
               ),
             )
+
             expect(yield* blocksWithin(100)).toBe(true)
             yield* change.commit
             expect(yield* Fiber.join(write)).toEqual(
@@ -147,6 +157,7 @@ describe.skipIf(PostgresTest.url === undefined)(
             const c = yield* catalog("a.example.com")
             const retailers = yield* Retailers
             const listings = yield* Listings
+
             const write = yield* holdOpen(
               listings.create({
                 productId: c.productId,
@@ -154,12 +165,15 @@ describe.skipIf(PostgresTest.url === undefined)(
                 url: "https://a.example.com/p/1",
               }),
             )
+
             const row = yield* write.held
+
             const change = yield* Effect.forkChild(
               Effect.flip(
                 retailers.update(c.retailerId, { domain: "b.example.com" }),
               ),
             )
+
             expect(yield* blocksWithin(100)).toBe(true)
             yield* write.commit
             expect(yield* Fiber.join(change)).toEqual(

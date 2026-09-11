@@ -52,12 +52,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           yield* reset
+
           const row = yield* extraction(
             (yield* successfulScrape((yield* (yield* seed()).listing).parent))
               .id,
             1,
             "pending",
           )
+
           expect(
             (yield* transitionExtraction(row.id, "pending", "running", {}))
               .result,

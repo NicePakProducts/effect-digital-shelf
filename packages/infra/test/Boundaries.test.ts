@@ -4,9 +4,11 @@ import { stripTypeScriptTypes } from "node:module"
 import { dirname, join, relative, resolve } from "node:path"
 
 const src = resolve(import.meta.dirname, "../src")
+
 const walk = (dir: string): ReadonlyArray<string> =>
   readdirSync(dir).flatMap((entry) => {
     const file = join(dir, entry)
+
     return statSync(file).isDirectory() ? walk(file) : [file]
   })
 
@@ -28,6 +30,7 @@ const importsOf = (source: string) => [
 
 const edgesOf = (file: string, source: string) => {
   const runtime = new Set(importsOf(stripTypeScriptTypes(source)))
+
   return importsOf(source).map((specifier) => ({
     file: relative(src, file),
     typeOnly: !runtime.has(specifier),
@@ -36,6 +39,7 @@ const edgesOf = (file: string, source: string) => {
       : specifier,
   }))
 }
+
 const runtimeAlchemyEdges = (edges: ReturnType<typeof edgesOf>) =>
   edges.filter(
     ({ file, specifier, typeOnly }) =>

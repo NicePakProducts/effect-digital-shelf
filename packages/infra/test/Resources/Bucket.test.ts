@@ -9,6 +9,7 @@ describe("R2 orphan backstop", () => {
       "html/",
       "raw/",
     ])
+
     for (const rule of lifecycleRules) {
       expect(rule.enabled).toBe(true)
       expect(rule.deleteObjectsTransition).toEqual({

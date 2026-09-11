@@ -68,6 +68,7 @@ export class Brands extends Context.Service<
 
     const impact = Effect.fn("Brands.impact")(function* (id: BrandId) {
       yield* BrandsRepo.get(id)
+
       return yield* cascade.impact({ _tag: "Brand", id })
     }, withDb)
 

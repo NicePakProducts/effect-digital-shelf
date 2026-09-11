@@ -15,6 +15,7 @@ export const CreateListing = Schema.Struct({
   cadence: Schema.optionalKey(Cadence),
   variantIds: Schema.optionalKey(Schema.Array(VariantId)),
 })
+
 export type CreateListing = typeof CreateListing.Type
 
 export const UpdateListing = Schema.Struct({
@@ -22,4 +23,5 @@ export const UpdateListing = Schema.Struct({
   cadence: Schema.optionalKey(Cadence),
   variantIds: Schema.optionalKey(Schema.Array(VariantId)),
 })
+
 export type UpdateListing = typeof UpdateListing.Type

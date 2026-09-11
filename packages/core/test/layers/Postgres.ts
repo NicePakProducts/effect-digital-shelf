@@ -27,16 +27,20 @@ export const url = process.env.DIGITAL_SHELF_TEST_POSTGRES_URL
 
 const schema = Effect.gen(function* () {
   const db = yield* Db
+
   const statements = yield* Effect.promise(async () =>
     generateMigration(
       await generateDrizzleJson({}),
       await generateDrizzleJson(Sql),
     ),
   )
+
   yield* query(db.execute(sql`DROP SCHEMA public CASCADE`))
   yield* query(db.execute(sql`CREATE SCHEMA public`))
+
   for (const statement of statements)
     yield* query(db.execute(sql.raw(statement)))
+
   return db
 })
 

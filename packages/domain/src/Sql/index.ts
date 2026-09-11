@@ -4,6 +4,9 @@
  * the rest of the workspace speaks in the entities beside them.
  */
 export * from "./Auth.ts"
+
 export * from "./Catalog.ts"
+
 export * from "./Enums.ts"
+
 export * from "./Scraping.ts"

@@ -15,10 +15,12 @@ it.effect(
       const now = yield* DateTime.now
       const retry = Duration.days(1)
       expect(isCadenceDue(Option.none(), "monthly", retry, now)).toBe(true)
+
       const success = {
         status: "success",
         createdAt: DateTime.subtractDuration(now, Duration.hours(2)),
       } as const
+
       expect(isCadenceDue(Option.some(success), "daily", retry, now)).toBe(
         false,
       )

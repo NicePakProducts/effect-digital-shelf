@@ -20,6 +20,7 @@ type ParseResult =
       code: "json_mode_unmet" | "invalid_json"
       message: string
     }
+
 export const parseExtractedJson = (
   text: string,
   finishReason: string,
@@ -31,6 +32,7 @@ export const parseExtractedJson = (
       message: "Model returned empty or truncated content",
     }
   let value: unknown
+
   try {
     value = JSON.parse(text)
   } catch {
@@ -44,6 +46,7 @@ export const parseExtractedJson = (
       }
     }
   }
+
   return isJsonObject(value)
     ? { _tag: "object", value }
     : {
@@ -52,23 +55,28 @@ export const parseExtractedJson = (
         message: "Model content must be a JSON object",
       }
 }
+
 export const classifyExtractionError = (
   error: unknown,
 ): { code: ExtractionErrorCode; message: string } => {
   if (Cause.isTimeoutError(error))
     return { code: "llm_timeout", message: "Extraction deadline exceeded" }
+
   if (AiError.isAiError(error)) {
     const reason = error.reason
+
     const overflow =
       reason._tag === "InvalidRequestError" &&
       /5021|context (window|length)|too long/i.test(
         `${reason.description ?? ""} ${reason.http?.body ?? ""}`,
       )
+
     return {
       code: overflow ? "context_overflow" : "provider_error",
       message: error.message,
     }
   }
+
   return {
     code: "unknown",
     message: error instanceof Error ? error.message : String(error),

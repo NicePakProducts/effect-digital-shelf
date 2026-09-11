@@ -68,6 +68,7 @@ const parts = /^([A-Za-z][A-Za-z0-9+.-]*:)(\/\/)?([^/?#]*)([\s\S]*)$/
 /** Lower-case the host, leaving any userinfo and the port as pasted. */
 const lowerCaseHost = (authority: string): string => {
   const at = authority.lastIndexOf("@")
+
   return at === -1
     ? authority.toLowerCase()
     : `${authority.slice(0, at + 1)}${authority.slice(at + 1).toLowerCase()}`
@@ -84,6 +85,7 @@ const filterQuery = (query: string): string =>
     .split("&")
     .filter((parameter) => {
       const equals = parameter.indexOf("=")
+
       return !isTrackerParameter(
         equals === -1 ? parameter : parameter.slice(0, equals),
       )
@@ -99,6 +101,7 @@ const filterQuery = (query: string): string =>
  */
 export const normaliseUrl = (value: string): string => {
   const match = parts.exec(value)
+
   if (match === null) return value
   const [, scheme = "", slashes = "", authority = "", rest = ""] = match
   const hash = rest.indexOf("#")
@@ -106,8 +109,10 @@ export const normaliseUrl = (value: string): string => {
   const fragment = hash === -1 ? "" : rest.slice(hash)
   const origin = `${scheme.toLowerCase()}${slashes}${lowerCaseHost(authority)}`
   const mark = beforeHash.indexOf("?")
+
   if (mark === -1) return `${origin}${beforeHash}${fragment}`
   const query = filterQuery(beforeHash.slice(mark + 1))
+
   return `${origin}${beforeHash.slice(0, mark)}${
     query === "" ? "" : `?${query}`
   }${fragment}`
@@ -119,6 +124,7 @@ const Absolute = Schema.NonEmptyString.check(
     (value) => {
       if (!URL.canParse(value)) return "must be an absolute URL"
       const protocol = new URL(value).protocol
+
       return protocol === "http:" || protocol === "https:"
         ? undefined
         : "must use http or https"
@@ -143,4 +149,5 @@ export const Url = Schema.NonEmptyString.annotate({ identifier: "Url" }).pipe(
     encode: SchemaGetter.transform(normalise),
   }),
 )
+
 export type Url = typeof Url.Type

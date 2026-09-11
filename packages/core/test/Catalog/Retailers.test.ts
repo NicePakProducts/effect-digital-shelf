@@ -16,12 +16,14 @@ import { RetailerId } from "@digital-shelf/domain/Shared/Ids"
 import { Effect, Option, Schema } from "effect"
 import * as CoreTest from "../layers/Core.ts"
 import * as DbTest from "../layers/Db.ts"
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Retailers", (it) => {
   it.effect(
     "canonicalises URLs, bare hosts and hosts with paths, and refuses invalid hosts and IP literals",
     () =>
       Effect.gen(function* () {
         yield* DbTest.reset
+
         for (const input of [
           "https://www.ChemistWarehouse.com.au/shop-online",
           "chemistwarehouse.com.au",
@@ -32,12 +34,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Retailers", (it) => {
             "chemistwarehouse.com.au",
           )
         }
+
         for (const input of [
           "example.com:8080",
           "www.Example.com:443/path",
           "http://EXAMPLE.com:8080/x",
         ])
           expect(canonicalDomain(input)).toEqual(Option.some("example.com"))
+
         for (const input of [
           "localhost",
           "foo",
@@ -54,10 +58,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Retailers", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const retailers = yield* Retailers
+
       const row = yield* retailers.create({
         name: "Shop",
         domain: "https://www.ChemistWarehouse.com.au/shop-online",
       })
+
       expect(row.domain).toBe("chemistwarehouse.com.au")
       expect(row.paused).toBe(false)
       expect(row.scrapeMode).toBe("basic")
@@ -74,10 +80,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Retailers", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const retailers = yield* Retailers
+
         const row = yield* retailers.create({
           name: "Shop",
           domain: "example.com",
         })
+
         expect(
           yield* Effect.flip(
             retailers.create({
@@ -111,14 +119,17 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Retailers", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const retailers = yield* Retailers
+
         const a = yield* retailers.create({
           name: "A",
           domain: "a.example.com",
         })
+
         const b = yield* retailers.create({
           name: "B",
           domain: "b.example.com",
         })
+
         expect(
           (yield* retailers.update(a.id, {
             domain: "https://www.NEW.example.com/path",
@@ -141,9 +152,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Retailers", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const retailers = yield* Retailers
+
       const id = Schema.decodeUnknownSync(RetailerId)(
         "00000000-0000-4000-8000-000000000404",
       )
+
       const error = new RetailerNotFound({ retailerId: id })
       expect(yield* Effect.flip(retailers.get(id))).toEqual(error)
       expect(yield* Effect.flip(retailers.update(id, {}))).toEqual(error)

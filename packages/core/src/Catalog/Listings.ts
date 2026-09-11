@@ -29,22 +29,27 @@ const validateCoverage = Effect.fn("Listings.validateCoverage")(function* (
 ) {
   const invalid = yield* Repo.variantsNotInProduct(productId, ids)
   const first = invalid[0]
+
   if (first !== undefined)
     return yield* Effect.fail(
       new VariantNotInProduct({ productId, variantId: first }),
     )
 })
+
 const make = Effect.gen(function* () {
   const db = yield* Db
   const withDb = Effect.provideService(Db, db)
   const cascade = yield* Cascade
+
   const get = Effect.fn("Listings.get")(function* (id: ListingId) {
     const row = yield* Repo.findWithStatus(id)
+
     return yield* Option.match(row, {
       onNone: () => Effect.fail(new ListingNotFound({ listingId: id })),
       onSome: Effect.succeed,
     })
   }, withDb)
+
   const create = Effect.fn("Listings.create")(function* (
     command: CreateListing,
   ) {
@@ -55,12 +60,15 @@ const make = Effect.gen(function* () {
         yield* requireHostMatch(command.url, retailer.domain)
         yield* validateCoverage(command.productId, command.variantIds ?? [])
         const { variantIds, ...values } = command
+
         const row = yield* Repo.insert({
           ...values,
           cadence: command.cadence ?? defaultCadence,
         })
+
         if (variantIds !== undefined)
           yield* Repo.replaceCoverage(row.id, variantIds)
+
         return yield* Option.match(yield* Repo.findWithStatus(row.id), {
           onNone: () =>
             Effect.die(
@@ -73,6 +81,7 @@ const make = Effect.gen(function* () {
       }),
     )
   }, withDb)
+
   const update = Effect.fn("Listings.update")(function* (
     id: ListingId,
     command: UpdateListing,
@@ -80,36 +89,48 @@ const make = Effect.gen(function* () {
     return yield* db.transaction(() =>
       Effect.gen(function* () {
         const row = yield* Repo.get(id)
+
         if (command.url !== undefined) {
           // The foreign key guarantees the Retailer: its absence is a defect.
           const retailer = yield* RetailersRepo.getForShare(
             row.retailerId,
           ).pipe(Effect.catchTag("RetailerNotFound", Effect.die))
+
           yield* requireHostMatch(command.url, retailer.domain)
         }
+
         const { variantIds, ...patch } = command
+
         if (variantIds !== undefined) {
           yield* validateCoverage(row.productId, variantIds)
           yield* Repo.replaceCoverage(id, variantIds)
         }
+
         yield* Repo.update(id, patch)
+
         return yield* get(id)
       }),
     )
   }, withDb)
+
   const list = Effect.fn("Listings.list")(function* (filter: Repo.Filter = {}) {
     return yield* Repo.listWithStatus(filter).pipe(withDb)
   })
+
   const impact = Effect.fn("Listings.impact")(function* (id: ListingId) {
     yield* Repo.get(id)
+
     return yield* cascade.impact({ _tag: "Listing", id })
   }, withDb)
+
   const remove = Effect.fn("Listings.remove")(function* (id: ListingId) {
     return (yield* cascade.remove({ _tag: "Listing", id }, Repo.remove(id)))
       .impact
   }, withDb)
+
   return { create, update, get, list, impact, remove }
 })
+
 export class Listings extends Context.Service<
   Listings,
   Effect.Success<typeof make>

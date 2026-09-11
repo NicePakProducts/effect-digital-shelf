@@ -16,4 +16,5 @@ export const LatestExtractedData = Schema.Struct({
     model: Schema.String,
   }),
 })
+
 export type LatestExtractedData = typeof LatestExtractedData.Type

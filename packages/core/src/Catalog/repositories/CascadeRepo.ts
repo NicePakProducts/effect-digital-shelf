@@ -41,10 +41,12 @@ const subtree = (db: Db["Service"], root: CascadeRoot) => {
       : root._tag === "Product"
         ? eq(products.id, root.id)
         : sql`false`
+
   const productIds = db
     .select({ id: products.id })
     .from(products)
     .where(product)
+
   const listing =
     root._tag === "Brand" || root._tag === "Product"
       ? inArray(listings.productId, productIds)
@@ -53,6 +55,7 @@ const subtree = (db: Db["Service"], root: CascadeRoot) => {
         : root._tag === "Listing"
           ? eq(listings.id, root.id)
           : sql`false`
+
   const page =
     root._tag === "Brand"
       ? eq(pages.brandId, root.id)
@@ -61,6 +64,7 @@ const subtree = (db: Db["Service"], root: CascadeRoot) => {
         : root._tag === "Page"
           ? eq(pages.id, root.id)
           : sql`false`
+
   const scrape = or(
     inArray(
       scrapes.listingId,
@@ -71,14 +75,17 @@ const subtree = (db: Db["Service"], root: CascadeRoot) => {
       db.select({ id: pages.id }).from(pages).where(page),
     ),
   )
+
   return { product, productIds, listing, page, scrape }
 }
+
 export const impact = Effect.fn("CascadeRepo.impact")(function* (
   root: CascadeRoot,
 ) {
   if (root._tag === "Variant") return emptyImpact
   const db = yield* Db
   const tree = subtree(db, root)
+
   return yield* Rows.decodeOne(CascadeImpact)(
     yield* query(
       db
@@ -102,11 +109,13 @@ export const impact = Effect.fn("CascadeRepo.impact")(function* (
     ),
   )
 })
+
 export const scrapeIds = Effect.fn("CascadeRepo.scrapeIds")(function* (
   root: CascadeRoot,
 ) {
   if (root._tag === "Variant") return []
   const db = yield* Db
+
   const rows = yield* Rows.decodeAll(Schema.Struct({ id: ScrapeId }))(
     yield* query(
       db
@@ -115,5 +124,6 @@ export const scrapeIds = Effect.fn("CascadeRepo.scrapeIds")(function* (
         .where(subtree(db, root).scrape),
     ),
   )
+
   return rows.map((row) => row.id)
 })

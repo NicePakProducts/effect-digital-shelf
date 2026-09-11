@@ -27,6 +27,7 @@ export const fetched = (url: string): ScrapeResult => ({
     attempts: 1,
   },
 })
+
 const make = Effect.gen(function* () {
   const requests = yield* Ref.make<
     ReadonlyArray<{
@@ -34,23 +35,28 @@ const make = Effect.gen(function* () {
       readonly request: ScrapeRequest
     }>
   >([])
+
   const scripts = yield* Ref.make(
     new Map<string, Effect.Effect<ScrapeResult, ScrapeProviderError>>(),
   )
+
   const script = (
     url: string,
     result: Effect.Effect<ScrapeResult, ScrapeProviderError>,
   ) => Ref.update(scripts, (map) => new Map(map).set(url, result))
+
   const service: ScrapeProviders["Service"] = {
     fetch: (mode, request) =>
       Effect.gen(function* () {
         yield* Ref.update(requests, (calls) => [...calls, { mode, request }])
+
         return yield* (
           (yield* Ref.get(scripts)).get(request.url) ??
             Effect.succeed(fetched(request.url))
         )
       }),
   }
+
   return {
     service,
     script,
@@ -61,10 +67,12 @@ const make = Effect.gen(function* () {
     }),
   }
 })
+
 export class ScrapeProvidersTest extends Context.Service<
   ScrapeProvidersTest,
   Effect.Success<typeof make>
 >()("test/ScrapeProviders", { make }) {}
+
 export const layerTest = Layer.effect(
   ScrapeProviders,
   Effect.map(ScrapeProvidersTest, (test) => test.service),

@@ -21,11 +21,13 @@ for (const authenticated of [true, false]) {
     () => {
       const user = { id: "user-123", email: "user@npbrands.com.au" }
       let called = false
+
       const auth = Layer.succeed(Auth, {
         getSession: (headers) => {
           expect(new Headers(headers).get("cookie")).toBe(
             "better-auth.session_token=x",
           )
+
           return Effect.succeed(
             authenticated ? Option.some(user) : Option.none(),
           )
@@ -33,20 +35,27 @@ for (const authenticated of [true, false]) {
         handle: () => Effect.succeed(new Response()),
         api: undefined as never,
       })
+
       return Effect.gen(function* () {
         const middleware = yield* CurrentUserMiddleware
+
         const handler = Effect.gen(function* () {
           called = true
           expect(yield* CurrentUser).toEqual(user)
+
           return HttpServerResponse.text("ok")
         })
+
         const result = yield* middleware(handler, undefined as never).pipe(
           Effect.result,
         )
+
         expect(called).toBe(authenticated)
+
         if (authenticated) expect(result._tag).toBe("Success")
         else {
           expect(result._tag).toBe("Failure")
+
           if (result._tag === "Failure")
             expect(result.failure).toBeInstanceOf(HttpApiError.Unauthorized)
         }

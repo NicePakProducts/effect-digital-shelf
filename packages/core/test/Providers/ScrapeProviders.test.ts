@@ -29,9 +29,11 @@ const providers = (options: {
 }) =>
   Effect.gen(function* () {
     const browser = Browser.scripted(options.browser ?? {})
+
     const http = yield* Http.respondingWith(
       options.respond ?? (() => Http.json(success)),
     )
+
     const service = yield* ScrapeProviders.pipe(
       Effect.provide(
         layerWith({ launch: browser.launch }).pipe(
@@ -49,6 +51,7 @@ const providers = (options: {
         ),
       ),
     )
+
     return { service, browser, http }
   })
 
@@ -66,10 +69,12 @@ describe("ScrapeProviders — the mode picks the provider", () => {
   it.effect("advance goes to Scrappey with the country", () =>
     Effect.gen(function* () {
       const { service, browser, http } = yield* providers({})
+
       const { envelope } = yield* service.fetch("advance", {
         url: request.url,
         country: Option.some("Australia"),
       })
+
       expect(browser.launched()).toBe(0)
       const [sent] = yield* http.requests
       expect(sent?.url).toContain(Scrappey.ENDPOINT)
@@ -85,6 +90,7 @@ describe("ScrapeProviders — Fetch attempts", () => {
       const { service, http } = yield* providers({
         respond: () => Http.json({ data: "error", error: "CODE-0001" }),
       })
+
       const error = yield* Effect.flip(service.fetch("advance", request))
       expect(error.retryable).toBe(true)
       expect(error.attempts).toBe(1)
@@ -101,9 +107,11 @@ describe("ScrapeProviders — Fetch attempts", () => {
           SCRAPPEY_RETRY_BASE_DELAY: "10 millis",
         },
       })
+
       const fiber = yield* Effect.flip(service.fetch("advance", request)).pipe(
         Effect.forkChild,
       )
+
       yield* TestClock.adjust(Duration.seconds(1))
       const error = yield* Fiber.join(fiber)
       expect(error.attempts).toBe(3)
@@ -121,6 +129,7 @@ describe("ScrapeProviders — Fetch attempts", () => {
           SCRAPPEY_RETRY_BASE_DELAY: "10 millis",
         },
       })
+
       const error = yield* Effect.flip(service.fetch("advance", request))
       expect(error.code).toBe("blocked")
       expect(error.attempts).toBe(1)
@@ -131,9 +140,11 @@ describe("ScrapeProviders — Fetch attempts", () => {
   it.effect("the envelope carries the attempts a success actually took", () =>
     Effect.gen(function* () {
       let calls = 0
+
       const { service } = yield* providers({
         respond: () => {
           calls += 1
+
           return calls === 1
             ? Http.json({ data: "error", error: "CODE-0001" })
             : Http.json(success)
@@ -143,9 +154,11 @@ describe("ScrapeProviders — Fetch attempts", () => {
           SCRAPPEY_RETRY_BASE_DELAY: "10 millis",
         },
       })
+
       const fiber = yield* service
         .fetch("advance", request)
         .pipe(Effect.forkChild)
+
       yield* TestClock.adjust(Duration.seconds(1))
       const { envelope } = yield* Fiber.join(fiber)
       expect(envelope.attempts).toBe(2)
@@ -161,9 +174,11 @@ describe("ScrapeProviders — Fetch attempts", () => {
           BROWSER_RETRY_BASE_DELAY: "10 millis",
         },
       })
+
       const fiber = yield* Effect.flip(
         retried.service.fetch("basic", request),
       ).pipe(Effect.forkChild)
+
       yield* TestClock.adjust(Duration.seconds(1))
       expect((yield* Fiber.join(fiber)).attempts).toBe(2)
 
@@ -174,6 +189,7 @@ describe("ScrapeProviders — Fetch attempts", () => {
           BROWSER_RETRY_BASE_DELAY: "10 millis",
         },
       })
+
       const error = yield* Effect.flip(blocked.service.fetch("basic", request))
       expect(error.code).toBe("blocked")
       expect(error.attempts).toBe(1)
@@ -186,14 +202,18 @@ describe("ScrapeProviders — spans", () => {
     Effect.gen(function* () {
       const base = yield* Tracer.Tracer
       const spans: Tracer.Span[] = []
+
       const tracer = Tracer.make({
         span(options) {
           const span = base.span(options)
           spans.push(span)
+
           return span
         },
       })
+
       yield* work.pipe(Effect.withTracer(tracer))
+
       return spans
     })
 
@@ -202,10 +222,13 @@ describe("ScrapeProviders — spans", () => {
       const { service } = yield* providers({
         browser: { html: "<html><body>secret markup</body></html>" },
       })
+
       const spans = yield* recording(service.fetch("basic", request))
+
       const attempt = spans.find(
         (span) => span.name === "ScrapeProviders.browser",
       )
+
       expect(attempt?.attributes.get("shelf.provider")).toBe("browser")
       expect(attempt?.attributes.get("shelf.attempt")).toBe(1)
       expect(attempt?.attributes.get("shelf.envelope.type")).toBe("html")
@@ -214,6 +237,7 @@ describe("ScrapeProviders — spans", () => {
       expect(fetch?.attributes.get("shelf.provider")).toBe("browser")
       expect(fetch?.attributes.get("shelf.attempts")).toBe(1)
       expect(fetch?.attributes.get("shelf.envelope.type")).toBe("html")
+
       for (const span of spans)
         for (const value of span.attributes.values())
           expect(String(value)).not.toContain("secret markup")
@@ -225,17 +249,21 @@ describe("ScrapeProviders — spans", () => {
       const { service } = yield* providers({
         browser: { failGoto: new Error("net::ERR_CONNECTION_RESET") },
       })
+
       const spans = yield* recording(
         Effect.flip(service.fetch("basic", request)),
       )
+
       const fetch = spans.find((span) => span.name === "ScrapeProviders.fetch")
       expect(fetch?.attributes.get("shelf.error.code")).toBe(
         "navigation_failed",
       )
       expect(fetch?.attributes.get("shelf.provider")).toBe("browser")
+
       const attempt = spans.find(
         (span) => span.name === "ScrapeProviders.browser",
       )
+
       expect(attempt?.attributes.get("shelf.error.code")).toBe(
         "navigation_failed",
       )

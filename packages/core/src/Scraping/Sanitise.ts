@@ -14,6 +14,7 @@ export function sanitise(raw: string): string {
     (match) => {
       const idx = jsonLdBlocks.length
       jsonLdBlocks.push(match)
+
       return `${PLACEHOLDER_PREFIX}${idx}__`
     },
   )
@@ -49,11 +50,13 @@ export function sanitise(raw: string): string {
   // The pattern matches attribute name + optional value; we accept
   // both quoted and bare values for robustness.
   const trackingPrefixes = ["ga", "gtm", "track", "analytics", "tealium"]
+
   for (const prefix of trackingPrefixes) {
     const re = new RegExp(
       `\\s+data-${prefix}(?:-[\\w-]+)?\\s*(?:=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+))?`,
       "gi",
     )
+
     out = out.replace(re, "")
   }
 
@@ -74,6 +77,7 @@ function stripBlock(html: string, tag: string): string {
   const paired = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}\\s*>`, "gi")
   // Self-closing form: <tag … />
   const selfClosing = new RegExp(`<${tag}\\b[^>]*\\/>`, "gi")
+
   // Void / unclosed form: <tag …> with no closer in the document. We
   // do NOT strip this generically because it would eat unrelated
   // content; the paired form is the load-bearing match for our use

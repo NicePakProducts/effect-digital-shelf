@@ -12,9 +12,11 @@ import { Effect, Schema } from "effect"
 import * as CoreTest from "../layers/Core.ts"
 import * as DbTest from "../layers/Db.ts"
 import { seed } from "../fixtures/Catalog.ts"
+
 const missingId = Schema.decodeUnknownSync(BrandId)(
   "00000000-0000-4000-8000-000000000404",
 )
+
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
   it.effect("creates under a Brand with paused false and reads back", () =>
     Effect.gen(function* () {
@@ -67,6 +69,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
         (yield* products.update(c.productId, { name: "Updated", paused: true }))
           .paused,
       ).toBe(true)
+
       const impact = {
         products: 0,
         variants: 1,
@@ -74,6 +77,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
         pages: 0,
         scrapes: 0,
       }
+
       expect(yield* products.impact(c.productId)).toEqual(impact)
       expect(yield* products.remove(c.productId)).toEqual(impact)
       expect(yield* Effect.flip(products.get(c.productId))).toEqual(

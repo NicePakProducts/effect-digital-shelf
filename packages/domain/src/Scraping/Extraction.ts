@@ -27,6 +27,7 @@ export const Extraction = createSelectSchema(extractions, {
   createdAt: Timestamp,
   updatedAt: Timestamp,
 })
+
 export type Extraction = typeof Extraction.Type
 
 export const ExtractionInsert = createInsertSchema(extractions, {
@@ -43,6 +44,7 @@ export const ExtractionInsert = createInsertSchema(extractions, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type ExtractionInsert = typeof ExtractionInsert.Type
 
 export const ExtractionUpdate = createUpdateSchema(extractions, {
@@ -59,4 +61,5 @@ export const ExtractionUpdate = createUpdateSchema(extractions, {
   createdAt: Schema.optionalKey(Timestamp),
   updatedAt: Schema.optionalKey(Timestamp),
 })
+
 export type ExtractionUpdate = typeof ExtractionUpdate.Type

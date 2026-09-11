@@ -11,6 +11,7 @@ import { toLatestWire, toWire } from "./ExtractionsWire.ts"
 export const layer = HttpApiBuilder.group(RootApi, "extractions", (handlers) =>
   Effect.gen(function* () {
     const extractions = yield* Extractions
+
     /** The latest reads answer 404 when the Parent has no successful Extraction. */
     const latest = (parent: ScrapeParent) =>
       extractions.latestExtractedData(parent).pipe(
@@ -22,6 +23,7 @@ export const layer = HttpApiBuilder.group(RootApi, "extractions", (handlers) =>
         ),
         Effect.catchTag("SqlError", Effect.die),
       )
+
     return handlers
       .handle("list", ({ query }) =>
         extractions

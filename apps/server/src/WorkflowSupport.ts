@@ -46,6 +46,8 @@ export const step = <A, E, R>(
       ),
       config,
     )
+
     if (result._tag === "stopped") return yield* new WorkflowStopped()
+
     return result.value
   })
