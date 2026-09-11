@@ -20,10 +20,10 @@ const missingId = Schema.decodeUnknownSync(BrandId)(
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
   it.effect("creates under a Brand with paused false and reads back", () =>
     Effect.gen(function* () {
+      const products = yield* Products
       yield* DbTest.reset
       const seeded = yield* seed()
       const productId = seeded.productId
-      const products = yield* Products
       const row = yield* products.get({ productId })
       expect(row.paused).toBe(false)
       expect(row.name).toBe("Wash")
@@ -43,10 +43,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
   it.effect("filters by Brand and orders by name", () =>
     Effect.gen(function* () {
       const brands = yield* Brands
+      const products = yield* Products
       yield* DbTest.reset
       const a = yield* seed()
       yield* seed()
-      const products = yield* Products
       const extra = yield* products.create({ brandId: a.brandId, name: "A" })
       expect(
         (yield* products.list({ brandId: a.brandId })).map((row) => row.id),
@@ -58,9 +58,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
     Effect.gen(function* () {
       const listings = yield* Listings
       const variants = yield* Variants
+      const products = yield* Products
       yield* DbTest.reset
       const c = yield* seed()
-      const products = yield* Products
       yield* variants.create({
         productId: c.productId,
         name: "500 ml",

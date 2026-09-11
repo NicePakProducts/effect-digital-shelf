@@ -31,6 +31,11 @@ describe("Catalog layers", () => {
   it("feature methods need no services after construction", () => {
     expectTypeOf<
       Effect.Services<
+        | ReturnType<
+            Brands["Service"][Exclude<keyof Brands["Service"], "list">]
+          >
+        | Brands["Service"]["list"]
+        | ReturnType<Cascade["Service"][keyof Cascade["Service"]]>
         | ReturnType<Products["Service"][keyof Products["Service"]]>
         | ReturnType<Variants["Service"][keyof Variants["Service"]]>
         | ReturnType<

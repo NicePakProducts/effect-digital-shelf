@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema"
-import { BrandId, RetailerId, PageId } from "../Shared/Ids.ts"
+import { BrandId, PageId, RetailerId } from "../Shared/Ids.ts"
 import { Url } from "../Shared/Refine.ts"
 import { Cadence } from "./Cadence.ts"
 

@@ -1,5 +1,5 @@
-import { RetailerId } from "../Shared/Ids.ts"
 import * as Schema from "effect/Schema"
+import { RetailerId } from "../Shared/Ids.ts"
 import { ScrapeMode } from "../Scraping/Vocabulary.ts"
 import { Name } from "../Shared/Refine.ts"
 
