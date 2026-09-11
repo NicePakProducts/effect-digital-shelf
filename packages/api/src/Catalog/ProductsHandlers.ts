@@ -17,7 +17,7 @@ export const layer = HttpApiBuilder.group(RootApi, "products", (handlers) =>
       )
       .handle("get", ({ params }) =>
         products
-          .get(params.id)
+          .get({ productId: params.id })
           .pipe(Effect.map(toWire), Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("create", ({ payload }) =>
@@ -27,17 +27,17 @@ export const layer = HttpApiBuilder.group(RootApi, "products", (handlers) =>
       )
       .handle("update", ({ params, payload }) =>
         products
-          .update(params.id, payload)
+          .update({ productId: params.id, command: payload })
           .pipe(Effect.map(toWire), Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("impact", ({ params }) =>
         products
-          .impact(params.id)
+          .impact({ productId: params.id })
           .pipe(Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("remove", ({ params }) =>
         products
-          .remove(params.id)
+          .remove({ productId: params.id })
           .pipe(Effect.catchTag("SqlError", Effect.die)),
       )
   }),

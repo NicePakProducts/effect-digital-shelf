@@ -63,7 +63,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
           })
           .where(eq(extractions.id, second.id)),
       )
-      expect((yield* service.get(row.id)).combinedStatus).toBe("pending")
+      expect((yield* service.get({ listingId: row.id })).combinedStatus).toBe(
+        "pending",
+      )
       expect((yield* service.list())[0]?.combinedStatus).toBe("pending")
     }),
   )
@@ -101,7 +103,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         expect(yield* query(db.select().from(scrapes))).toHaveLength(2)
         expect(yield* query(db.select().from(extractions))).toHaveLength(2)
         expect((yield* bucket.inspect).size).toBe(4)
-        expect(yield* service.remove(row.id)).toEqual({
+        expect(yield* service.remove({ listingId: row.id })).toEqual({
           ...emptyImpact,
           scrapes: 2,
         })
@@ -132,18 +134,19 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         expect(row.effectivePaused).toBe(false)
         expect(row.combinedStatus).toBe("none")
         expect(row.cadence).toBe("monthly")
-        expect(yield* listings.get(row.id)).toEqual(row)
+        expect(yield* listings.get({ listingId: row.id })).toEqual(row)
       }),
   )
   it.effect(
     "rejects coverage outside the Product, including nonexistent ids, and rolls back updates",
     () =>
       Effect.gen(function* () {
+        const variants = yield* Variants
         yield* DbTest.reset
         const a = yield* seed()
         const b = yield* seed()
 
-        const variant = yield* (yield* Variants).create({
+        const variant = yield* variants.create({
           productId: b.productId,
           name: "Other",
         })
@@ -175,9 +178,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         const row = yield* listings.create(command)
         expect(
           yield* Effect.flip(
-            listings.update(row.id, {
-              url: a.url("/new"),
-              variantIds: [variant.id],
+            listings.update({
+              listingId: row.id,
+              command: {
+                url: a.url("/new"),
+                variantIds: [variant.id],
+              },
             }),
           ),
         ).toEqual(
@@ -186,7 +192,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
             variantId: variant.id,
           }),
         )
-        expect(yield* listings.get(row.id)).toEqual(row)
+        expect(yield* listings.get({ listingId: row.id })).toEqual(row)
       }),
   )
   it.effect("returns missing Product and Retailer errors with their ids", () =>
@@ -222,10 +228,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
   )
   it.effect("keeps omitted coverage and clears an explicit empty set", () =>
     Effect.gen(function* () {
+      const variants = yield* Variants
       yield* DbTest.reset
       const c = yield* seed()
 
-      const variant = yield* (yield* Variants).create({
+      const variant = yield* variants.create({
         productId: c.productId,
         name: "A",
       })
@@ -240,10 +247,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       })
 
       expect(
-        (yield* listings.update(row.id, { cadence: "daily" })).variantIds,
+        (yield* listings.update({
+          listingId: row.id,
+          command: { cadence: "daily" },
+        })).variantIds,
       ).toEqual([variant.id])
       expect(
-        (yield* listings.update(row.id, { variantIds: [] })).variantIds,
+        (yield* listings.update({
+          listingId: row.id,
+          command: { variantIds: [] },
+        })).variantIds,
       ).toEqual([])
     }),
   )
@@ -271,15 +284,23 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
 
         if (container === "Product") {
           const products = yield* Products
-          yield* products.update(c.productId, { paused: true })
+          yield* products.update({
+            productId: c.productId,
+            command: { paused: true },
+          })
         }
 
         if (container === "Retailer") {
           const retailers = yield* Retailers
-          yield* retailers.update(c.retailerId, { paused: true })
+          yield* retailers.update({
+            retailerId: c.retailerId,
+            command: { paused: true },
+          })
         }
 
-        expect((yield* listings.get(row.id)).effectivePaused).toBe(true)
+        expect(
+          (yield* listings.get({ listingId: row.id })).effectivePaused,
+        ).toBe(true)
         expect((yield* listings.list())[0]?.effectivePaused).toBe(true)
       }),
     )
@@ -301,17 +322,27 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
 
         const parent = ScrapeParent.members[0].make({ listingId: row.id })
         yield* history(parent, "failed", "3 hours")
-        expect((yield* listings.get(row.id)).combinedStatus).toBe("failed")
+        expect(
+          (yield* listings.get({ listingId: row.id })).combinedStatus,
+        ).toBe("failed")
         const current = yield* history(parent, "success", "1 hour")
-        expect((yield* listings.get(row.id)).combinedStatus).toBe("success")
+        expect(
+          (yield* listings.get({ listingId: row.id })).combinedStatus,
+        ).toBe("success")
         yield* extraction(current.id, 1, "success", { age: "45 minutes" })
-        expect((yield* listings.get(row.id)).combinedStatus).toBe("success")
+        expect(
+          (yield* listings.get({ listingId: row.id })).combinedStatus,
+        ).toBe("success")
         yield* extraction(current.id, 2, "pending", { age: "30 minutes" })
-        expect((yield* listings.get(row.id)).combinedStatus).toBe("pending")
+        expect(
+          (yield* listings.get({ listingId: row.id })).combinedStatus,
+        ).toBe("pending")
         expect((yield* listings.list())[0]?.combinedStatus).toBe("pending")
         const newest = yield* history(parent, "success", "10 minutes")
         yield* extraction(newest.id, 1, "success")
-        expect((yield* listings.get(row.id)).combinedStatus).toBe("success")
+        expect(
+          (yield* listings.get({ listingId: row.id })).combinedStatus,
+        ).toBe("success")
       }),
   )
   it.effect("filters by Product, Retailer and their intersection", () =>
@@ -370,12 +401,20 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         )
 
         const error = new ListingNotFound({ listingId: id })
-        expect(yield* Effect.flip(listings.get(id))).toEqual(error)
+        expect(yield* Effect.flip(listings.get({ listingId: id }))).toEqual(
+          error,
+        )
         expect(
-          yield* Effect.flip(listings.update(id, { variantIds: [] })),
+          yield* Effect.flip(
+            listings.update({ listingId: id, command: { variantIds: [] } }),
+          ),
         ).toEqual(error)
-        expect(yield* Effect.flip(listings.impact(id))).toEqual(error)
-        expect(yield* Effect.flip(listings.remove(id))).toEqual(error)
+        expect(yield* Effect.flip(listings.impact({ listingId: id }))).toEqual(
+          error,
+        )
+        expect(yield* Effect.flip(listings.remove({ listingId: id }))).toEqual(
+          error,
+        )
       }),
   )
 })

@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema"
-import { ProductId, RetailerId, VariantId } from "../Shared/Ids.ts"
+import { ListingId, ProductId, RetailerId, VariantId } from "../Shared/Ids.ts"
 import { Url } from "../Shared/Refine.ts"
 import { Cadence } from "./Cadence.ts"
 
@@ -25,3 +25,22 @@ export const UpdateListing = Schema.Struct({
 })
 
 export type UpdateListing = typeof UpdateListing.Type
+
+export const GetListingInput = Schema.Struct({ listingId: ListingId })
+
+export type GetListingInput = typeof GetListingInput.Type
+
+export const RemoveListingInput = Schema.Struct({ listingId: ListingId })
+
+export type RemoveListingInput = typeof RemoveListingInput.Type
+
+export const ListingImpactInput = Schema.Struct({ listingId: ListingId })
+
+export type ListingImpactInput = typeof ListingImpactInput.Type
+
+export const UpdateListingInput = Schema.Struct({
+  listingId: ListingId,
+  command: UpdateListing,
+})
+
+export type UpdateListingInput = typeof UpdateListingInput.Type

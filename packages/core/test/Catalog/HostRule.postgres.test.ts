@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Listings } from "@digital-shelf/core/Catalog/Listings"
 import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
-import * as RetailersRepo from "@digital-shelf/core/Catalog/repositories/RetailersRepo"
+import { RetailersRepo } from "@digital-shelf/core/Catalog/repositories/RetailersRepo"
 import * as Layers from "@digital-shelf/core/Layers"
 import { Db } from "@digital-shelf/core/Sql/Db"
 import { query } from "@digital-shelf/core/Sql/Errors"
@@ -113,11 +113,12 @@ describe.skipIf(PostgresTest.url === undefined)(
             yield* DbTest.reset
             const c = yield* catalog("a.example.com")
             const listings = yield* Listings
+            const retailersRepo = yield* RetailersRepo
 
             const change = yield* holdOpen(
               Effect.gen(function* () {
-                yield* RetailersRepo.getForUpdate(c.retailerId)
-                yield* RetailersRepo.update(c.retailerId, {
+                yield* retailersRepo.getForUpdate(c.retailerId)
+                yield* retailersRepo.update(c.retailerId, {
                   domain: domain("b.example.com"),
                 })
               }),
@@ -146,7 +147,7 @@ describe.skipIf(PostgresTest.url === undefined)(
               }),
             )
             expect(yield* listings.list()).toEqual([])
-          }),
+          }).pipe(Effect.provide(RetailersRepo.layer)),
         30_000,
       )
 
@@ -171,7 +172,10 @@ describe.skipIf(PostgresTest.url === undefined)(
 
             const change = yield* Effect.forkChild(
               Effect.flip(
-                retailers.update(c.retailerId, { domain: "b.example.com" }),
+                retailers.update({
+                  retailerId: c.retailerId,
+                  command: { domain: "b.example.com" },
+                }),
               ),
             )
 
@@ -185,10 +189,10 @@ describe.skipIf(PostgresTest.url === undefined)(
                 pageIds: [],
               }),
             )
-            expect((yield* retailers.get(c.retailerId)).domain).toBe(
-              "a.example.com",
-            )
-            expect((yield* listings.get(row.id)).url).toBe(
+            expect(
+              (yield* retailers.get({ retailerId: c.retailerId })).domain,
+            ).toBe("a.example.com")
+            expect((yield* listings.get({ listingId: row.id })).url).toBe(
               "https://a.example.com/p/1",
             )
           }),

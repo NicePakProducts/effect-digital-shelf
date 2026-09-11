@@ -25,7 +25,7 @@ const make = Effect.gen(function* () {
   /** Collect descendants and remove the row in one transaction, then clean R2 after commit. */
   const remove = Effect.fn("Cascade.remove")(function* <A, E>(
     root: CascadeRoot,
-    remove: Effect.Effect<A, E, Db>,
+    remove: Effect.Effect<A, E>,
   ) {
     const result = yield* db.transaction(() =>
       Effect.gen(function* () {
@@ -33,7 +33,7 @@ const make = Effect.gen(function* () {
         // A concurrent descendant dispatch can miss this collection; ADR 0001
         // requires the bucket lifecycle rule to backstop orphaned objects.
         const ids = yield* repo.scrapeIds(root)
-        const removed = yield* Effect.provideService(remove, Db, db)
+        const removed = yield* remove
 
         return { impact, ids, removed }
       }),
@@ -69,7 +69,7 @@ export class Cascade extends Context.Service<
     ) => Effect.Effect<CascadeImpact, SqlError>
     readonly remove: <A, E>(
       root: CascadeRoot,
-      remove: Effect.Effect<A, E, Db>,
+      remove: Effect.Effect<A, E>,
     ) => Effect.Effect<
       { readonly removed: A; readonly impact: CascadeImpact },
       E | SqlError

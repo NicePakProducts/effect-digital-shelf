@@ -1,4 +1,5 @@
 import * as Schema from "effect/Schema"
+import { RetailerId } from "../Shared/Ids.ts"
 import { ScrapeMode } from "../Scraping/Vocabulary.ts"
 import { Name } from "../Shared/Refine.ts"
 
@@ -43,3 +44,22 @@ export const defaultListingExtractPrompt =
 
 export const defaultPageExtractPrompt =
   "Extract this retailer brand page as JSON: page title, products listed (name, price, currency, availability), promotions and banners."
+
+export const GetRetailerInput = Schema.Struct({ retailerId: RetailerId })
+
+export type GetRetailerInput = typeof GetRetailerInput.Type
+
+export const RemoveRetailerInput = Schema.Struct({ retailerId: RetailerId })
+
+export type RemoveRetailerInput = typeof RemoveRetailerInput.Type
+
+export const RetailerImpactInput = Schema.Struct({ retailerId: RetailerId })
+
+export type RetailerImpactInput = typeof RetailerImpactInput.Type
+
+export const UpdateRetailerInput = Schema.Struct({
+  retailerId: RetailerId,
+  command: UpdateRetailer,
+})
+
+export type UpdateRetailerInput = typeof UpdateRetailerInput.Type

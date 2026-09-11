@@ -17,7 +17,7 @@ export const layer = HttpApiBuilder.group(RootApi, "variants", (handlers) =>
       )
       .handle("get", ({ params }) =>
         variants
-          .get(params.id)
+          .get({ variantId: params.id })
           .pipe(Effect.map(toWire), Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("create", ({ payload }) =>
@@ -27,12 +27,12 @@ export const layer = HttpApiBuilder.group(RootApi, "variants", (handlers) =>
       )
       .handle("update", ({ params, payload }) =>
         variants
-          .update(params.id, payload)
+          .update({ variantId: params.id, command: payload })
           .pipe(Effect.map(toWire), Effect.catchTag("SqlError", Effect.die)),
       )
       .handle("remove", ({ params }) =>
         variants
-          .remove(params.id)
+          .remove({ variantId: params.id })
           .pipe(Effect.catchTag("SqlError", Effect.die)),
       )
   }),

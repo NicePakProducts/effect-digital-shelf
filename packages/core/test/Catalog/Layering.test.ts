@@ -2,6 +2,14 @@ import { Brands } from "@digital-shelf/core/Catalog/Brands"
 import { Cascade } from "@digital-shelf/core/Catalog/Cascade"
 import { Pages } from "@digital-shelf/core/Catalog/Pages"
 import { Products } from "@digital-shelf/core/Catalog/Products"
+import { Variants } from "@digital-shelf/core/Catalog/Variants"
+import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
+import { Listings } from "@digital-shelf/core/Catalog/Listings"
+import { ProductsRepo } from "@digital-shelf/core/Catalog/repositories/ProductsRepo"
+import { VariantsRepo } from "@digital-shelf/core/Catalog/repositories/VariantsRepo"
+import { RetailersRepo } from "@digital-shelf/core/Catalog/repositories/RetailersRepo"
+import { ListingsRepo } from "@digital-shelf/core/Catalog/repositories/ListingsRepo"
+import { PagesRepo } from "@digital-shelf/core/Catalog/repositories/PagesRepo"
 import { BrandsRepo } from "@digital-shelf/core/Catalog/repositories/BrandsRepo"
 import { CascadeRepo } from "@digital-shelf/core/Catalog/repositories/CascadeRepo"
 import { CascadeRoot } from "@digital-shelf/core/Catalog/repositories/CascadeRepo"
@@ -10,7 +18,7 @@ import { Db } from "@digital-shelf/core/Sql/Db"
 import { emptyImpact } from "@digital-shelf/domain/Catalog/CascadeImpact"
 import * as Sql from "@digital-shelf/domain/Sql/index"
 import * as PgliteClient from "@effect/sql-pglite/PgliteClient"
-import { describe, expect, it } from "@effect/vitest"
+import { describe, expect, expectTypeOf, it } from "@effect/vitest"
 import { PGlite } from "@electric-sql/pglite"
 import { pushSchema } from "drizzle-kit/api-postgres"
 import * as PgDrizzle from "drizzle-orm/effect-pglite"
@@ -20,6 +28,26 @@ import * as Layer from "effect/Layer"
 import * as R2BucketTest from "../layers/R2Bucket.ts"
 
 describe("Catalog layers", () => {
+  it("feature methods need no services after construction", () => {
+    expectTypeOf<
+      Effect.Services<
+        | ReturnType<
+            Brands["Service"][Exclude<keyof Brands["Service"], "list">]
+          >
+        | Brands["Service"]["list"]
+        | ReturnType<Cascade["Service"][keyof Cascade["Service"]]>
+        | ReturnType<Products["Service"][keyof Products["Service"]]>
+        | ReturnType<Variants["Service"][keyof Variants["Service"]]>
+        | ReturnType<
+            Retailers["Service"][Exclude<keyof Retailers["Service"], "list">]
+          >
+        | Retailers["Service"]["list"]
+        | ReturnType<Listings["Service"][keyof Listings["Service"]]>
+        | ReturnType<Pages["Service"][keyof Pages["Service"]]>
+      >
+    >().toEqualTypeOf<never>()
+  })
+
   /**
    * Effect memoizes layers by object identity within one memo map (ADR 0008).
    * A getter allocating a layer creates a new memo key per access and builds
@@ -30,9 +58,17 @@ describe("Catalog layers", () => {
     for (const service of [
       BrandsRepo,
       CascadeRepo,
+      ProductsRepo,
+      VariantsRepo,
+      RetailersRepo,
+      ListingsRepo,
+      PagesRepo,
       Brands,
       Cascade,
       Products,
+      Variants,
+      Retailers,
+      Listings,
       Pages,
     ]) {
       const descriptor = Object.getOwnPropertyDescriptor(service, "layer")

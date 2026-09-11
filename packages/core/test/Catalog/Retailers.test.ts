@@ -70,8 +70,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Retailers", (it) => {
       expect(row.scrapeCountry).toBe("Australia")
       expect(row.listingExtractPrompt).toBe(defaultListingExtractPrompt)
       expect(row.pageExtractPrompt).toBe(defaultPageExtractPrompt)
-      expect(yield* retailers.get(row.id)).toEqual(row)
-      expect(yield* retailers.list()).toEqual([row])
+      expect(yield* retailers.get({ retailerId: row.id })).toEqual(row)
+      expect(yield* retailers.list).toEqual([row])
     }),
   )
   it.effect(
@@ -99,7 +99,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Retailers", (it) => {
             retailerId: row.id,
           }),
         )
-        expect((yield* retailers.list()).length).toBe(1)
+        expect((yield* retailers.list).length).toBe(1)
       }),
   )
   it.effect("returns InvalidRetailerDomain with the pasted input", () =>
@@ -131,20 +131,30 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Retailers", (it) => {
         })
 
         expect(
-          (yield* retailers.update(a.id, {
-            domain: "https://www.NEW.example.com/path",
+          (yield* retailers.update({
+            retailerId: a.id,
+            command: {
+              domain: "https://www.NEW.example.com/path",
+            },
           })).domain,
         ).toBe("new.example.com")
         expect(
           yield* Effect.flip(
-            retailers.update(a.id, { domain: "https://b.example.com/path" }),
+            retailers.update({
+              retailerId: a.id,
+              command: { domain: "https://b.example.com/path" },
+            }),
           ),
         ).toEqual(
           new RetailerDomainTaken({ domain: b.domain, retailerId: b.id }),
         )
-        expect((yield* retailers.get(a.id)).domain).toBe("new.example.com")
+        expect((yield* retailers.get({ retailerId: a.id })).domain).toBe(
+          "new.example.com",
+        )
         expect(
-          yield* Effect.flip(retailers.update(a.id, { domain: "foo" })),
+          yield* Effect.flip(
+            retailers.update({ retailerId: a.id, command: { domain: "foo" } }),
+          ),
         ).toEqual(new InvalidRetailerDomain({ input: "foo" }))
       }),
   )
@@ -158,10 +168,18 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Retailers", (it) => {
       )
 
       const error = new RetailerNotFound({ retailerId: id })
-      expect(yield* Effect.flip(retailers.get(id))).toEqual(error)
-      expect(yield* Effect.flip(retailers.update(id, {}))).toEqual(error)
-      expect(yield* Effect.flip(retailers.impact(id))).toEqual(error)
-      expect(yield* Effect.flip(retailers.remove(id))).toEqual(error)
+      expect(yield* Effect.flip(retailers.get({ retailerId: id }))).toEqual(
+        error,
+      )
+      expect(
+        yield* Effect.flip(retailers.update({ retailerId: id, command: {} })),
+      ).toEqual(error)
+      expect(yield* Effect.flip(retailers.impact({ retailerId: id }))).toEqual(
+        error,
+      )
+      expect(yield* Effect.flip(retailers.remove({ retailerId: id }))).toEqual(
+        error,
+      )
     }),
   )
 })
