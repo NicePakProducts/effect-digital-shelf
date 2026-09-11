@@ -1,13 +1,16 @@
 import { describe, expect, it } from "@effect/vitest"
 import { parseOrigin } from "@digital-shelf/infra/Resources/Postgres"
+import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
 
 describe("Hyperdrive origin", () => {
   it.each(["postgres", "postgresql"])(
     "parses %s credentials and drops client query options",
     (scheme) => {
-      const origin = parseOrigin(
-        `${scheme}://postgres.branch:p%40ss%3Aword@db.example.com:5432/postgres?sslmode=verify-full`,
+      const origin = Effect.runSync(
+        parseOrigin(
+          `${scheme}://postgres.branch:p%40ss%3Aword@db.example.com:5432/postgres?sslmode=verify-full`,
+        ),
       )
 
       expect(origin).toEqual({
@@ -25,8 +28,8 @@ describe("Hyperdrive origin", () => {
   )
 
   it("defaults the port and decodes user and database names", () => {
-    const origin = parseOrigin(
-      "postgres://test%2Euser:pw@localhost/shelf%2Dtest",
+    const origin = Effect.runSync(
+      parseOrigin("postgres://test%2Euser:pw@localhost/shelf%2Dtest"),
     )
 
     expect(origin).toMatchObject({
@@ -37,9 +40,9 @@ describe("Hyperdrive origin", () => {
   })
 
   it("preserves an explicit port and handles IPv6", () => {
-    expect(parseOrigin("postgres://user:pw@[::1]:5440/postgres")).toMatchObject(
-      { host: "::1", port: 5440 },
-    )
+    expect(
+      Effect.runSync(parseOrigin("postgres://user:pw@[::1]:5440/postgres")),
+    ).toMatchObject({ host: "::1", port: 5440 })
   })
 
   it.each([
@@ -55,16 +58,20 @@ describe("Hyperdrive origin", () => {
     "postgres://user:pw@host/db#fragment",
     "postgres://user:%zz@host/db",
   ])("rejects invalid origins without leaking credentials (%s)", (url) => {
-    expect(() => parseOrigin(url)).toThrow(/DATABASE_URL/)
+    const error = Effect.runSync(parseOrigin(url).pipe(Effect.flip))
+    expect(error._tag).toBe("ConfigError")
+    expect(error.message).toMatch(/DATABASE_URL/)
   })
 
   it("sanitizes parser failures instead of retaining the secret URL", () => {
-    try {
-      parseOrigin("postgres://user:secret-password@host:bad/db")
-      expect.unreachable()
-    } catch (error) {
-      expect(String(error)).not.toContain("secret-password")
-      expect(error).not.toHaveProperty("cause")
-    }
+    const error = Effect.runSync(
+      parseOrigin("postgres://user:secret-password@host:bad/db").pipe(
+        Effect.flip,
+      ),
+    )
+
+    expect(String(error)).not.toContain("secret-password")
+    expect(JSON.stringify(error)).not.toContain("secret-password")
+    expect(error.cause).not.toHaveProperty("cause")
   })
 })

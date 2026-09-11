@@ -59,16 +59,17 @@ const RpcError = Schema.Struct({
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Effect defects from Alchemy RPC are unknown; this boundary decodes each error in the cause chain.
 const matches = (defect: unknown, pattern: RegExp): boolean => {
   const seen = new Set<unknown>()
-  let current = defect
 
-  while (!seen.has(current)) {
-    seen.add(current)
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- each node is one link of the unknown RPC cause chain, decoded below.
+  const visit = (node: unknown): boolean => {
+    if (seen.has(node)) return false
+    seen.add(node)
 
-    const text = Schema.decodeUnknownOption(Schema.String)(current)
+    const text = Schema.decodeUnknownOption(Schema.String)(node)
 
     if (Option.isSome(text)) return pattern.test(text.value)
 
-    const error = Schema.decodeUnknownOption(RpcError)(current)
+    const error = Schema.decodeUnknownOption(RpcError)(node)
 
     if (Option.isNone(error)) return false
 
@@ -78,10 +79,10 @@ const matches = (defect: unknown, pattern: RegExp): boolean => {
 
     if (Option.isSome(message) && pattern.test(message.value)) return true
 
-    current = error.value.cause
+    return visit(error.value.cause)
   }
 
-  return false
+  return visit(defect)
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Alchemy's catchDefect contract supplies unknown; matches decodes the RPC cause chain.
@@ -142,8 +143,7 @@ const start = <Params>(
                 ),
               )
 
-              if (created) started.push(options.id)
-              else skipped.push(options.id)
+              ;(created ? started : skipped).push(options.id)
             }
 
             return { started, skipped }
@@ -213,11 +213,11 @@ export const layer = (handles: {
 
         return yield* Effect.gen(function* () {
           const instance = yield* handles[kind].get(id)
-          const { status } = yield* instance.status()
+          const report = yield* instance.status()
 
           return Option.some(
             Option.getOrElse(
-              Schema.decodeUnknownOption(ExecutionStatus)(status),
+              Schema.decodeUnknownOption(ExecutionStatus)(report.status),
               () => "unknown" as const,
             ),
           )

@@ -13,6 +13,8 @@ export const run = <E, R>(
   layer: Layer.Layer<ExtractionRunner, E, R>,
 ) =>
   Effect.gen(function* () {
+    // SAFETY: infra's Adapters/Executions.ts encodes these params and their id;
+    // a decode failure is a bug in this codebase's encoder, not external input.
     const params = yield* Schema.decodeUnknownEffect(ExtractionParams)(
       input,
     ).pipe(Effect.orDie)
@@ -24,7 +26,9 @@ export const run = <E, R>(
     const parent = yield* parentSpan(params.traceparent)
 
     const claim = Effect.fn("ExtractionWorkflow.claim")(function* () {
-      return yield* (yield* ExtractionRunner).claim(id)
+      const runner = yield* ExtractionRunner
+
+      return yield* runner.claim(id)
     })
 
     const sequence = Effect.gen(function* () {
@@ -35,7 +39,9 @@ export const run = <E, R>(
       )
 
       const extract = Effect.fn("ExtractionWorkflow.extract")(function* () {
-        return yield* (yield* ExtractionRunner).extract(id, target)
+        const runner = yield* ExtractionRunner
+
+        return yield* runner.extract(id, target)
       })
 
       const outcome = yield* step(
@@ -49,7 +55,8 @@ export const run = <E, R>(
       )
 
       const finish = Effect.fn("ExtractionWorkflow.finish")(function* () {
-        yield* (yield* ExtractionRunner).finish(id, outcome)
+        const runner = yield* ExtractionRunner
+        yield* runner.finish(id, outcome)
 
         return null
       })
@@ -61,7 +68,8 @@ export const run = <E, R>(
       Effect.catchTag("WorkflowStopped", () => Effect.void),
       Effect.catchCause((cause) => {
         const fail = Effect.fn("ExtractionWorkflow.fail")(function* () {
-          yield* (yield* ExtractionRunner).fail(
+          const runner = yield* ExtractionRunner
+          yield* runner.fail(
             id,
             "unknown",
             "Extraction Workflow execution failed",

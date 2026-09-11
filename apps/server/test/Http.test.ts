@@ -1,4 +1,5 @@
 import { expect, it } from "@effect/vitest"
+import { Db } from "@digital-shelf/core/Sql/Db"
 import * as CoreTest from "@digital-shelf/core/test/layers/Core"
 import * as TelemetryAdapter from "@digital-shelf/infra/Adapters/Telemetry"
 import * as Effect from "effect/Effect"
@@ -7,6 +8,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Redacted from "effect/Redacted"
+import * as Ref from "effect/Ref"
 import * as References from "effect/References"
 import * as Scope from "effect/Scope"
 import * as Tracer from "effect/Tracer"
@@ -26,7 +28,7 @@ it.effect(
       const requests: HttpClientRequest.HttpClientRequest[] = []
       const spans: Tracer.Span[] = []
       const closed: string[] = []
-      let builds = 0
+      const builds = yield* Ref.make(0)
 
       const http = HttpClient.make((request) =>
         Effect.sync(() => {
@@ -43,7 +45,7 @@ it.effect(
         Tracer.Tracer,
         Effect.gen(function* () {
           const base = yield* Effect.tracer
-          builds++
+          yield* Ref.update(builds, (n) => n + 1)
 
           return Tracer.make({
             span(options) {
@@ -110,7 +112,7 @@ it.effect(
         )
 
         expect(response.status).toBe(200)
-        expect(builds).toBe(invocation + 1)
+        expect(yield* Ref.get(builds)).toBe(invocation + 1)
         expect(closed).toHaveLength(invocation)
         expect(requests).toHaveLength(invocation * 2)
 
@@ -230,6 +232,30 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const brands = yield* request("/api/v1/brands")
           expect(brands.status).toBe(401)
         }),
+    )
+
+    it.effect("returns 503 when the health query fails", () =>
+      Effect.gen(function* () {
+        const db = yield* Db
+
+        yield* db.transaction(() =>
+          Effect.gen(function* () {
+            // The route joins this fiber's TransactionConnection through the
+            // captured context, so the aborted real transaction makes the
+            // health SELECT fail too; if that propagation ever changed, the
+            // request would hang rather than fail.
+            yield* db.execute("select 1 / 0").pipe(Effect.flip)
+
+            const health = yield* request("/health")
+            expect(health.status).toBe(503)
+            expect(yield* Effect.promise(() => health.json())).toEqual({
+              ok: false,
+              stage: "dev",
+              db: "unavailable",
+            })
+          }),
+        )
+      }),
     )
 
     it.effect("mounts the Better Auth handler", () =>

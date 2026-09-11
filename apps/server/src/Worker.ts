@@ -131,10 +131,12 @@ export const makeServer = (options: {
           const context = yield* Layer.build(telemetry)
 
           return yield* Effect.gen(function* () {
-            const report = yield* (yield* Cron).tick()
+            const cron = yield* Cron
+            const report = yield* cron.tick()
             yield* Effect.logInfo(JSON.stringify(report))
           }).pipe(
             Effect.provide(Core.Cron.pipe(Layer.provide(adapters))),
+            // Cron layer construction failures (including ConfigError) are logged once per tick so the cron never dies.
             Effect.catchCause((cause) =>
               Effect.logError("Cron invocation failed", cause),
             ),
@@ -164,12 +166,12 @@ export const makeServer = (options: {
 
 /** Alchemy's generated bridge imports the default; resources are already bound. */
 export default Effect.gen(function* () {
-  const { stage } = yield* Stack
+  const stack = yield* Stack
   const hyperdrive = yield* Cloudflare.Hyperdrive.Connection.ref("Postgres")
   const bucket = yield* Cloudflare.R2.Bucket.ref("Bucket")
 
   return yield* makeServer({
-    stage: stageOf(stage),
+    stage: stageOf(stack.stage),
     hostname: Option.none(),
     hyperdrive,
     bucket,

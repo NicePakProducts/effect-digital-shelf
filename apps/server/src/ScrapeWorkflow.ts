@@ -13,6 +13,8 @@ export const run = <E, R>(
   layer: Layer.Layer<ScrapeRunner, E, R>,
 ) =>
   Effect.gen(function* () {
+    // SAFETY: infra's Adapters/Executions.ts encodes these params and their id;
+    // a decode failure is a bug in this codebase's encoder, not external input.
     const params = yield* Schema.decodeUnknownEffect(ScrapeParams)(input).pipe(
       Effect.orDie,
     )
@@ -24,7 +26,9 @@ export const run = <E, R>(
     const parent = yield* parentSpan(params.traceparent)
 
     const claim = Effect.fn("ScrapeWorkflow.claim")(function* () {
-      return yield* (yield* ScrapeRunner).claim(id)
+      const runner = yield* ScrapeRunner
+
+      return yield* runner.claim(id)
     })
 
     const sequence = Effect.gen(function* () {
@@ -35,7 +39,9 @@ export const run = <E, R>(
       )
 
       const fetch = Effect.fn("ScrapeWorkflow.fetch")(function* () {
-        return yield* (yield* ScrapeRunner).fetch(id, target)
+        const runner = yield* ScrapeRunner
+
+        return yield* runner.fetch(id, target)
       })
 
       const outcome = yield* step(
@@ -49,18 +55,23 @@ export const run = <E, R>(
       )
 
       const finish = Effect.fn("ScrapeWorkflow.finish")(function* () {
-        return yield* (yield* ScrapeRunner).finish(id, outcome)
+        const runner = yield* ScrapeRunner
+
+        return yield* runner.finish(id, outcome)
       })
 
-      const { extractionId } = yield* step(
+      const finished = yield* step(
         "finish",
         finish().pipe(Effect.provide(layer)),
         parent,
       )
 
-      if (extractionId !== null) {
+      if (finished.extractionId !== null) {
+        const extractionId = finished.extractionId
+
         const start = Effect.fn("ScrapeWorkflow.startExtraction")(function* () {
-          yield* (yield* ScrapeRunner).startExtraction(extractionId, id)
+          const runner = yield* ScrapeRunner
+          yield* runner.startExtraction(extractionId, id)
 
           return null
         })
@@ -77,11 +88,8 @@ export const run = <E, R>(
       Effect.catchTag("WorkflowStopped", () => Effect.void),
       Effect.catchCause((cause) => {
         const fail = Effect.fn("ScrapeWorkflow.fail")(function* () {
-          yield* (yield* ScrapeRunner).fail(
-            id,
-            "unknown",
-            "Scrape Workflow execution failed",
-          )
+          const runner = yield* ScrapeRunner
+          yield* runner.fail(id, "unknown", "Scrape Workflow execution failed")
 
           return null
         })
