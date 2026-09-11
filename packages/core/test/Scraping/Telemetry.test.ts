@@ -29,8 +29,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           yield* reset
           const fixture = yield* seed()
-          const listing2 = yield* fixture.listing
-          const parent = listing2.parent
+          const listing = yield* fixture.listing
+          const parent = listing.parent
           const base = yield* Tracer.Tracer
           const spans: Tracer.Span[] = []
 
@@ -181,8 +181,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             parent: (yield* fixture.listing).parent,
           })
 
-          const executionsTest2 = yield* ExecutionsTest
-          yield* executionsTest2.setStatus("scrape", pending.id, "errored")
+          const executionsTest = yield* ExecutionsTest
+          yield* executionsTest.setStatus("scrape", pending.id, "errored")
 
           const extractedScrape = yield* successfulScrape(
             (yield* fixture.listing).parent,
@@ -267,7 +267,6 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           expect(
             (yield* extractions.get({ extractionId: extracting.id })).status,
           ).toBe("failed")
-          const executionsTest = yield* ExecutionsTest
           expect(
             yield* executionsTest.service.status("extraction", extracting.id),
           ).toEqual(Option.some("terminated"))
@@ -294,8 +293,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           yield* reset
           const seededCatalog = yield* seed()
-          const listing2 = yield* seededCatalog.listing
-          const parent = listing2.parent
+          const listing = yield* seededCatalog.listing
+          const parent = listing.parent
 
           const plain = Tracer.make({
             span: (options) => new Tracer.NativeSpan(options),

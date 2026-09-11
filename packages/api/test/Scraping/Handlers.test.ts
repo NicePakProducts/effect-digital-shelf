@@ -49,14 +49,18 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           yield* reset
-          const { parent } = yield* (yield* seed()).listing
+          const fixture = yield* seed()
+          const listing = yield* fixture.listing
+          const parent = listing.parent
           const api = yield* client
 
-          const [row, response] = yield* api.scrapes.trigger({
+          const triggered = yield* api.scrapes.trigger({
             payload: { parent },
             responseMode: "decoded-and-response",
           })
 
+          const row = triggered[0]
+          const response = triggered[1]
           expect(response.status).toBe(202)
           expect(row.status).toBe("pending")
           expect(row.listingId).toBe(parent.listingId)
@@ -118,11 +122,13 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           const api = yield* client
           yield* api.scrapes.trigger({ payload: { parent: inFlight.parent } })
 
-          const [report, response] = yield* api.scrapes.bulk({
+          const dispatched = yield* api.scrapes.bulk({
             payload: BulkScrape.members[0].make({ brandId: fixture.brandId }),
             responseMode: "decoded-and-response",
           })
 
+          const report = dispatched[0]
+          const response = dispatched[1]
           expect(response.status).toBe(202)
           expect(report).toEqual({
             created: 2,
@@ -149,8 +155,8 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           const fixture = yield* seed()
 
           const rows = yield* Effect.forEach([1, 2, 3], () =>
-            Effect.flatMap(fixture.listing, ({ parent }) =>
-              history(parent, "success", "1 hour"),
+            Effect.flatMap(fixture.listing, (listing) =>
+              history(listing.parent, "success", "1 hour"),
             ),
           )
 
@@ -224,16 +230,20 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           yield* reset
-          const { parent } = yield* (yield* seed()).listing
+          const fixture = yield* seed()
+          const listing = yield* fixture.listing
+          const parent = listing.parent
           const html = "<p>Kept</p><script>fetch('/api/v1/scrapes')</script>"
           const scrape = yield* successfulScrape(parent, { html })
           const api = yield* client
 
-          const [content, response] = yield* api.scrapes.content({
+          const servedContent = yield* api.scrapes.content({
             params: { id: scrape.id },
             responseMode: "decoded-and-response",
           })
 
+          const content = servedContent[0]
+          const response = servedContent[1]
           expect(content).toBe(html)
           expect(response.headers["content-type"]).toBe(
             "text/plain; charset=utf-8",
@@ -252,7 +262,8 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           expect(
             (yield* api.scrapes.get({ params: { id: scrape.id } })).status,
           ).toBe("success")
-          yield* (yield* R2BucketTest).service.delete([
+          const bucketTest = yield* R2BucketTest
+          yield* bucketTest.service.delete([
             Option.getOrThrow(scrape.htmlR2Key),
           ])
           expect(
@@ -280,15 +291,19 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           yield* reset
-          const { parent } = yield* (yield* seed()).listing
+          const fixture = yield* seed()
+          const listing = yield* fixture.listing
+          const parent = listing.parent
           const scrape = yield* successfulScrape(parent)
           const api = yield* client
 
-          const [row, response] = yield* api.extractions.trigger({
+          const triggered = yield* api.extractions.trigger({
             payload: TriggerExtraction.members[0].make({ scrapeId: scrape.id }),
             responseMode: "decoded-and-response",
           })
 
+          const row = triggered[0]
+          const response = triggered[1]
           expect(response.status).toBe(202)
           expect(row).toMatchObject({
             scrapeId: scrape.id,
@@ -340,11 +355,13 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
         yield* extraction(already.id, 1, "success")
         const api = yield* client
 
-        const [report, response] = yield* api.extractions.bulk({
+        const dispatched = yield* api.extractions.bulk({
           payload: { retailerId: fixture.retailerId, promptKind: "listing" },
           responseMode: "decoded-and-response",
         })
 
+        const report = dispatched[0]
+        const response = dispatched[1]
         expect(response.status).toBe(202)
         expect(report).toEqual({ created: 1, skipped: 1 })
       }),
@@ -354,7 +371,8 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
         yield* TestClock.setTime(Date.UTC(2026, 8, 9))
         yield* reset
         const fixture = yield* seed()
-        const { parent } = yield* fixture.listing
+        const listing = yield* fixture.listing
+        const parent = listing.parent
         const scrape = yield* successfulScrape(parent)
 
         const first = yield* extraction(scrape.id, 1, "success", {
@@ -397,7 +415,8 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
           const fixture = yield* seed()
           const listing = yield* fixture.listing
           const bare = yield* fixture.listing
-          const pageParent = (yield* fixture.page).parent
+          const page = yield* fixture.page
+          const pageParent = page.parent
 
           const good = yield* successfulScrape(listing.parent, {
             age: "2 hours",
@@ -469,9 +488,10 @@ it.layer(ApiTest.layerTest, { timeout: "60 seconds" })(
             )
           }
 
+          const emptyFixture = yield* seed()
           expect(
             yield* api.extractions.latestForProduct({
-              params: { id: (yield* seed()).productId },
+              params: { id: emptyFixture.productId },
             }),
           ).toEqual({ items: [] })
 

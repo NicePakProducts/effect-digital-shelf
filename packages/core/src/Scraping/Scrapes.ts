@@ -301,6 +301,7 @@ export class Scrapes extends Context.Service<
           )
       })
 
+      // Two attempts: one retry after an InFlightConflict rollback re-check; no other failure is retried.
       const created = yield* Effect.reduce(
         [0, 1],
         () => Option.none<Scrape>(),

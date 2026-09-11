@@ -300,6 +300,7 @@ export class Extractions extends Context.Service<
           Effect.catchTag("InFlightConflict", () => Effect.succeedNone),
         )
 
+      // Two attempts: one retry after an InFlightConflict rollback re-check; no other failure is retried.
       const created = yield* Effect.reduce(
         [0, 1],
         () => Option.none<Extraction>(),

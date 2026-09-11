@@ -1,10 +1,10 @@
 import * as Schema from "effect/Schema"
 import {
   BrandId,
+  ExtractionId,
   ProductId,
   RetailerId,
   ScrapeId,
-  ExtractionId,
 } from "../Shared/Ids.ts"
 import { ScrapeParent } from "./Scrape.ts"
 import { PromptKind, ScrapeMode } from "./Vocabulary.ts"

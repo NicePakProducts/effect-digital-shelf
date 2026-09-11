@@ -374,17 +374,15 @@ export class ParentsRepo extends Context.Service<
     })(function* (parent: ScrapeParent, at: DateTime.Utc) {
       const lastScrapedAt = DateTime.toDateUtc(at)
 
-      const table = Predicate.isTagged(parent, "Listing") ? listings : pages
-
-      const id = Predicate.isTagged(parent, "Listing")
-        ? parent.listingId
-        : parent.pageId
+      const target = Predicate.isTagged(parent, "Listing")
+        ? { table: listings, where: eq(listings.id, parent.listingId) }
+        : { table: pages, where: eq(pages.id, parent.pageId) }
 
       yield* query(
         db
-          .update(table)
+          .update(target.table)
           .set({ lastScrapedAt, updatedAt: lastScrapedAt })
-          .where(eq(table.id, id)),
+          .where(target.where),
       )
     })
 
