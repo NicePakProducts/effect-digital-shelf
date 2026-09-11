@@ -37,6 +37,7 @@ export const decode = <S extends Schema.Constraint>(schema: S) => {
   return (
     row: RowOf<S>,
   ): Effect.Effect<S["Type"], never, S["DecodingServices"]> =>
+    // SAFETY: the row and the schema derive from one Drizzle table (ADR 0002); a decode failure can only be a bug.
     Effect.orDie(decodeRow(row))
 }
 
