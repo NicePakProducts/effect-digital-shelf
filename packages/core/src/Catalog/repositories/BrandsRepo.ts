@@ -7,6 +7,8 @@ import { BrandNotFound } from "@digital-shelf/domain/Catalog/Errors"
 import type { BrandId } from "@digital-shelf/domain/Shared/Ids"
 import { brands } from "@digital-shelf/domain/Sql/Catalog"
 import { asc, eq } from "drizzle-orm"
+import * as Context from "effect/Context"
+import * as Layer from "effect/Layer"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import type { SqlError } from "effect/unstable/sql/SqlError"
@@ -43,65 +45,84 @@ const orNotFound =
       }),
     )
 
-export const find = Effect.fn("BrandsRepo.find", { level: "Debug" })(function* (
-  id: BrandId,
-) {
-  const db = yield* Db
-
-  return yield* one(
-    yield* query(db.select().from(brands).where(eq(brands.id, id))),
-  )
-})
-
-export const get = (id: BrandId) => find(id).pipe(orNotFound(id))
-
-export const list = Effect.fn("BrandsRepo.list", { level: "Debug" })(
-  function* () {
+export class BrandsRepo extends Context.Service<
+  BrandsRepo,
+  {
+    readonly find: (
+      id: BrandId,
+    ) => Effect.Effect<Option.Option<Brand>, SqlError>
+    readonly get: (
+      id: BrandId,
+    ) => Effect.Effect<Brand, BrandNotFound | SqlError>
+    readonly list: Effect.Effect<ReadonlyArray<Brand>, SqlError>
+    readonly insert: (brand: BrandInsert) => Effect.Effect<Brand, SqlError>
+    readonly update: (
+      id: BrandId,
+      patch: BrandUpdate,
+    ) => Effect.Effect<Brand, BrandNotFound | SqlError>
+    readonly remove: (
+      id: BrandId,
+    ) => Effect.Effect<Brand, BrandNotFound | SqlError>
+  }
+>()("@digital-shelf/core/Catalog/repositories/BrandsRepo", {
+  make: Effect.gen(function* () {
+    // Queries resolve the transaction's fiber-local connection through this same Db.
     const db = yield* Db
 
-    return yield* all(
-      yield* query(
-        db
-          .select()
-          .from(brands)
-          .orderBy(asc(brands.name), asc(brands.createdAt)),
-      ),
+    const find = Effect.fn("BrandsRepo.find", { level: "Debug" })(function* (
+      id: BrandId,
+    ) {
+      return yield* one(
+        yield* query(db.select().from(brands).where(eq(brands.id, id))),
+      )
+    })
+
+    const get = (id: BrandId) => find(id).pipe(orNotFound(id))
+
+    const list = Effect.fn("BrandsRepo.list", { level: "Debug" })(function* () {
+      return yield* all(
+        yield* query(
+          db
+            .select()
+            .from(brands)
+            .orderBy(asc(brands.name), asc(brands.createdAt)),
+        ),
+      )
+    })()
+
+    const insert = Effect.fn("BrandsRepo.insert", { level: "Debug" })(
+      function* (brand: BrandInsert) {
+        return yield* exactlyOne(
+          yield* query(db.insert(brands).values(toRow(brand)).returning()),
+        )
+      },
     )
-  },
-)
 
-export const insert = Effect.fn("BrandsRepo.insert", { level: "Debug" })(
-  function* (brand: BrandInsert) {
-    const db = yield* Db
+    const update = Effect.fn("BrandsRepo.update", { level: "Debug" })(
+      function* (id: BrandId, patch: BrandUpdate) {
+        const values = toPatch(patch)
 
-    return yield* exactlyOne(
-      yield* query(db.insert(brands).values(toRow(brand)).returning()),
+        if (Object.keys(values).length === 0) return yield* get(id)
+
+        return yield* one(
+          yield* query(
+            db.update(brands).set(values).where(eq(brands.id, id)).returning(),
+          ),
+        ).pipe(orNotFound(id))
+      },
     )
-  },
-)
 
-export const update = Effect.fn("BrandsRepo.update", { level: "Debug" })(
-  function* (id: BrandId, patch: BrandUpdate) {
-    const values = toPatch(patch)
+    /** The raw row delete; Catalog/Cascade collects what the cascade drops first. */
+    const remove = Effect.fn("BrandsRepo.remove", { level: "Debug" })(
+      function* (id: BrandId) {
+        return yield* one(
+          yield* query(db.delete(brands).where(eq(brands.id, id)).returning()),
+        ).pipe(orNotFound(id))
+      },
+    )
 
-    if (Object.keys(values).length === 0) return yield* get(id)
-    const db = yield* Db
-
-    return yield* one(
-      yield* query(
-        db.update(brands).set(values).where(eq(brands.id, id)).returning(),
-      ),
-    ).pipe(orNotFound(id))
-  },
-)
-
-/** The raw row delete; Catalog/Cascade collects what the cascade drops first. */
-export const remove = Effect.fn("BrandsRepo.remove", { level: "Debug" })(
-  function* (id: BrandId) {
-    const db = yield* Db
-
-    return yield* one(
-      yield* query(db.delete(brands).where(eq(brands.id, id)).returning()),
-    ).pipe(orNotFound(id))
-  },
-)
+    return { find, get, list, insert, update, remove } as const
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}

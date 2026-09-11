@@ -1,7 +1,12 @@
-import { emptyImpact } from "@digital-shelf/domain/Catalog/CascadeImpact"
+import type { Brand } from "@digital-shelf/domain/Catalog/Brand"
+import type { SqlError } from "effect/unstable/sql/SqlError"
+import {
+  type CascadeImpact,
+  emptyImpact,
+} from "@digital-shelf/domain/Catalog/CascadeImpact"
 import { expect, it } from "@effect/vitest"
 import { Brands } from "@digital-shelf/core/Catalog/Brands"
-import * as BrandsRepo from "@digital-shelf/core/Catalog/repositories/BrandsRepo"
+import { BrandsRepo } from "@digital-shelf/core/Catalog/repositories/BrandsRepo"
 import { Db } from "@digital-shelf/core/Sql/Db"
 import { BrandNotFound } from "@digital-shelf/domain/Catalog/Errors"
 import { BrandId } from "@digital-shelf/domain/Shared/Ids"
@@ -20,12 +25,28 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const brands = yield* Brands
-      const created = yield* brands.create({ name: "Gaia" })
+
+      const create: Effect.Effect<Brand, SqlError, never> = brands.create({
+        name: "Gaia",
+      })
+
+      const created = yield* create
       expect(created.name).toBe("Gaia")
       expect(created.paused).toBe(false)
       expect(DateTime.isDateTime(created.createdAt)).toBe(true)
-      expect(yield* brands.get(created.id)).toEqual(created)
-      expect(yield* brands.list).toEqual([created])
+
+      const get: Effect.Effect<Brand, BrandNotFound | SqlError, never> =
+        brands.get({ brandId: created.id })
+
+      expect(yield* get).toEqual(created)
+
+      const list: Effect.Effect<
+        ReadonlyArray<Brand>,
+        SqlError,
+        never
+      > = brands.list
+
+      expect(yield* list).toEqual([created])
     }),
   )
 
@@ -34,30 +55,53 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
       yield* DbTest.reset
       const brands = yield* Brands
       const created = yield* brands.create({ name: "Gaia" })
-      const paused = yield* brands.update(created.id, { paused: true })
+
+      const update: Effect.Effect<Brand, BrandNotFound | SqlError, never> =
+        brands.update({ brandId: created.id, command: { paused: true } })
+
+      const paused = yield* update
       expect(paused.paused).toBe(true)
-      expect(yield* brands.update(created.id, {})).toEqual(paused)
-      const removed = yield* brands.remove(created.id)
+      expect(
+        yield* brands.update({ brandId: created.id, command: {} }),
+      ).toEqual(paused)
+
+      const impact: Effect.Effect<
+        CascadeImpact,
+        BrandNotFound | SqlError,
+        never
+      > = brands.impact({ brandId: created.id })
+
+      expect(yield* impact).toEqual(emptyImpact)
+
+      const remove: Effect.Effect<
+        CascadeImpact,
+        BrandNotFound | SqlError,
+        never
+      > = brands.remove({ brandId: created.id })
+
+      const removed = yield* remove
       expect(removed).toEqual(emptyImpact)
       expect(yield* brands.list).toEqual([])
-      expect(yield* Effect.flip(brands.get(created.id))).toBeInstanceOf(
-        BrandNotFound,
-      )
-      expect(yield* Effect.flip(brands.get(missingId))).toEqual(
+      expect(
+        yield* Effect.flip(brands.get({ brandId: created.id })),
+      ).toBeInstanceOf(BrandNotFound)
+      expect(yield* Effect.flip(brands.get({ brandId: missingId }))).toEqual(
         new BrandNotFound({ brandId: missingId }),
       )
     }),
   )
 
+  /** A repository constructed before the transaction opens joins it over the single test Db. */
   it.effect("repository queries join the enclosing transaction", () =>
     Effect.gen(function* () {
       yield* DbTest.reset
       const db = yield* Db
+      const repo = yield* BrandsRepo
 
       const rolledBack = yield* Effect.flip(
         db.transaction(() =>
           Effect.gen(function* () {
-            yield* BrandsRepo.insert({ name: "Rolled back" })
+            yield* repo.insert({ name: "Rolled back" })
 
             return yield* Effect.fail("boom" as const)
           }),
@@ -65,12 +109,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
       )
 
       expect(rolledBack).toBe("boom")
-      expect(yield* BrandsRepo.list()).toEqual([])
+      expect(yield* repo.list).toEqual([])
 
-      yield* db.transaction(() => BrandsRepo.insert({ name: "Kept" }))
-      expect((yield* BrandsRepo.list()).map((brand) => brand.name)).toEqual([
-        "Kept",
-      ])
-    }),
+      yield* db.transaction(() => repo.insert({ name: "Kept" }))
+      expect((yield* repo.list).map((brand) => brand.name)).toEqual(["Kept"])
+    }).pipe(Effect.provide(BrandsRepo.layer)),
   )
 })

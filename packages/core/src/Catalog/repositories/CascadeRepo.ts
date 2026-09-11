@@ -20,6 +20,9 @@ import {
 } from "@digital-shelf/domain/Sql/Catalog"
 import { scrapes } from "@digital-shelf/domain/Sql/Scraping"
 import { eq, inArray, or, sql } from "drizzle-orm"
+import * as Context from "effect/Context"
+import * as Layer from "effect/Layer"
+import type { SqlError } from "effect/unstable/sql/SqlError"
 import * as Data from "effect/Data"
 import * as Match from "effect/Match"
 import * as Effect from "effect/Effect"
@@ -81,48 +84,66 @@ const subtree = (db: Db["Service"], root: CascadeRoot) => {
   return { product, productIds, listing, page, scrape }
 }
 
-export const impact = Effect.fn("CascadeRepo.impact", { level: "Debug" })(
-  function* (root: CascadeRoot) {
-    if (Predicate.isTagged(root, "Variant")) return emptyImpact
-    const db = yield* Db
-    const tree = subtree(db, root)
-
-    return yield* Rows.decodeOne(CascadeImpact)(
-      yield* query(
-        db
-          .select({
-            products: Predicate.isTagged(root, "Brand")
-              ? sql<number>`(select count(*)::int from ${products} where ${tree.product})`
-              : sql<number>`0`,
-            variants: sql<number>`(select count(*)::int from ${variants} where ${inArray(variants.productId, tree.productIds)})`,
-            listings: Predicate.isTagged(root, "Listing")
-              ? sql<number>`0`
-              : sql<number>`(select count(*)::int from ${listings} where ${tree.listing})`,
-            pages: Predicate.isTagged(root, "Page")
-              ? sql<number>`0`
-              : sql<number>`(select count(*)::int from ${pages} where ${tree.page})`,
-            scrapes: sql<number>`(select count(*)::int from ${scrapes} where ${tree.scrape})`,
-          })
-          .from(sql`(values (1)) as cascade_root(n)`),
-      ),
-    )
-  },
-)
-
-export const scrapeIds = Effect.fn("CascadeRepo.scrapeIds", { level: "Debug" })(
-  function* (root: CascadeRoot) {
-    if (Predicate.isTagged(root, "Variant")) return []
+export class CascadeRepo extends Context.Service<
+  CascadeRepo,
+  {
+    readonly impact: (
+      root: CascadeRoot,
+    ) => Effect.Effect<CascadeImpact, SqlError>
+    readonly scrapeIds: (
+      root: CascadeRoot,
+    ) => Effect.Effect<ReadonlyArray<ScrapeId>, SqlError>
+  }
+>()("@digital-shelf/core/Catalog/repositories/CascadeRepo", {
+  make: Effect.gen(function* () {
     const db = yield* Db
 
-    const rows = yield* Rows.decodeAll(Schema.Struct({ id: ScrapeId }))(
-      yield* query(
-        db
-          .select({ id: scrapes.id })
-          .from(scrapes)
-          .where(subtree(db, root).scrape),
-      ),
+    const impact = Effect.fn("CascadeRepo.impact", { level: "Debug" })(
+      function* (root: CascadeRoot) {
+        if (Predicate.isTagged(root, "Variant")) return emptyImpact
+        const tree = subtree(db, root)
+
+        return yield* Rows.decodeOne(CascadeImpact)(
+          yield* query(
+            db
+              .select({
+                products: Predicate.isTagged(root, "Brand")
+                  ? sql<number>`(select count(*)::int from ${products} where ${tree.product})`
+                  : sql<number>`0`,
+                variants: sql<number>`(select count(*)::int from ${variants} where ${inArray(variants.productId, tree.productIds)})`,
+                listings: Predicate.isTagged(root, "Listing")
+                  ? sql<number>`0`
+                  : sql<number>`(select count(*)::int from ${listings} where ${tree.listing})`,
+                pages: Predicate.isTagged(root, "Page")
+                  ? sql<number>`0`
+                  : sql<number>`(select count(*)::int from ${pages} where ${tree.page})`,
+                scrapes: sql<number>`(select count(*)::int from ${scrapes} where ${tree.scrape})`,
+              })
+              .from(sql`(values (1)) as cascade_root(n)`),
+          ),
+        )
+      },
     )
 
-    return rows.map((row) => row.id)
-  },
-)
+    const scrapeIds = Effect.fn("CascadeRepo.scrapeIds", { level: "Debug" })(
+      function* (root: CascadeRoot) {
+        if (Predicate.isTagged(root, "Variant")) return []
+
+        const rows = yield* Rows.decodeAll(Schema.Struct({ id: ScrapeId }))(
+          yield* query(
+            db
+              .select({ id: scrapes.id })
+              .from(scrapes)
+              .where(subtree(db, root).scrape),
+          ),
+        )
+
+        return rows.map((row) => row.id)
+      },
+    )
+
+    return { impact, scrapeIds } as const
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}
