@@ -10,4 +10,5 @@ Originally written for D1; the decision carried over unchanged when the store mo
 
 - Core must collect the Scrape ids it is about to remove before the delete, both for R2 cleanup and for the cascade impact count; the database will not report them.
 - Until the first production deploy, migrations are regenerated rather than appended, so the initial migration is the one that first reaches Postgres.
+  Superseded on 2026-09-11 when the initial migration reached the dev database (#37); migrations are append-only from then on.
 - The previous app's ADR 0005 (synthetic composite keys) is superseded: uniqueness is native multi-column indexes.

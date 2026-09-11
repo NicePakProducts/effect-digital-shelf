@@ -38,7 +38,6 @@ export const optionalKeys = [
   "EXTRACTION_RETRIES",
   "EXTRACTION_INPUT_CAP_BYTES",
   "EXTRACTION_MAX_OUTPUT_TOKENS",
-  "SERVER_HOSTNAME",
 ] as const
 export const configKeys = [...requiredKeys, ...secretKeys, ...optionalKeys]
 

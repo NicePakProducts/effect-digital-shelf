@@ -2,30 +2,61 @@ import { expect, it } from "@effect/vitest"
 import * as CoreTest from "@digital-shelf/core/test/layers/Core"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as HttpRouter from "effect/unstable/http/HttpRouter"
+import * as HttpEffect from "effect/unstable/http/HttpEffect"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import * as Http from "../src/Http.ts"
 
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
   "server routes",
   (it) => {
+    const handler = Effect.gen(function* () {
+      const context =
+        yield* Effect.context<Layer.Success<typeof CoreTest.layerTest>>()
+      return yield* Http.fetch(
+        Http.layer("dev").pipe(Layer.provide(Layer.succeedContext(context))),
+      )
+    })
+
     const request = (path: string) =>
       Effect.gen(function* () {
         const context =
           yield* Effect.context<Layer.Success<typeof CoreTest.layerTest>>()
-        const handler = yield* HttpRouter.toHttpEffect(
-          Http.layer("dev").pipe(Layer.provide(Layer.succeedContext(context))),
+        const webHandler = HttpEffect.toWebHandler(
+          handler.pipe(Effect.provide(context)),
         )
-        const response = yield* handler
-        return HttpServerResponse.toWeb(response)
-      }).pipe(
-        Effect.provideService(
-          HttpServerRequest.HttpServerRequest,
-          HttpServerRequest.fromWeb(new Request(`http://localhost${path}`)),
-        ),
-        Effect.scoped,
-      )
+        return yield* Effect.promise(() =>
+          webHandler(new Request(`http://localhost${path}`)),
+        )
+      })
+
+    it.effect("preserves RouteNotFound in the typed HTTP failure channel", () =>
+      Effect.gen(function* () {
+        const error = yield* handler.pipe(
+          Effect.provideService(
+            HttpServerRequest.HttpServerRequest,
+            HttpServerRequest.fromWeb(
+              new Request("http://localhost/not-a-route"),
+            ),
+          ),
+          Effect.flip,
+        )
+        expect(error).toMatchObject({
+          _tag: "HttpServerError",
+          reason: { _tag: "RouteNotFound" },
+        })
+      }),
+    )
+
+    it.effect(
+      "returns 404 for unknown paths through the Worker fetch handler",
+      () =>
+        Effect.gen(function* () {
+          for (const path of ["/", "/favicon.ico", "/not-a-route"]) {
+            const response = yield* request(path)
+            expect(response.status).toBe(404)
+          }
+        }),
+    )
 
     it.effect(
       "serves the health query, docs, and middleware refusal through the per-request router",

@@ -11,8 +11,8 @@ const walk = (dir: string): ReadonlyArray<string> =>
   })
 
 // Follow core's import walk, including re-exports, side effects and literal
-// dynamic imports. Strip types with Node to distinguish runtime Alchemy edges
-// from both `import type` and `import { type ... }` without a second TS parser.
+// dynamic imports. Node strips `import type`; `import { type X }` becomes
+// `import {}` and still counts as runtime under verbatimModuleSyntax.
 const importsOf = (source: string) => [
   ...Array.from(
     source.matchAll(
@@ -26,19 +26,27 @@ const importsOf = (source: string) => [
   ),
 ]
 
+const edgesOf = (file: string, source: string) => {
+  const runtime = new Set(importsOf(stripTypeScriptTypes(source)))
+  return importsOf(source).map((specifier) => ({
+    file: relative(src, file),
+    typeOnly: !runtime.has(specifier),
+    specifier: specifier.startsWith(".")
+      ? relative(src, resolve(dirname(file), specifier))
+      : specifier,
+  }))
+}
+const runtimeAlchemyEdges = (edges: ReturnType<typeof edgesOf>) =>
+  edges.filter(
+    ({ file, specifier, typeOnly }) =>
+      file.startsWith("Adapters/") &&
+      /^alchemy(?:\/|$)/.test(specifier) &&
+      !typeOnly,
+  )
+
 const edges = walk(src)
   .filter((file) => /\.[cm]?ts$/.test(file))
-  .flatMap((file) => {
-    const source = readFileSync(file, "utf8")
-    const runtime = new Set(importsOf(stripTypeScriptTypes(source)))
-    return importsOf(source).map((specifier) => ({
-      file: relative(src, file),
-      typeOnly: !runtime.has(specifier),
-      specifier: specifier.startsWith(".")
-        ? relative(src, resolve(dirname(file), specifier))
-        : specifier,
-    }))
-  })
+  .flatMap((file) => edgesOf(file, readFileSync(file, "utf8")))
 
 describe("infra import boundary (ADR 0006)", () => {
   it("never reaches API or an app, even through a type or dynamic import", () => {
@@ -53,13 +61,26 @@ describe("infra import boundary (ADR 0006)", () => {
   })
 
   it("adapters import Alchemy only as types", () => {
+    expect(runtimeAlchemyEdges(edges)).toEqual([])
+  })
+
+  it("allows import type but rejects inline type imports of Alchemy in adapters", () => {
+    const file = resolve(src, "Adapters/Fixture.ts")
     expect(
-      edges.filter(
-        ({ file, specifier, typeOnly }) =>
-          file.startsWith("Adapters/") &&
-          /^alchemy(?:\/|$)/.test(specifier) &&
-          !typeOnly,
+      runtimeAlchemyEdges(
+        edgesOf(file, 'import type { X } from "alchemy/Cloudflare/R2"'),
       ),
     ).toEqual([])
+    expect(
+      runtimeAlchemyEdges(
+        edgesOf(file, 'import { type X } from "alchemy/Cloudflare/R2"'),
+      ),
+    ).toEqual([
+      {
+        file: "Adapters/Fixture.ts",
+        typeOnly: false,
+        specifier: "alchemy/Cloudflare/R2",
+      },
+    ])
   })
 })

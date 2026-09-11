@@ -42,12 +42,12 @@ are append-only: preserve the initial migration, generate a new one for each
 schema change, and never hand-edit either generated file.
 
 For a local deploy, apply pending migrations over the stage's **direct**
-`DATABASE_URL`, then deploy. Node's env-file loader supplies the migration
-environment; Alchemy loads its own stage file for deployment:
+`DATABASE_URL`, then deploy. Export the stage file's variables into the shell
+for the migration process; Alchemy loads its own stage file for deployment:
 
 ```sh
-node --env-file=.env.dev --run db:migrate
-CI=true pnpm deploy --stage dev --env-file .env.dev --yes
+set -a; . ./.env.dev; set +a; pnpm db:migrate
+CI=true pnpm run deploy --stage dev --env-file .env.dev --yes
 scripts/smoke.sh https://shelf-dev.apps.npbrands.au
 ```
 

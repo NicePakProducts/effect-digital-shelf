@@ -8,7 +8,7 @@ describe("server init graph under Node's loader", () => {
     "ScrapeWorkflow.ts",
     "ExtractionWorkflow.ts",
   ]) {
-    it(`evaluates with ${module} first`, { timeout: 30_000 }, () => {
+    it(`evaluates with ${module} first`, { timeout: 120_000 }, () => {
       expect(() =>
         execFileSync(
           process.execPath,

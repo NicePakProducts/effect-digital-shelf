@@ -15,7 +15,6 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
-import * as HttpRouter from "effect/unstable/http/HttpRouter"
 import * as ConfigKeys from "./ConfigKeys.ts"
 import { ExtractionWorkflow } from "./ExtractionWorkflow.ts"
 import * as Http from "./Http.ts"
@@ -101,14 +100,7 @@ export const makeServer = (options: {
         Layer.provide(adapters),
       )
       return {
-        fetch: Effect.gen(function* () {
-          const handler = yield* HttpRouter.toHttpEffect(appLayer)
-          return yield* handler
-        }).pipe(
-          Effect.scoped,
-          Effect.orDie,
-          Effect.withSpan("Server.fetch", { root: true }),
-        ),
+        fetch: Http.fetch(appLayer),
       }
     }).pipe(
       Effect.provide([

@@ -27,6 +27,13 @@ const platform = Layer.mergeAll(
   }),
 )
 
+/** Build and close the application layers inside each Worker request. */
+export const fetch = <A, E, R>(appLayer: Layer.Layer<A, E, R>) =>
+  Effect.gen(function* () {
+    const handler = yield* HttpRouter.toHttpEffect(appLayer).pipe(Effect.orDie)
+    return yield* handler
+  }).pipe(Effect.scoped, Effect.withSpan("Server.fetch", { root: true }))
+
 export const layer = (stage: Stage) =>
   Layer.mergeAll(
     Api.layer,

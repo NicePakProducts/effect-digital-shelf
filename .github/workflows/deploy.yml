@@ -31,7 +31,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: Deploy dev
-        run: pnpm deploy --stage dev --yes
+        run: pnpm run deploy --stage dev --yes
         env:
           CI: "true"
           AI_GATEWAY_ACCOUNT_ID: ${{ vars.AI_GATEWAY_ACCOUNT_ID }}
@@ -77,7 +77,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: Deploy prod
-        run: pnpm deploy --stage prod --yes
+        run: pnpm run deploy --stage prod --yes
         env:
           CI: "true"
           AI_GATEWAY_ACCOUNT_ID: ${{ vars.AI_GATEWAY_ACCOUNT_ID }}

@@ -27,6 +27,9 @@ export const layer = <R>(client: BucketClient<R>) =>
   Layer.effect(
     R2Bucket,
     Effect.gen(function* () {
+      // Captures the build-time context, including Scope and ParentSpan: client
+      // calls use the layer's build span, not the per-call R2Bucket.* span.
+      // Alchemy's client only wraps promises; revisit with #40 if spans matter.
       const services = yield* Effect.context<R>()
       const run = <A>(
         operation: StorageError["operation"],
