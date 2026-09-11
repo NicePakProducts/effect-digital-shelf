@@ -1,0 +1,172 @@
+import * as Evaluation from "@slopcop/domain/Labeling/PolicyEvaluation"
+import type { RepositoryErrorCause } from "@slopcop/infra/Sql/RepositoryError"
+import { UnexpectedRowCount } from "@slopcop/infra/Sql/RepositoryError"
+import * as Context from "effect/Context"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlSchema from "effect/unstable/sql/SqlSchema"
+
+export class PolicyEvaluationsRepoError extends Data.TaggedError(
+  "PolicyEvaluationsRepoError",
+)<{
+  readonly operation: "RecordEvaluation" | "RecordAction" | "CompleteAction"
+  readonly cause: RepositoryErrorCause
+}> {}
+
+export class PolicyEvaluationsRepo extends Context.Service<
+  PolicyEvaluationsRepo,
+  {
+    readonly recordEvaluation: (
+      evaluation: typeof Evaluation.PolicyEvaluation.insert.Type,
+    ) => Effect.Effect<Evaluation.PolicyEvaluation, PolicyEvaluationsRepoError>
+    readonly recordAction: (
+      action: typeof Evaluation.PolicyActionExecution.insert.Type,
+    ) => Effect.Effect<
+      Evaluation.PolicyActionExecution,
+      PolicyEvaluationsRepoError
+    >
+    readonly completeAction: (
+      id: Evaluation.PolicyActionExecution["id"],
+      applied: boolean,
+    ) => Effect.Effect<
+      Evaluation.PolicyActionExecution,
+      PolicyEvaluationsRepoError
+    >
+  }
+>()("@slopcop/github-events/Labeling/repositories/PolicyEvaluationsRepo", {
+  make: Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const insertEvaluation = SqlSchema.findOneOption({
+      Request: Evaluation.PolicyEvaluation.insert,
+      Result: Evaluation.PolicyEvaluation,
+      execute: (input) => sql`
+        INSERT INTO policy_evaluations ${sql.insert(input)}
+        ON CONFLICT (delivery_id,rule_id,rule_version,subject_number,subject_generation)
+        DO UPDATE SET
+          policy_id=excluded.policy_id,
+          policy_version_id=excluded.policy_version_id,
+          evaluator=excluded.evaluator,
+          gate_policy_id=excluded.gate_policy_id,
+          gate_policy_version_id=excluded.gate_policy_version_id,
+          outcome=excluded.outcome,
+          confidence=excluded.confidence,
+          rationale=excluded.rationale,
+          trace=excluded.trace,
+          gate_trace=excluded.gate_trace,
+          automation_revision=excluded.automation_revision
+        WHERE policy_evaluations.policy_id IS NOT excluded.policy_id
+          OR policy_evaluations.policy_version_id IS NOT excluded.policy_version_id
+          OR policy_evaluations.evaluator IS NOT excluded.evaluator
+          OR policy_evaluations.gate_policy_id IS NOT excluded.gate_policy_id
+          OR policy_evaluations.gate_policy_version_id IS NOT excluded.gate_policy_version_id
+          OR policy_evaluations.outcome IS NOT excluded.outcome
+          OR policy_evaluations.confidence IS NOT excluded.confidence
+          OR policy_evaluations.rationale IS NOT excluded.rationale
+          OR policy_evaluations.trace IS NOT excluded.trace
+          OR policy_evaluations.gate_trace IS NOT excluded.gate_trace
+          OR policy_evaluations.automation_revision IS NOT excluded.automation_revision
+        RETURNING *`,
+    })
+    const insertAction = SqlSchema.findOneOption({
+      Request: Evaluation.PolicyActionExecution.insert,
+      Result: Evaluation.PolicyActionExecution,
+      execute: (input) => sql`
+        INSERT INTO policy_action_executions ${sql.insert(input)}
+        ON CONFLICT (evaluation_id,rule_id)
+        DO UPDATE SET
+          action=excluded.action,
+          label=excluded.label,
+          selected=excluded.selected,
+          status='planned',
+          applied=0
+        WHERE policy_action_executions.action IS NOT excluded.action
+          OR policy_action_executions.label IS NOT excluded.label
+          OR policy_action_executions.selected IS NOT excluded.selected
+          OR policy_action_executions.status IS NOT 'planned'
+          OR policy_action_executions.applied IS NOT 0
+        RETURNING *`,
+    })
+    const findEvaluation = SqlSchema.findOneOption({
+      Request: Evaluation.PolicyEvaluation.insert,
+      Result: Evaluation.PolicyEvaluation,
+      execute: (input) => sql`
+        SELECT * FROM policy_evaluations
+        WHERE delivery_id=${input.deliveryId}
+          AND rule_id=${input.ruleId}
+          AND rule_version=${input.ruleVersion}
+          AND subject_number=${input.subjectNumber}
+          AND subject_generation=coalesce(${input.headSha},'')`,
+    })
+    const findAction = SqlSchema.findOneOption({
+      Request: Evaluation.PolicyActionExecution.insert,
+      Result: Evaluation.PolicyActionExecution,
+      execute: (input) => sql`
+        SELECT * FROM policy_action_executions
+        WHERE evaluation_id=${input.evaluationId} AND rule_id=${input.ruleId}`,
+    })
+    const completeAction = SqlSchema.findOneOption({
+      Request: Schema.Struct({
+        id: Evaluation.PolicyActionExecutionId,
+        applied: Schema.Boolean,
+      }),
+      Result: Evaluation.PolicyActionExecution,
+      execute: ({ applied, id }) => sql`
+        UPDATE policy_action_executions
+        SET status='completed',applied=${applied}
+        WHERE id=${id} RETURNING *`,
+    })
+    const requireOne = <A>(
+      operation: PolicyEvaluationsRepoError["operation"],
+      row: Option.Option<A>,
+    ) =>
+      Option.match(row, {
+        onNone: () =>
+          Effect.fail(
+            new PolicyEvaluationsRepoError({
+              operation,
+              cause: new UnexpectedRowCount({ expected: 1, actual: 0 }),
+            }),
+          ),
+        onSome: Effect.succeed,
+      })
+    const mapError =
+      (operation: PolicyEvaluationsRepoError["operation"]) =>
+      (cause: RepositoryErrorCause) =>
+        new PolicyEvaluationsRepoError({ operation, cause })
+    return {
+      recordEvaluation: (input) =>
+        insertEvaluation(input).pipe(
+          Effect.flatMap(
+            Option.match({
+              onNone: () => findEvaluation(input),
+              onSome: (row) => Effect.succeed(Option.some(row)),
+            }),
+          ),
+          Effect.mapError(mapError("RecordEvaluation")),
+          Effect.flatMap((row) => requireOne("RecordEvaluation", row)),
+        ),
+      recordAction: (input) =>
+        insertAction(input).pipe(
+          Effect.flatMap(
+            Option.match({
+              onNone: () => findAction(input),
+              onSome: (row) => Effect.succeed(Option.some(row)),
+            }),
+          ),
+          Effect.mapError(mapError("RecordAction")),
+          Effect.flatMap((row) => requireOne("RecordAction", row)),
+        ),
+      completeAction: (id, applied) =>
+        completeAction({ id, applied }).pipe(
+          Effect.mapError(mapError("CompleteAction")),
+          Effect.flatMap((row) => requireOne("CompleteAction", row)),
+        ),
+    }
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}

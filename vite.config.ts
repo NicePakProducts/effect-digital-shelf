@@ -21,7 +21,7 @@ export default defineConfig({
   fmt: {
     printWidth: 80,
     semi: false,
-    ignorePatterns: agentAssets,
+    ignorePatterns: [".repos/**", ...agentAssets],
   },
   lint: {
     plugins: ["typescript", "import"],

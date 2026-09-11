@@ -1,6 +1,3 @@
-# Reference snapshots (see .repos/README.md)
-.repos/
-
 # Dependencies
 node_modules/
 
