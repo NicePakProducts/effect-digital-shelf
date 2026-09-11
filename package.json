@@ -19,6 +19,7 @@
     "@effect/tsgo": "catalog:",
     "@effect/vitest": "catalog:",
     "@electric-sql/pglite": "catalog:",
+    "@oxlint/plugins": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "alchemy": "catalog:",
