@@ -60,10 +60,11 @@ noninteractive authentication; `--yes` accepts the deployment and state-store
 bootstrap/upgrade. Cloudflare state uses an account-level state Worker and
 Secrets Store; the provisioned token includes the needed permissions.
 
-`SERVER_HOSTNAME`, when present, attaches a custom domain on `npbrands.au`.
-Dev uses `shelf-dev.apps.npbrands.au`. Prod stays on the printed `workers.dev`
-URL until its cutover sets `shelf.apps.npbrands.au`; align `AUTH_BASE_URL` with
-the public host at cutover. The stable `workers.dev` URL remains enabled.
+`SERVER_HOSTNAME`, when present, attaches a custom domain on `npbrands.au`, so
+it must be a hostname in that zone: a `workers.dev` value fails the deploy.
+Dev uses `shelf-dev.apps.npbrands.au`; prod uses `shelf.apps.npbrands.au` since
+the cutover on 2026-09-11, with `AUTH_BASE_URL` aligned to the same host. The
+stable `workers.dev` URL remains enabled.
 
 ## GitHub deployment
 
