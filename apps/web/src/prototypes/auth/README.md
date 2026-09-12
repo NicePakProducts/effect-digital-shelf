@@ -2,7 +2,7 @@
 
 **Question:** which entry experience feels right for Digital Shelf before we wire the real magic-link backend?
 
-**Verdict:** pending hands-on review. Do not promote this code to production.
+**Direction:** B’s visual design, but focused rather than split-screen. B now keeps its typography, warm-white surface and green form styling in a single centred column, without the story panel or a surrounding card. The revised layout is pending hands-on review; do not promote this simulation to production. The original three directions remain captured in commit `4ecb59c`.
 
 ## Run
 
@@ -15,7 +15,7 @@ bun run --filter @digital-shelf/web prototype:auth
 Opens `http://localhost:3000/prototype/auth`. No Worker, environment file, database or email service is needed. The route is unavailable in production builds.
 
 - `?variant=A` — Focused: centred form, quiet workspace identity.
-- `?variant=B` — Split-screen: product context beside sign-in.
+- `?variant=B` — Minimal: B’s form styling in a focused, cardless layout.
 - `?variant=C` — App-first: enter from the surrounding workspace shell.
 
 Use the floating arrows or keyboard left/right to switch. Arrow keys are left alone in editable fields. Switching preserves the current flow and email; refreshing resets the simulation, but keeps the layout from the URL.

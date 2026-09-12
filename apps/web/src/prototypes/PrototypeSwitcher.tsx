@@ -4,7 +4,7 @@ export type PrototypeVariant = "A" | "B" | "C"
 
 const variants: ReadonlyArray<PrototypeVariant> = ["A", "B", "C"]
 
-const names = { A: "Focused", B: "Split-screen", C: "App-first" }
+const names = { A: "Focused", B: "Minimal", C: "App-first" }
 
 interface PrototypeSwitcherProps {
   readonly variant: PrototypeVariant

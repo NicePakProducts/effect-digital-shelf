@@ -258,78 +258,18 @@ export function VariantA(props: { readonly children: ReactNode }) {
 
 export function VariantB(props: { readonly children: ReactNode }) {
   return (
-    <div className="split-layout">
-      <aside className="split-story" aria-label="About Digital Shelf">
+    <div className="minimal-layout">
+      <header>
         <Wordmark />
-        <div className="split-story-content">
-          <span className="eyebrow">YOUR CATALOG. A CLEARER PICTURE.</span>
-          <h2>
-            Know what’s <br />
-            on the shelf.
-          </h2>
-          <p>
-            Bring your retailer listings into focus. <br />
-            Configure what gets scraped, and turn{" "}
-            <br className="desktop-break" /> each capture into useful data.
-          </p>
-          <div
-            className="shelf-illustration"
-            aria-label="Configure Listings, scrape retailer pages, inspect extracted JSON"
-          >
-            <div className="illustration-heading">
-              <span>FROM LISTING TO DATA</span>
-              <span>01 — 03</span>
-            </div>
-            <div className="illustration-row">
-              <span className="illustration-icon">
-                <Icon name="catalog" />
-              </span>
-              <div>
-                <strong>Your Listings</strong>
-                <span>Products, Variants & Retailers</span>
-              </div>
-              <span className="illustration-ordinal">01</span>
-            </div>
-            <div className="illustration-connector" />
-            <div className="illustration-row">
-              <span className="illustration-icon">
-                <Icon name="scrape" />
-              </span>
-              <div>
-                <strong>A fresh capture</strong>
-                <span>Scrape now, or on a cadence</span>
-              </div>
-              <span className="illustration-ordinal">02</span>
-            </div>
-            <div className="illustration-connector" />
-            <div className="illustration-row">
-              <span className="illustration-icon">
-                <Icon name="data" />
-              </span>
-              <div>
-                <strong>Data you can inspect</strong>
-                <span>Extracted JSON, with its history</span>
-              </div>
-              <span className="illustration-ordinal">03</span>
-            </div>
-          </div>
-        </div>
-        <span className="split-story-footer">
-          DIGITAL SHELF <span>AN INTERNAL WORKSPACE</span>
-        </span>
-      </aside>
-      <div className="split-entry">
-        <header>
-          <span className="header-meta">NICE PAK BRANDS / TEAM ACCESS</span>
-        </header>
-        <main>
-          {props.children}
-          <p className="auth-security">
-            <Icon name="lock" /> Secure access, without another password.
-          </p>
-        </main>
-        <footer>One shared workspace for the team.</footer>
-      </div>
+        <span className="header-meta">NICE PAK BRANDS / TEAM ACCESS</span>
+      </header>
+      <main>
+        {props.children}
+        <p className="auth-security">
+          <Icon name="lock" /> Secure access, without another password.
+        </p>
+      </main>
+      <footer>One shared workspace for the team.</footer>
     </div>
   )
 }
