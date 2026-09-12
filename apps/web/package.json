@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev --port 3000",
+    "prototype:auth": "vp dev --port 3000 --open /prototype/auth",
     "build": "vp build && tsc --noEmit",
     "preview": "vp preview",
     "check": "vp check",
