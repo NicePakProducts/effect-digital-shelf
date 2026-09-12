@@ -58,29 +58,27 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # pnpm's version comes from the root package.json `packageManager`
-      # field, and Node's from its `engines.node` range: one pinned
-      # toolchain, declared once.
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
 
       - uses: actions/setup-node@v5
         with:
           node-version-file: package.json
-          cache: pnpm
 
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Prove the disposable Postgres overlaps transactions
         run: .github/scripts/postgres-lock-probe.sh
 
-      # `pnpm --recursive` skips the workspace root, and only the root `vp check`
+      # Workspace filters skip the root, and only the root `vp check`
       # type-checks `alchemy.run.ts` and the other root files (#77).
       - name: Check the workspace root
-        run: pnpm run check
+        run: bun run check
 
       - name: Check every package
-        run: pnpm --recursive run check
+        run: bun run --filter '@digital-shelf/*' check
 
       - name: Test every package
-        run: pnpm --recursive run test
+        run: bun run --filter '@digital-shelf/*' test

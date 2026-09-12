@@ -9,6 +9,7 @@ import { ListingsApi } from "./Catalog/ListingsApi.ts"
 import { PagesApi } from "./Catalog/PagesApi.ts"
 import { ScrapesApi } from "./Scraping/ScrapesApi.ts"
 import { ExtractionsApi } from "./Scraping/ExtractionsApi.ts"
+import { PingApi } from "./PingApi.ts"
 
 export class RootApi extends HttpApi.make("RootApi")
   .add(BrandsApi)
@@ -19,11 +20,13 @@ export class RootApi extends HttpApi.make("RootApi")
   .add(PagesApi)
   .add(ScrapesApi)
   .add(ExtractionsApi)
+  // Middleware applies only to groups already added; ping is public.
+  .middleware(CurrentUserMiddleware)
+  .add(PingApi)
   .prefix("/api/v1")
   .annotate(OpenApi.Title, "Digital Shelf")
   .annotate(OpenApi.Version, "1")
   .annotate(
     OpenApi.Description,
-    "Every operation requires a Better Auth session cookie.",
-  )
-  .middleware(CurrentUserMiddleware) {}
+    "Every operation except GET /api/v1/ping requires a Better Auth session cookie.",
+  ) {}

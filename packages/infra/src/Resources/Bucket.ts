@@ -18,4 +18,4 @@ export const make = (stage: Stage) =>
   Bucket("Bucket", {
     name: resourceName(stage, "bucket"),
     lifecycleRules,
-  }).pipe(RemovalPolicy.retain(stage === "prod"))
+  }).pipe(RemovalPolicy.retain())

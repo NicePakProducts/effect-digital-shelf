@@ -12,7 +12,7 @@ import * as Redacted from "effect/Redacted"
 import type * as Headers from "effect/unstable/http/Headers"
 import { Db } from "../Sql/Db.ts"
 // oxlint-disable-next-line anti-slop-effect/no-service-constructor-imports -- Better Auth requires this synchronous DBAdapter factory; it is not an Effect service constructor.
-import { makeAdapter } from "./BetterAuthAdapter.ts"
+import { makeAdapter, withInvocation } from "./BetterAuthAdapter.ts"
 import { EmailSender } from "./EmailSender.ts"
 import { isAllowlisted, parseDomains } from "./Allowlist.ts"
 
@@ -48,63 +48,81 @@ const make = Effect.gen(function* () {
     resource: `${baseURL}/mcp`,
   })
 
-  const auth = betterAuth({
-    appName: "Digital Shelf",
-    baseURL,
-    basePath: "/api/auth",
-    secret: Redacted.value(secret),
-    trustedOrigins: [baseURL],
-    database: makeAdapter(db, context),
-    session: { expiresIn: 30 * 24 * 60 * 60, updateAge: 24 * 60 * 60 },
-    databaseHooks: {
-      user: {
-        create: {
-          before: async (user) =>
-            isAllowlisted(user.email, domains) ? undefined : false,
+  // Better Auth queries the database as soon as it is instantiated (its OAuth
+  // provider seeds the MCP resource), so the instance is created on first use
+  // and an invocation that never authenticates never reaches the database.
+  const instance = yield* Effect.cached(
+    Effect.sync(() =>
+      betterAuth({
+        appName: "Digital Shelf",
+        baseURL,
+        basePath: "/api/auth",
+        secret: Redacted.value(secret),
+        trustedOrigins: [baseURL],
+        database: makeAdapter(db, context),
+        session: {
+          expiresIn: 30 * 24 * 60 * 60,
+          updateAge: 24 * 60 * 60,
+          // A signed cookie answers session checks without a database round
+          // trip for five minutes; a revoked session can outlive its row by that long.
+          cookieCache: { enabled: true, maxAge: 5 * 60 },
         },
-      },
-    },
-    plugins: [
-      // The first sign-in creates the User (issue #16).
-      magicLink({
-        expiresIn: 900,
-        sendMagicLink: async ({ email, url }) => {
-          if (isAllowlisted(email, domains))
-            await Effect.runPromiseWith(emailContext)(
-              emails.send({
-                to: email,
-                subject: "Sign in to Digital Shelf",
-                text: `Sign in to Digital Shelf:\n\n${url}\n`,
-              }),
-            )
+        databaseHooks: {
+          user: {
+            create: {
+              before: async (user) =>
+                isAllowlisted(user.email, domains) ? undefined : false,
+            },
+          },
         },
+        plugins: [
+          // The first sign-in creates the User (issue #16).
+          magicLink({
+            expiresIn: 900,
+            sendMagicLink: async ({ email, url }) => {
+              if (isAllowlisted(email, domains))
+                await Effect.runPromiseWith(emailContext)(
+                  emails.send({
+                    to: email,
+                    subject: "Sign in to Digital Shelf",
+                    text: `Sign in to Digital Shelf:\n\n${url}\n`,
+                  }),
+                )
+            },
+          }),
+          jwt(),
+          {
+            ...mcpPlugin,
+            // SAFETY: Only unused OpenAPI metadata differs between plugin versions; endpoint names, handlers and signatures retain their original types.
+            endpoints: mcpPlugin.endpoints as {
+              [
+                Key in keyof typeof mcpPlugin.endpoints
+              ]: (typeof mcpPlugin.endpoints)[Key] & {
+                options: {
+                  metadata: NonNullable<
+                    BetterAuthPlugin["endpoints"]
+                  >[string]["options"]["metadata"]
+                }
+              }
+            },
+          },
+        ],
       }),
-      jwt(),
-      {
-        ...mcpPlugin,
-        // SAFETY: Only unused OpenAPI metadata differs between plugin versions; endpoint names, handlers and signatures retain their original types.
-        endpoints: mcpPlugin.endpoints as {
-          [
-            Key in keyof typeof mcpPlugin.endpoints
-          ]: (typeof mcpPlugin.endpoints)[Key] & {
-            options: {
-              metadata: NonNullable<
-                BetterAuthPlugin["endpoints"]
-              >[string]["options"]["metadata"]
-            }
-          }
-        },
-      },
-    ],
-  })
+    ),
+  )
 
   // getSession slides expiresAt but discards Set-Cookie; the browser cookie refreshes via /api/auth/get-session (issue #14's /me).
   const getSession = Effect.fn("Auth.getSession")(function* (
     headers: Headers.Headers | globalThis.Headers,
   ) {
+    const auth = yield* instance
+    const services = yield* Effect.context<never>()
+
     const session = yield* Effect.tryPromise({
       try: () =>
-        auth.api.getSession({ headers: new globalThis.Headers(headers) }),
+        withInvocation(services, () =>
+          auth.api.getSession({ headers: new globalThis.Headers(headers) }),
+        ),
       catch: (cause) => new SessionLookupFailed({ cause }),
     })
 
@@ -124,13 +142,18 @@ const make = Effect.gen(function* () {
       "url.path": new URL(request.url).pathname,
     })
 
-    return yield* Effect.promise(() => auth.handler(request))
+    const auth = yield* instance
+    const services = yield* Effect.context<never>()
+
+    return yield* Effect.promise(() =>
+      withInvocation(services, () => auth.handler(request)),
+    )
   })
 
-  return { getSession, handle, api: auth.api }
+  return { getSession, handle, api: Effect.map(instance, (auth) => auth.api) }
 })
 
-export type BetterAuthApi = Effect.Success<typeof make>["api"]
+export type BetterAuthApi = Effect.Success<Effect.Success<typeof make>["api"]>
 
 export class Auth extends Context.Service<Auth, Effect.Success<typeof make>>()(
   "@digital-shelf/core/Auth/Auth",

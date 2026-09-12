@@ -14,6 +14,7 @@
     "test": "vp test --run"
   },
   "dependencies": {
+    "@better-auth/core": "catalog:",
     "@better-auth/mcp": "catalog:",
     "@cloudflare/playwright": "catalog:",
     "@digital-shelf/domain": "workspace:*",

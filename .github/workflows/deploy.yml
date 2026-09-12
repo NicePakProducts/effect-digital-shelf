@@ -19,19 +19,22 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
       - uses: actions/setup-node@v5
         with:
           node-version-file: package.json
-          cache: pnpm
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
+      - name: Build web
+        run: bun run build:web
       - name: Apply pending migrations
-        run: pnpm db:migrate
+        run: bun run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: Deploy dev
-        run: pnpm run deploy --stage dev --yes
+        run: bun run deploy --stage dev --yes
         env:
           CI: "true"
           AI_GATEWAY_ACCOUNT_ID: ${{ vars.AI_GATEWAY_ACCOUNT_ID }}
@@ -65,19 +68,22 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
       - uses: actions/setup-node@v5
         with:
           node-version-file: package.json
-          cache: pnpm
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
+      - name: Build web
+        run: bun run build:web
       - name: Apply pending migrations
-        run: pnpm db:migrate
+        run: bun run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: Deploy prod
-        run: pnpm run deploy --stage prod --yes
+        run: bun run deploy --stage prod --yes
         env:
           CI: "true"
           AI_GATEWAY_ACCOUNT_ID: ${{ vars.AI_GATEWAY_ACCOUNT_ID }}

@@ -11,10 +11,10 @@ snapshots so repository checks leave the upstream files unchanged.
 
 ## What's here
 
-| Path | Source | Snapshot of |
-|---|---|---|
-| `.repos/slopcop` | <https://github.com/Effect-TS/slopcop> (branch `main`) | `4809086` |
-| `.repos/effect` | <https://github.com/Effect-TS/effect> (tag `effect@4.0.0-rc.112`, the v4 RC line — `effect@rc`) | `2600f62` |
+| Path                 | Source                                                                                          | Snapshot of |
+| -------------------- | ----------------------------------------------------------------------------------------------- | ----------- |
+| `.repos/slopcop`     | <https://github.com/Effect-TS/slopcop> (branch `main`)                                          | `4809086`   |
+| `.repos/effect`      | <https://github.com/Effect-TS/effect> (tag `effect@4.0.0-rc.112`, the v4 RC line — `effect@rc`) | `2600f62`   |
 
 ## Adding or updating a snapshot
 

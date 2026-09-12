@@ -1,7 +1,8 @@
 /**
  * Exports invocation telemetry to Axiom with the Scrape trace identity and stage-specific levels.
- * Build per invocation inside its Scope so closing it flushes (ADR 0007, #28), never at Worker init.
- * Production's Info log threshold suppresses the exporter's Debug failure messages.
+ * Registered through Alchemy's `Telemetry.layer` at Worker init: the runtime bridge builds it into
+ * every event's scope and closes that scope through `ctx.waitUntil`, so the flush never delays a
+ * response (ADR 0007, #28). Production's Info log threshold suppresses the exporter's Debug failure messages.
  */
 import { layer as TraceIdentity } from "@digital-shelf/core/Scraping/Trace"
 import * as Layer from "effect/Layer"
@@ -11,6 +12,7 @@ import * as References from "effect/References"
 import * as Tracer from "effect/Tracer"
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 import type * as HttpClient from "effect/unstable/http/HttpClient"
+import * as HttpMiddleware from "effect/unstable/http/HttpMiddleware"
 import type * as OtlpExporter from "effect/unstable/observability/OtlpExporter"
 import * as OtlpLogger from "effect/unstable/observability/OtlpLogger"
 import * as OtlpSerialization from "effect/unstable/observability/OtlpSerialization"
@@ -46,6 +48,10 @@ export const make = (
 
   const authorization = `Bearer ${Redacted.value(options.axiomToken)}`
 
+  // The exporters live for one event and flush when its scope closes; an
+  // interval export firing mid-event would race that close and drop the batch.
+  const exportInterval = "1 hour"
+
   const otlp = Layer.mergeAll(
     OtlpTracer.layer({
       url: `https://${options.axiomDomain}/v1/traces`,
@@ -54,6 +60,7 @@ export const make = (
         "X-Axiom-Dataset": "digital-shelf-traces",
       },
       resource,
+      exportInterval,
       shutdownTimeout: "5 seconds",
     }),
     OtlpLogger.layer({
@@ -63,6 +70,7 @@ export const make = (
         "X-Axiom-Dataset": "digital-shelf-logs",
       },
       resource,
+      exportInterval,
       shutdownTimeout: "5 seconds",
       mergeWithExisting: true,
     }),
@@ -71,6 +79,8 @@ export const make = (
   return TraceIdentity().pipe(
     Layer.provideMerge(otlp),
     Layer.provideMerge(levels(options.stage)),
+    // Health probes run every few seconds and would dominate the trace volume.
+    Layer.provideMerge(HttpMiddleware.layerTracerDisabledForUrls(["/health"])),
   )
 }
 

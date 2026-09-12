@@ -40,11 +40,17 @@ const edgesOf = (file: string, source: string) => {
   }))
 }
 
+// Alchemy's `Drizzle` and `SQL` modules are Effect helpers for the invocation's
+// connection lifecycle, not Cloudflare resources; adapters may run them
+// (ADR 0006, amended by ADR 0010).
+const runtimeHelper = /^alchemy\/(?:Drizzle|SQL)(?:\/|$)/
+
 const runtimeAlchemyEdges = (edges: ReturnType<typeof edgesOf>) =>
   edges.filter(
     ({ file, specifier, typeOnly }) =>
       file.startsWith("Adapters/") &&
       /^alchemy(?:\/|$)/.test(specifier) &&
+      !runtimeHelper.test(specifier) &&
       !typeOnly,
   )
 
@@ -66,6 +72,26 @@ describe("infra import boundary (ADR 0006)", () => {
 
   it("adapters import Alchemy only as types", () => {
     expect(runtimeAlchemyEdges(edges)).toEqual([])
+  })
+
+  it("lets adapters run Alchemy's Drizzle and SQL helpers but not its resources", () => {
+    const file = resolve(src, "Adapters/Fixture.ts")
+    expect(
+      runtimeAlchemyEdges(
+        edgesOf(file, 'import * as Drizzle from "alchemy/Drizzle/Postgres"'),
+      ),
+    ).toEqual([])
+    expect(
+      runtimeAlchemyEdges(
+        edgesOf(file, 'import * as Cloudflare from "alchemy/Cloudflare"'),
+      ),
+    ).toEqual([
+      {
+        file: "Adapters/Fixture.ts",
+        typeOnly: false,
+        specifier: "alchemy/Cloudflare",
+      },
+    ])
   })
 
   it("allows import type but rejects inline type imports of Alchemy in adapters", () => {

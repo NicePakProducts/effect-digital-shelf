@@ -23,8 +23,8 @@ A scrape management system for a digital shelf, built on Effect v4 and Cloudflar
 ## Conventions
 
 - Use Effect for schemas, services, errors, configuration and side effects.
-- Use Vite Plus (`vp`) for checking, testing and builds; tests use `@effect/vitest`.
-- Drive Drizzle Kit through the `db:*` scripts in `packages/infra/package.json` (`pnpm --filter @digital-shelf/infra db:generate --name <change>` and `pnpm db:migrate` over the direct `DATABASE_URL`), and commit only what they generate: `migration.sql` and `snapshot.json` are never written or edited by hand. Migrations are append-only: preserve the initial migration and generate a new migration for each schema change.
+- Use Bun for dependency installation and workspace scripts (`bun install --frozen-lockfile`, `bun run --filter <package> <script>`); commit `bun.lock`. Use Vite Plus (`vp`) for checking, testing and builds; tests use `@effect/vitest`.
+- Drive Drizzle Kit through the `db:*` scripts in `packages/infra/package.json` (`bun run --filter @digital-shelf/infra db:generate --name <change>` and `bun run db:migrate` over the direct `DATABASE_URL`), and commit only what they generate: `migration.sql` and `snapshot.json` are never written or edited by hand. Migrations are append-only: preserve the initial migration and generate a new migration for each schema change.
 - Reach `@cloudflare/playwright` only through the dynamic `import()` in `packages/core/src/Providers/Playwright.ts`; a static import anywhere in a Worker or Workflow's init graph breaks `alchemy deploy`, which evaluates those modules in Node (#18).
 - Prefer tagged unions that make invalid states unrepresentable.
 - Feature public methods take one named input object whenever they carry an id or data, a single id included (`brands.get({ brandId })`, `brands.update({ brandId, command })`); a parameterless `list`, a `list` over one filter object and a `create` over one command struct stay as they are. Each operation-input wrapper is its own `Schema.Struct` named `<Operation>Input`, never an alias of another operation's, in `packages/domain` beside the commands, which keep their names (ADR 0008). Repositories stay positional (`repo.get(id)`).
@@ -32,6 +32,7 @@ A scrape management system for a digital shelf, built on Effect v4 and Cloudflar
 - Guard with `Predicate.isError`, never `instanceof Error`.
 - Read time through `DateTime.now` or `Clock` wherever an Effect seam exists; Drizzle column defaults (`defaultNow()`, `$onUpdate`) stay as they are.
 - `orDie` only where a failure can only be a bug, marked with a `SAFETY:` comment: row decoding in `Sql/Rows.ts` and the decoding of Workflow parameters this codebase encoded in `apps/server`; plus one boundary, the Workflow step body in `apps/server/src/WorkflowSupport.ts`, where Alchemy's `Workflows.task` takes `E = never` and the step's retry configuration is the handler (ADR 0008). Configuration and provider setup failures stay in the layer's `E`; operational provider failures stay in the method's `E` (ADR 0008).
+- The Worker builds its layer graph once per isolate and borrows what belongs to the invocation (ADR 0010): `Db` is Alchemy's `Drizzle.Postgres`, which memoises the connection on the invocation's scope; `Auth` runs every call into Better Auth inside Better Auth's request state so its adapter sees that scope; telemetry is registered through Alchemy's `Telemetry.layer`, which flushes through `ctx.waitUntil`. Layers do no I/O at construction, and nothing captured at build may hold a socket or a per-request service.
 - Make the smallest correct change and follow existing repository patterns.
 
 ## Code style

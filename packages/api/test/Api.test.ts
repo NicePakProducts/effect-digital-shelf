@@ -1,7 +1,7 @@
 import * as Api from "@digital-shelf/api/Api"
 import { Auth } from "@digital-shelf/core/Auth/Auth"
 import * as CoreTest from "@digital-shelf/core/test/layers/Core"
-import { FileSystem, Layer, Option, Path } from "effect"
+import { DateTime, FileSystem, Layer, Option, Path } from "effect"
 import * as Etag from "effect/unstable/http/Etag"
 import * as HttpPlatform from "effect/unstable/http/HttpPlatform"
 import * as HttpRouter from "effect/unstable/http/HttpRouter"
@@ -53,6 +53,30 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       )
     })
 
+    it.effect("serves GET /api/v1/ping without a session", () =>
+      Effect.gen(function* () {
+        const server = yield* app
+        const before = yield* DateTime.now
+
+        const response = yield* Effect.promise(() =>
+          server.handler(new Request("http://localhost/api/v1/ping")),
+        )
+
+        const after = yield* DateTime.now
+        const body = yield* Effect.promise(() => response.json())
+
+        expect(response.status).toBe(200)
+        expect(response.headers.get("content-type")).toContain(
+          "application/json",
+        )
+        expect(body).toEqual({
+          message: "pong",
+          timestamp: expect.any(String),
+        })
+        expect(body.timestamp >= DateTime.formatIso(before)).toBe(true)
+        expect(body.timestamp <= DateTime.formatIso(after)).toBe(true)
+      }).pipe(Effect.scoped),
+    )
     it.effect("denies GET /api/v1/brands without a session", () =>
       Effect.gen(function* () {
         const server = yield* app

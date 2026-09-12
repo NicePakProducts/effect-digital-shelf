@@ -30,32 +30,6 @@ const platform = Layer.mergeAll(
   }),
 )
 
-/**
- * Builds telemetry and the application layers into Alchemy's request Scope.
- * Alchemy closes that Scope after the response, inside ctx.waitUntil.
- */
-export const fetch = <A, E, R, T, R2>(
-  appLayer: Layer.Layer<A, E, R>,
-  telemetry: Layer.Layer<T, never, R2>,
-) =>
-  Effect.gen(function* () {
-    const context = yield* Layer.build(telemetry)
-
-    return yield* Effect.gen(function* () {
-      const handler = yield* HttpRouter.toHttpEffect(appLayer).pipe(
-        // SAFETY: a construction failure here is a misconfigured deployment (a ConfigError
-        // or a connection failure from a core layer); no request can be served, so it is
-        // reported as a defect once, at the root, and Alchemy logs it.
-        Effect.orDie,
-      )
-
-      return yield* handler
-    }).pipe(
-      Effect.withSpan("Server.fetch", { root: true }),
-      Effect.provideContext(context),
-    )
-  })
-
 export const layer = (stage: Stage) =>
   Layer.mergeAll(
     Api.layer,

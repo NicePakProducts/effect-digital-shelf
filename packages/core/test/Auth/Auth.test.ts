@@ -29,15 +29,14 @@ const prepare = Effect.gen(function* () {
   const emails = yield* EmailSenderTest
   yield* emails.clear
 
-  return { auth: yield* Auth, emails, db: yield* Db }
+  const auth = yield* Auth
+
+  return { auth, api: yield* auth.api, emails, db: yield* Db }
 })
 
-const requestLink = (
-  auth: Auth["Service"],
-  email = "someone@npbrands.com.au",
-) =>
+const requestLink = (api: BetterAuthApi, email = "someone@npbrands.com.au") =>
   Effect.promise(() =>
-    auth.api.signInMagicLink({
+    api.signInMagicLink({
       headers: new Headers(),
       body: { email, callbackURL: "/" },
     }),
@@ -46,8 +45,8 @@ const requestLink = (
 const tokenFrom = (text: string) =>
   new URL(text.trim().split("\n").at(-1)!).searchParams.get("token")!
 
-const verify = (auth: Auth["Service"], token: string) =>
-  auth.api.magicLinkVerify({
+const verify = (api: BetterAuthApi, token: string) =>
+  api.magicLinkVerify({
     query: { token },
     headers: new Headers(),
     returnHeaders: true,
@@ -56,8 +55,8 @@ const verify = (auth: Auth["Service"], token: string) =>
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
   it.effect("sends a magic link to an allowlisted address", () =>
     Effect.gen(function* () {
-      const { auth, emails } = yield* prepare
-      yield* requestLink(auth)
+      const { api, emails } = yield* prepare
+      yield* requestLink(api)
       const sent = yield* emails.sent
       expect(sent).toHaveLength(1)
       expect(sent[0]!.to).toBe("someone@npbrands.com.au")
@@ -68,8 +67,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
     "silently drops non-allowlisted addresses and creates no user",
     () =>
       Effect.gen(function* () {
-        const { auth, emails, db } = yield* prepare
-        yield* requestLink(auth, "someone@example.com")
+        const { api, emails, db } = yield* prepare
+        yield* requestLink(api, "someone@example.com")
         expect(yield* emails.sent).toEqual([])
         expect(yield* query(db.select().from(Sql.user))).toEqual([])
       }),
@@ -78,13 +77,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
     "blocks user creation even when a disallowed address has a valid token",
     () =>
       Effect.gen(function* () {
-        const { auth, db } = yield* prepare
-        yield* requestLink(auth, "someone@example.com")
+        const { api, db } = yield* prepare
+        yield* requestLink(api, "someone@example.com")
         const tokens = yield* query(db.select().from(Sql.verification))
         expect(tokens).toHaveLength(1)
 
         const result = yield* Effect.tryPromise(() =>
-          verify(auth, tokens[0]!.identifier),
+          verify(api, tokens[0]!.identifier),
         ).pipe(Effect.result)
 
         expect(result._tag).toBe("Failure")
@@ -106,10 +105,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
     "verifies once, creates a user and session, and reuses the user on a later sign-in",
     () =>
       Effect.gen(function* () {
-        const { auth, emails, db } = yield* prepare
-        yield* requestLink(auth)
+        const { auth, api, emails, db } = yield* prepare
+        yield* requestLink(api)
         const token = tokenFrom((yield* emails.sent)[0]!.text)
-        const verified = yield* Effect.promise(() => verify(auth, token))
+        const verified = yield* Effect.promise(() => verify(api, token))
 
         const cookies = verified.headers
           .getSetCookie()
@@ -129,7 +128,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
           ),
         ).toEqual(Option.none())
 
-        const replay = yield* Effect.tryPromise(() => verify(auth, token)).pipe(
+        const replay = yield* Effect.tryPromise(() => verify(api, token)).pipe(
           Effect.result,
         )
 
@@ -145,9 +144,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
         }
 
         yield* emails.clear
-        yield* requestLink(auth)
+        yield* requestLink(api)
         const nextToken = tokenFrom((yield* emails.sent)[0]!.text)
-        yield* Effect.promise(() => verify(auth, nextToken))
+        yield* Effect.promise(() => verify(api, nextToken))
         expect(yield* query(db.select().from(Sql.user))).toHaveLength(1)
       }),
   )
@@ -302,11 +301,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
   )
   it.effect("propagates email delivery failures", () =>
     Effect.gen(function* () {
-      const { auth, emails } = yield* prepare
+      const { api, emails } = yield* prepare
       yield* emails.fail
 
       const result = yield* Effect.tryPromise(() =>
-        auth.api.signInMagicLink({
+        api.signInMagicLink({
           headers: new Headers(),
           body: { email: "someone@npbrands.com.au", callbackURL: "/" },
         }),

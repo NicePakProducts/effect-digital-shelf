@@ -11,22 +11,38 @@ import {
   type Stage,
 } from "@digital-shelf/infra/Resources/Names"
 import * as Cloudflare from "alchemy/Cloudflare"
-import type { RuntimeContext } from "alchemy/RuntimeContext"
+import { RuntimeContext } from "alchemy/RuntimeContext"
 import { Stack } from "alchemy/Stack"
+import { Telemetry } from "alchemy"
 import * as Config from "effect/Config"
+import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
+import * as HttpRouter from "effect/unstable/http/HttpRouter"
 import * as ConfigKeys from "./ConfigKeys.ts"
 import { ExtractionWorkflow } from "./ExtractionWorkflow.ts"
 import * as Http from "./Http.ts"
 import { ScrapeWorkflow } from "./ScrapeWorkflow.ts"
 import { WorkflowLayers } from "./WorkflowLayers.ts"
 
+/**
+ * API paths reach the Worker first; every other path is answered by the
+ * asset layer, which serves index.html for client-side routes on navigation
+ * requests and only then falls through to the Worker.
+ */
+const assetsConfig = (directory: string): Cloudflare.Workers.AssetsProps => ({
+  directory,
+  notFoundHandling: "single-page-application",
+  runWorkerFirst: ["/api/*", "/health"],
+})
+
 export const makeServer = (options: {
   readonly stage: Stage
   readonly hostname: Option.Option<string>
+  /** Built web app directory; the same Worker serves it beside the API. */
+  readonly assets: Option.Option<string>
   readonly hyperdrive: Cloudflare.Hyperdrive.Connection
   readonly bucket: Cloudflare.R2.Bucket
 }) =>
@@ -37,11 +53,16 @@ export const makeServer = (options: {
       main: import.meta.url,
       compatibility: { date: "2026-09-01", flags: ["nodejs_compat"] },
       workersDev: true,
+      assets: Option.getOrUndefined(Option.map(options.assets, assetsConfig)),
       domain: Option.match(options.hostname, {
         onNone: () => null,
         onSome: (name) => ({ name, zoneName: "npbrands.au" }),
       }),
       observability: { enabled: false },
+      // The database and its Hyperdrive pool sit in AWS us-east-1, so the Worker
+      // runs there too: a request pays one long hop instead of one per query.
+      // Pinned rather than Smart Placement, which needs traffic dev never has.
+      placement: { region: "aws:us-east-1" },
     },
     Effect.gen(function* () {
       yield* ConfigKeys.bind
@@ -58,23 +79,25 @@ export const makeServer = (options: {
           "Axiom telemetry disabled: AXIOM_DOMAIN or AXIOM_TOKEN unset",
         )
 
-      // Contravariant output hides the exporter registry and unifies both branches.
-      const telemetry: Layer.Layer<never, never, RuntimeContext> = Option.match(
-        axiom,
-        {
-          onNone: () => TelemetryAdapter.layerDisabled(options.stage),
-          onSome: ({ domain, token }) =>
-            Layer.unwrap(
-              Effect.map(versionMetadata, ({ id }) =>
-                TelemetryAdapter.layer({
-                  axiomToken: token,
-                  axiomDomain: domain,
-                  stage: options.stage,
-                  versionId: id,
-                }),
+      // Alchemy builds the registered layer into every event's scope and closes
+      // that scope through ctx.waitUntil, so the flush never delays a response.
+      yield* Layer.build(
+        Telemetry.layer(
+          Option.match(axiom, {
+            onNone: () => TelemetryAdapter.layerDisabled(options.stage),
+            onSome: ({ domain, token }) =>
+              Layer.unwrap(
+                Effect.map(versionMetadata, ({ id }) =>
+                  TelemetryAdapter.layer({
+                    axiomToken: token,
+                    axiomDomain: domain,
+                    stage: options.stage,
+                    versionId: id,
+                  }),
+                ),
               ),
-            ),
-        },
+          }),
+        ),
       )
 
       const hyperdrive = yield* Cloudflare.Hyperdrive.Connect(
@@ -90,8 +113,9 @@ export const makeServer = (options: {
         Effect.sync(() => ExecutionsAdapter.layer({ scrape, extraction })),
       )
 
+      // Built once per isolate; the database connection is memoised per event.
       const adapters = Layer.mergeAll(
-        Layer.unwrap(Effect.map(hyperdrive.connectionString, DbAdapter.layer)),
+        DbAdapter.layer(hyperdrive.connectionString),
         R2BucketAdapter.layer(bucket),
         executions,
       )
@@ -108,13 +132,9 @@ export const makeServer = (options: {
       )
 
       const workflowLayers: WorkflowLayers["Service"] = {
-        scrape: Core.ScrapeWorkflow.pipe(
-          Layer.provide([adapters, providers]),
-          Layer.provideMerge(telemetry),
-        ),
+        scrape: Core.ScrapeWorkflow.pipe(Layer.provide([adapters, providers])),
         extraction: Core.ExtractionWorkflow.pipe(
           Layer.provide([adapters, Core.LanguageModelLive]),
-          Layer.provideMerge(telemetry),
         ),
       }
 
@@ -126,23 +146,27 @@ export const makeServer = (options: {
         Effect.provideService(WorkflowLayers, workflowLayers),
       )
 
+      // SAFETY: a construction failure here is a misconfigured deployment (a
+      // ConfigError from a core layer); nothing can be served, so it fails the
+      // Worker's init once, where Alchemy logs it. Layers open no connection:
+      // the Db memoises its pool per event and Better Auth is instantiated on
+      // first use.
+      const cron = yield* Layer.build(
+        Core.Cron.pipe(Layer.provide(adapters)),
+      ).pipe(
+        Effect.map((context) => Context.get(context, Cron)),
+        Effect.orDie,
+      )
+
       yield* Cloudflare.Workers.cron("* * * * *", () =>
         Effect.gen(function* () {
-          const context = yield* Layer.build(telemetry)
-
-          return yield* Effect.gen(function* () {
-            const cron = yield* Cron
-            const report = yield* cron.tick()
-            yield* Effect.logInfo(JSON.stringify(report))
-          }).pipe(
-            Effect.provide(Core.Cron.pipe(Layer.provide(adapters))),
-            // Cron layer construction failures (including ConfigError) are logged once per tick so the cron never dies.
-            Effect.catchCause((cause) =>
-              Effect.logError("Cron invocation failed", cause),
-            ),
-            Effect.provideContext(context),
-          )
-        }).pipe(Effect.scoped),
+          const report = yield* cron.tick()
+          yield* Effect.logInfo(JSON.stringify(report))
+        }).pipe(
+          Effect.catchCause((cause) =>
+            Effect.logError("Cron invocation failed", cause),
+          ),
+        ),
       )
 
       const appLayer = Http.layer(options.stage).pipe(
@@ -150,9 +174,10 @@ export const makeServer = (options: {
         Layer.provide(adapters),
       )
 
-      return {
-        fetch: Http.fetch(appLayer, telemetry),
-      }
+      // SAFETY: as for the cron above; the router is built once per isolate.
+      const fetch = yield* HttpRouter.toHttpEffect(appLayer).pipe(Effect.orDie)
+
+      return { fetch }
     }).pipe(
       Effect.provide([
         Cloudflare.Hyperdrive.ConnectBinding,
@@ -160,6 +185,9 @@ export const makeServer = (options: {
         Cloudflare.Workers.BrowserBinding,
         Cloudflare.Workers.CronEventSourceLive,
         Cloudflare.Workers.VersionMetadataBinding,
+        // The runtime supplies RuntimeContext to init and to every event; the
+        // phantom layer states that so binding clients can be captured at init.
+        RuntimeContext.phantom,
       ]),
     ),
   )
@@ -173,6 +201,7 @@ export default Effect.gen(function* () {
   return yield* makeServer({
     stage: stageOf(stack.stage),
     hostname: Option.none(),
+    assets: Option.none(),
     hyperdrive,
     bucket,
   })
