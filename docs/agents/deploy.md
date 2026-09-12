@@ -150,9 +150,17 @@ curl --silent --output /dev/null --write-out '%{http_code}\n' https://<host>/api
 ```
 
 Health must return `{ "ok": true, "stage": "dev", "db": "ok" }` (or `prod`)
-after a `select 1` through the invocation's Hyperdrive-backed Db. Docs must
+after a `select 1` through the invocation's Hyperdrive-backed Db; the Worker is
+pinned to the database's region, so expect one client hop plus two short
+round trips (Alchemy's pool check and the query), and `cf-placement` on the
+response names where it ran. Docs must
 serve Scalar; the unauthenticated brands endpoint must return `401`.
 The script requires Bash, curl and the repository's supported Node version.
+
+`scripts/latency.sh <base-url>` prints median server time per route with the
+`cf-placement` header; run it before and after a change that touches the
+request path, and read CPU against wall time per invocation with
+`bunx wrangler tail <worker-name> --format json` when the two disagree.
 
 These checks do not launch a Scrape. During deploy review, also trigger an
 authorised basic-mode Scrape through the API and follow its Scrape and

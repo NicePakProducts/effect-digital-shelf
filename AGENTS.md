@@ -32,6 +32,7 @@ A scrape management system for a digital shelf, built on Effect v4 and Cloudflar
 - Guard with `Predicate.isError`, never `instanceof Error`.
 - Read time through `DateTime.now` or `Clock` wherever an Effect seam exists; Drizzle column defaults (`defaultNow()`, `$onUpdate`) stay as they are.
 - `orDie` only where a failure can only be a bug, marked with a `SAFETY:` comment: row decoding in `Sql/Rows.ts` and the decoding of Workflow parameters this codebase encoded in `apps/server`; plus one boundary, the Workflow step body in `apps/server/src/WorkflowSupport.ts`, where Alchemy's `Workflows.task` takes `E = never` and the step's retry configuration is the handler (ADR 0008). Configuration and provider setup failures stay in the layer's `E`; operational provider failures stay in the method's `E` (ADR 0008).
+- The Worker builds its layer graph once per isolate and borrows what belongs to the invocation (ADR 0010): `Db` is Alchemy's `Drizzle.Postgres`, which memoises the connection on the invocation's scope; `Auth` runs every call into Better Auth inside Better Auth's request state so its adapter sees that scope; telemetry is registered through Alchemy's `Telemetry.layer`, which flushes through `ctx.waitUntil`. Layers do no I/O at construction, and nothing captured at build may hold a socket or a per-request service.
 - Make the smallest correct change and follow existing repository patterns.
 
 ## Code style

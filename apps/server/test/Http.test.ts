@@ -1,158 +1,12 @@
 import { expect, it } from "@effect/vitest"
 import { Db } from "@digital-shelf/core/Sql/Db"
 import * as CoreTest from "@digital-shelf/core/test/layers/Core"
-import * as TelemetryAdapter from "@digital-shelf/infra/Adapters/Telemetry"
 import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
-import * as Option from "effect/Option"
-import * as Predicate from "effect/Predicate"
-import * as Redacted from "effect/Redacted"
-import * as Ref from "effect/Ref"
-import * as References from "effect/References"
-import * as Scope from "effect/Scope"
-import * as Tracer from "effect/Tracer"
-import * as HttpClient from "effect/unstable/http/HttpClient"
-import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
-import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 import * as HttpEffect from "effect/unstable/http/HttpEffect"
 import * as HttpRouter from "effect/unstable/http/HttpRouter"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import * as Http from "../src/Http.ts"
-
-it.effect(
-  "creates request roots with OTLP and leaves flushing and application cleanup to the caller's scope",
-  () =>
-    Effect.gen(function* () {
-      const requests: HttpClientRequest.HttpClientRequest[] = []
-      const spans: Tracer.Span[] = []
-      const closed: string[] = []
-      const builds = yield* Ref.make(0)
-
-      const http = HttpClient.make((request) =>
-        Effect.sync(() => {
-          requests.push(request)
-
-          return HttpClientResponse.fromWeb(
-            request,
-            new Response(null, { status: 200 }),
-          )
-        }),
-      )
-
-      const telemetry = Layer.effect(
-        Tracer.Tracer,
-        Effect.gen(function* () {
-          const base = yield* Effect.tracer
-          yield* Ref.update(builds, (n) => n + 1)
-
-          return Tracer.make({
-            span(options) {
-              const span = base.span(options)
-              spans.push(span)
-
-              return span
-            },
-            context: base.context,
-          })
-        }),
-      ).pipe(
-        Layer.provideMerge(
-          TelemetryAdapter.make(
-            {
-              axiomDomain: "example.test",
-              axiomToken: Redacted.make("test-token"),
-              stage: "prod",
-              versionId: "request-test",
-            },
-            Layer.succeed(HttpClient.HttpClient, http),
-          ),
-        ),
-      )
-
-      const app = HttpRouter.add(
-        "GET",
-        "/probe",
-        Effect.gen(function* () {
-          expect((yield* HttpServerRequest.HttpServerRequest).url).toBe(
-            "/probe",
-          )
-          expect(yield* Tracer.MinimumTraceLevel).toBe("Info")
-          expect(yield* References.MinimumLogLevel).toBe("Info")
-          yield* Effect.logInfo("request probe")
-
-          return HttpServerResponse.text("ok")
-        }).pipe(Effect.withSpan("Route.probe")),
-      ).pipe(
-        Layer.provide(
-          Layer.effectDiscard(
-            Effect.addFinalizer(() =>
-              Effect.sync(() => {
-                closed.push("app")
-              }),
-            ).pipe(Effect.withSpan("App.build")),
-          ),
-        ),
-      )
-
-      for (let invocation = 0; invocation < 2; invocation++) {
-        const scope = yield* Effect.acquireRelease(Scope.make(), (scope) =>
-          Scope.close(scope, Exit.void),
-        )
-
-        const response = yield* Http.fetch(app, telemetry).pipe(
-          Effect.provideService(Scope.Scope, scope),
-          Effect.provideService(
-            HttpServerRequest.HttpServerRequest,
-            HttpServerRequest.fromWeb(
-              new Request("https://example.test/probe"),
-            ),
-          ),
-        )
-
-        expect(response.status).toBe(200)
-        expect(yield* Ref.get(builds)).toBe(invocation + 1)
-        expect(closed).toHaveLength(invocation)
-        expect(requests).toHaveLength(invocation * 2)
-
-        const root = spans.filter((span) => span.name === "Server.fetch")[
-          invocation
-        ]!
-
-        expect(Option.isNone(root.parent)).toBe(true)
-        expect(root.sampled).toBe(true)
-        expect(root.status._tag).toBe("Ended")
-
-        for (const name of ["App.build", "Route.probe"]) {
-          const child = spans.filter((span) => span.name === name)[invocation]!
-          expect(child.traceId).toBe(root.traceId)
-          expect(Option.getOrThrow(child.parent).spanId).toBe(root.spanId)
-          expect(child.sampled).toBe(true)
-        }
-
-        yield* Scope.close(scope, Exit.void)
-        expect(closed).toHaveLength(invocation + 1)
-        expect(requests).toHaveLength((invocation + 1) * 2)
-
-        const exported = requests.findLast((request) =>
-          request.url.endsWith("/v1/traces"),
-        )!
-
-        expect(exported.body._tag).toBe("Uint8Array")
-
-        if (Predicate.isTagged(exported.body, "Uint8Array")) {
-          const body = new TextDecoder().decode(exported.body.body)
-          expect(body).toContain("Server.fetch")
-          expect(body).toContain("Route.probe")
-        }
-      }
-
-      const roots = spans.filter((span) => span.name === "Server.fetch")
-      expect(new Set(roots.map((span) => span.traceId)).size).toBe(2)
-    }).pipe(Effect.scoped),
-  { timeout: 20_000 },
-)
 
 it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
   "server routes",
@@ -161,10 +15,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       const context =
         yield* Effect.context<Layer.Success<typeof CoreTest.layerTest>>()
 
-      return yield* Http.fetch(
+      const respond = yield* HttpRouter.toHttpEffect(
         Http.layer("dev").pipe(Layer.provide(Layer.succeedContext(context))),
-        TelemetryAdapter.layerDisabled("dev"),
       )
+
+      return yield* respond
     }).pipe(Effect.scoped)
 
     const request = (path: string) =>

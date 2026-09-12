@@ -7,6 +7,11 @@ import {
 } from "better-auth/adapters"
 import { BetterAuthError } from "better-auth"
 import {
+  defineRequestState,
+  hasRequestState,
+  runWithRequestState,
+} from "@better-auth/core/context"
+import {
   and,
   or,
   asc,
@@ -41,6 +46,32 @@ import { query } from "../Sql/Errors.ts"
 /** Every export of the Sql module by name; only Drizzle tables are models. */
 const tables = new Map(Object.entries(Sql))
 
+/**
+ * The Effect context of the invocation calling into Better Auth, carried in
+ * Better Auth's own per-request state. Better Auth runs adapter methods on its
+ * promise chains, so the request's context, with the scope its database
+ * connection is memoised on, reaches the adapter here rather than through a
+ * parameter. Outside `withInvocation`, the context captured at construction
+ * applies.
+ */
+const invocationServices = defineRequestState<Context.Context<never>>(() =>
+  Context.empty(),
+)
+
+/** Runs a call into Better Auth with the invocation's Effect context. */
+export const withInvocation = async <A>(
+  services: Context.Context<never>,
+  call: () => Promise<A>,
+): Promise<A> => {
+  const result = await runWithRequestState(new WeakMap(), async () => {
+    await invocationServices.set(services)
+
+    return call()
+  })
+
+  return result
+}
+
 /** Postgres port of the Better Auth 1.7.3 Drizzle adapter. The factory owns
  * field transforms and fallback joins; every SQL builder runs in the captured
  * Effect context, including the connection reserved by a transaction. */
@@ -49,8 +80,15 @@ export const makeAdapter = (
   context: Context.Context<Db>,
   settings: { inTransaction: boolean } = { inTransaction: false },
 ): DBAdapterInstance => {
-  const run = <A>(effect: Effect.Effect<A, EffectDrizzleQueryError>) =>
-    Effect.runPromiseWith(context)(query(effect))
+  const services = async (): Promise<Context.Context<Db>> => {
+    // Inside a transaction the reserved connection already travels in `context`.
+    if (settings.inTransaction || !(await hasRequestState())) return context
+
+    return Context.merge(context, await invocationServices.get())
+  }
+
+  const run = async <A>(effect: Effect.Effect<A, EffectDrizzleQueryError>) =>
+    Effect.runPromiseWith(await services())(query(effect))
 
   return (options: BetterAuthOptions) => {
     const adapter = createAdapterFactory({
@@ -76,8 +114,8 @@ export const makeAdapter = (
         },
         transaction: settings.inTransaction
           ? false
-          : (cb) =>
-              Effect.runPromiseWith(context)(
+          : async (cb) =>
+              Effect.runPromiseWith(await services())(
                 db.transaction(() =>
                   Effect.gen(function* () {
                     const inner = yield* Effect.context<Db>()

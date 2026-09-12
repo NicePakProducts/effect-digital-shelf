@@ -9,8 +9,9 @@ import * as Context from "effect/Context"
 
 /**
  * The Drizzle database every repository queries. Typed by the driver-agnostic
- * base so one tag holds both the Postgres database infra builds per request
- * or Workflow step over Hyperdrive and the PGlite database core's tests build
+ * base so one tag holds both the Postgres database infra builds once per
+ * isolate over Hyperdrive, resolving the connection per invocation, and the
+ * PGlite database core's tests build
  * (test/layers/Db.ts): the two drivers' `EffectPgDatabase` classes are
  * structurally identical, and the driver is chosen where the layer is built.
  *
