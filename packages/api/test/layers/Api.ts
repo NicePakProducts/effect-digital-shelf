@@ -11,6 +11,7 @@ import * as ListingsHandlers from "@digital-shelf/api/Catalog/ListingsHandlers"
 import * as PagesHandlers from "@digital-shelf/api/Catalog/PagesHandlers"
 import * as ScrapesHandlers from "@digital-shelf/api/Scraping/ScrapesHandlers"
 import * as ExtractionsHandlers from "@digital-shelf/api/Scraping/ExtractionsHandlers"
+import * as PingHandlers from "@digital-shelf/api/PingHandlers"
 import { RootApi } from "@digital-shelf/api/RootApi"
 import { Effect, Exit, FileSystem, Layer, Path } from "effect"
 import * as HttpClient from "effect/unstable/http/HttpClient"
@@ -42,7 +43,7 @@ export const platform = HttpPlatform.layer.pipe(
   ),
 )
 
-/** No session: every group answers the middleware's built-in 401. */
+/** No session: protected groups answer the middleware's built-in 401. */
 export const anonymous = Layer.succeed(CurrentUserMiddleware, () =>
   Effect.fail(new HttpApiError.Unauthorized()),
 )
@@ -56,6 +57,7 @@ const handlers = Layer.mergeAll(
   PagesHandlers.layer,
   ScrapesHandlers.layer,
   ExtractionsHandlers.layer,
+  PingHandlers.layer,
 )
 
 export const layerTest = handlers.pipe(

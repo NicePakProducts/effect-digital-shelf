@@ -1,8 +1,13 @@
 import { describe, expect, it } from "@effect/vitest"
-import { resourceName, stageOf } from "@digital-shelf/infra/Resources/Names"
+import {
+  isDeployedStage,
+  resourceName,
+  stageOf,
+} from "@digital-shelf/infra/Resources/Names"
 
 describe("resource names", () => {
-  it.each(["dev", "prod"])("accepts %s", (stage) => {
+  it.each(["dev", "prod"])("accepts deployed stage %s", (stage) => {
+    expect(isDeployedStage(stage)).toBe(true)
     expect(stageOf(stage)).toBe(stage)
     expect(resourceName(stageOf(stage), "bucket")).toBe(
       `digital-shelf-bucket-${stage}`,
@@ -13,9 +18,16 @@ describe("resource names", () => {
   })
 
   it.each(["", "vdelapena", "dev_vdelapena", "production", "DEV", " dev"])(
-    "rejects unsupported stage %s",
+    "does not treat %s as a deployed stage",
     (stage) => {
-      expect(() => stageOf(stage)).toThrow(/use --stage dev or --stage prod/)
+      expect(isDeployedStage(stage)).toBe(false)
+    },
+  )
+
+  it.each(["dev_vdelapena", "dev_ruie", "local"])(
+    "runs private stage %s with dev settings",
+    (stage) => {
+      expect(stageOf(stage)).toBe("dev")
     },
   )
 })

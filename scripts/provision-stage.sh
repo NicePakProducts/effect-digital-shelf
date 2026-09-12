@@ -480,7 +480,7 @@ while :; do
     say "${GREEN}✓${RESET} connected: ${version%% on *}"
     # Migrations need DDL: prove it with a CREATE TABLE that is rolled back.
     if PGSSLROOTCERT=system psql "$DATABASE_URL" -Atc 'begin; create table _provision_probe(x int); rollback;' >/dev/null 2>/tmp/provision-psql.err; then
-      say "${GREEN}✓${RESET} the role can run DDL (rolled-back CREATE TABLE), so pnpm db:migrate will work"
+      say "${GREEN}✓${RESET} the role can run DDL (rolled-back CREATE TABLE), so bun run db:migrate will work"
       break
     fi
     warn "the role cannot run DDL: $(head -c 200 /tmp/provision-psql.err). Migrations need the default 'postgres' role or one with CREATE on the schema; create that role and paste its string."

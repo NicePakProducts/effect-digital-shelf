@@ -22,15 +22,16 @@ describe("RootApi", () => {
       "./__snapshots__/RootApi.openapi.json",
     )
   })
-  it("mounts the six Catalog groups and the two scraping groups under /api/v1", () => {
+  it("mounts Catalog, scraping and the public ping under /api/v1", () => {
     expect(spec.info).toMatchObject({ title: "Digital Shelf", version: "1" })
     const paths = Object.keys(spec.paths)
-    expect(paths).toHaveLength(27)
+    expect(paths).toHaveLength(28)
     expect(paths.every((path) => path.startsWith("/api/v1/"))).toBe(true)
     expect(paths.some((path) => path.startsWith("/api/v1/auth"))).toBe(false)
     expect(spec.paths["/api/v1/variants/{id}/impact"]).toBeUndefined()
 
     for (const path of [
+      "/api/v1/ping",
       "/api/v1/scrapes",
       "/api/v1/scrapes/bulk",
       "/api/v1/scrapes/{id}",
@@ -43,6 +44,9 @@ describe("RootApi", () => {
       "/api/v1/products/{id}/latest-extractions",
     ])
       expect(spec.paths[path]).toBeDefined()
+  })
+  it("declares ping without authentication errors", () => {
+    expect(codesOf(spec.paths["/api/v1/ping"]!.get!.responses)).toEqual(["200"])
   })
   it("declares the exact success and business-error statuses, plus authentication", () => {
     for (const [group, createErrors, updateErrors] of [

@@ -3,7 +3,7 @@
   "info": {
     "title": "Digital Shelf",
     "version": "1",
-    "description": "Every operation requires a Better Auth session cookie."
+    "description": "Every operation except GET /api/v1/ping requires a Better Auth session cookie."
   },
   "paths": {
     "/api/v1/brands": {
@@ -6513,6 +6513,38 @@
           }
         }
       }
+    },
+    "/api/v1/ping": {
+      "get": {
+        "tags": ["ping"],
+        "operationId": "ping.get",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "enum": ["pong"]
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": ["message", "timestamp"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7042,6 +7074,9 @@
     },
     {
       "name": "extractions"
+    },
+    {
+      "name": "ping"
     }
   ]
 }

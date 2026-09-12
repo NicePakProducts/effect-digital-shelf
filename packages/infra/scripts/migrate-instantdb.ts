@@ -1,9 +1,9 @@
 /**
  * One-off InstantDB -> Postgres/R2 migration. Run with Node 26:
  *
- * pnpm --filter @digital-shelf/infra db:migrate-instantdb export --out snapshot.json
- * pnpm --filter @digital-shelf/infra db:migrate-instantdb load --snapshot snapshot.json --bucket digital-shelf-bucket-dev --since 2026-06-13T00:00:00Z --dry-run
- * pnpm --filter @digital-shelf/infra db:migrate-instantdb load --snapshot snapshot.json --bucket digital-shelf-bucket-dev --since 2026-06-13T00:00:00Z --exclude <id>,<id>
+ * bun run --filter @digital-shelf/infra db:migrate-instantdb export --out snapshot.json
+ * bun run --filter @digital-shelf/infra db:migrate-instantdb load --snapshot snapshot.json --bucket digital-shelf-bucket-dev --since 2026-06-13T00:00:00Z --dry-run
+ * bun run --filter @digital-shelf/infra db:migrate-instantdb load --snapshot snapshot.json --bucket digital-shelf-bucket-dev --since 2026-06-13T00:00:00Z --exclude <id>,<id>
  *
  * export: INSTANT_APP_ID, INSTANT_ADMIN_TOKEN.
  * load: DATABASE_URL (direct Postgres), CLOUDFLARE_ACCOUNT_ID,

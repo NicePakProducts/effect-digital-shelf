@@ -22,6 +22,7 @@ import * as ListingsHandlers from "./Catalog/ListingsHandlers.ts"
 import * as PagesHandlers from "./Catalog/PagesHandlers.ts"
 import * as ScrapesHandlers from "./Scraping/ScrapesHandlers.ts"
 import * as ExtractionsHandlers from "./Scraping/ExtractionsHandlers.ts"
+import * as PingHandlers from "./PingHandlers.ts"
 
 /** The app supplies Db, R2Bucket, Executions, Auth, HttpRouter and the HTTP
  * platform services (Etag.Generator, FileSystem, HttpPlatform and Path) per
@@ -53,6 +54,7 @@ export const layer: Layer.Layer<
       PagesHandlers.layer,
       ScrapesHandlers.layer,
       ExtractionsHandlers.layer,
+      PingHandlers.layer,
     ).pipe(Layer.provide(Layer.mergeAll(Catalog, Scraping))),
   ),
   Layer.provide(CurrentUserMiddleware.layer),
