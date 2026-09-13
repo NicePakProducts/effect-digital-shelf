@@ -1,0 +1,160 @@
+Research status: COMPLETE
+
+# Verify stateless MCP transport and Effect schema compatibility on Workers
+
+- **Ticket:** [Verify stateless MCP transport and Effect schema compatibility on Workers](https://github.com/NicePakProducts/effect-digital-shelf/issues/95)
+- **Question:** Which maintained MCP transport can serve this repository's same-origin `/mcp` on Workers without isolate affinity or leaked invocation context, and what is the smallest correct bridge to Effect v4 schemas/services?
+- **Digital Shelf source:** `prototype/listing-workspace` at `1eb7fa2af407c65c12a7af7325caa9dedb77d4e4`
+- **Pinned Effect source:** `effect@4.0.0-rc.112`, upstream commit [`2600f62f4532026928454dcea8d1c48557b3f942`](https://github.com/Effect-TS/effect/tree/2600f62f4532026928454dcea8d1c48557b3f942)
+- **Official TypeScript SDK source inspected:** `@modelcontextprotocol/server@2.0.0`, tag commit [`cc4b41617ce3601b1290d67216ea0b194a3cd9ac`](https://github.com/modelcontextprotocol/typescript-sdk/tree/cc4b41617ce3601b1290d67216ea0b194a3cd9ac); npm registry currently reports `2.0.0` as the package version. For comparison, monolithic `@modelcontextprotocol/sdk@1.30.0` is commit [`2d889f2b329e46680ec9bdd565de4616c497825a`](https://github.com/modelcontextprotocol/typescript-sdk/tree/2d889f2b329e46680ec9bdd565de4616c497825a).
+- **MCP specification source:** revision [`cc2a84f5ca5404b2949683f7d7876f623344294f`](https://github.com/modelcontextprotocol/modelcontextprotocol/tree/cc2a84f5ca5404b2949683f7d7876f623344294f), dated protocol `2025-11-25`.
+- **Prior scope:** the confirmed product decisions in [`docs/research/mcp-oauth-cloudflare-code-mode.md`](https://github.com/NicePakProducts/effect-digital-shelf/blob/dd606c3628c273479c48c33d9cfb5e83e1835ea5/docs/research/mcp-oauth-cloudflare-code-mode.md): same-host `/mcp`, Better Auth bearer validation, full-feature consent, Brands CRUD first, and no Code Mode in this foundation.
+
+Remote source was read as data only; no foreign code was executed. No checkout file, dependency, deployment, database, secret, tracker state, or remote branch was changed.
+
+## Conclusion
+
+**Verified:** pinned Effect's stock `McpServer.layerHttp` is not stateless. Every HTTP initialization creates a UUID session and stores its negotiated profile in an in-memory `Map`; every non-initialize request without that session is rejected. A follow-up request landing in another Worker isolate therefore gets `404`, and a recycled isolate loses the session. There is no `layerHttp` option to disable session creation. This is isolate affinity, even though the transport correctly implements a single Streamable HTTP endpoint rather than the deprecated two-endpoint HTTP+SSE transport.
+
+**Recommended for HITL selection:** use the maintained, fetch-native **`WebStandardStreamableHTTPServerTransport` from `@modelcontextprotocol/server@2.0.0`**, creating one transport and one `McpServer` per POST with `{ sessionIdGenerator: undefined, enableJsonResponse: true }`. Put application-owned method, Origin, and Better Auth bearer checks in front, pass the validated identity/request into the tool bridge, await the JSON exchange, and close both SDK objects before the route invocation finishes. This is a narrow integration around an official adapter, not a custom MCP transport ([Web transport options and Worker support](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/streamableHttp.ts#L78-L238), [POST behavior](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/streamableHttp.ts#L735-L930)).
+
+The package's `legacyStatelessFallback(factory)` proves and packages the same fresh-server/fresh-transport, no-session idiom, but does not expose `enableJsonResponse`; its request responses default to per-POST SSE. Its word **`legacy` means “2025 protocol era relative to the SDK's newer 2026 era”; it does not mean the deprecated HTTP+SSE transport** ([entry/factory/options](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/createMcpHandler.ts#L1-L25), [stateless implementation](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/createMcpHandler.ts#L288-L402)). The explicit JSON mode is preferred here because a tool may borrow invocation-owned DB/auth context: the route must not return a live SSE body that can continue using that context after the route Effect has completed.
+
+The smallest schema seam is not a handwritten Effect-to-Zod translator. Convert each existing object-root Effect schema to the two Standard Schema facets expected by SDK v2 using pinned Effect's `Schema.toStandardSchemaV1` and `Schema.toStandardJSONSchemaV1`, then pass that same converted schema to `McpServer.registerTool`. The SDK uses its `~standard.jsonSchema` facet for `tools/list` and `~standard.validate` for `tools/call`, so publication and runtime decode share one source ([Effect adapters](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/src/Schema.ts#L1240-L1403), [SDK contract/conversion/validation](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/core-internal/src/util/standardSchema.ts#L96-L202), [tool use](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/mcp.ts#L184-L195)).
+
+## Verified facts
+
+### 1. Required 2025-11-25 transport behavior
+
+The primary specification establishes the baseline:
+
+- Streamable HTTP is a **single endpoint** that accepts POST and GET; SSE is an optional response framing mechanism within Streamable HTTP, not automatically the deprecated HTTP+SSE transport ([transport lines 52–72](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/cc2a84f5ca5404b2949683f7d7876f623344294f/docs/specification/2025-11-25/basic/transports.mdx#L52-L72)).
+- A POST must accept one JSON-RPC request, notification, or response. Accepted notifications/responses receive bodyless `202`; requests receive either one `application/json` object or a `text/event-stream` stream ([lines 86–125](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/cc2a84f5ca5404b2949683f7d7876f623344294f/docs/specification/2025-11-25/basic/transports.mdx#L86-L125)).
+- GET may open an SSE stream, but a server that does not provide one must return `405` ([lines 133–154](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/cc2a84f5ca5404b2949683f7d7876f623344294f/docs/specification/2025-11-25/basic/transports.mdx#L133-L154)).
+- Session assignment is optional. Only if initialization returns `MCP-Session-Id` must subsequent requests carry it; unknown/expired IDs receive `404` ([lines 192–220](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/cc2a84f5ca5404b2949683f7d7876f623344294f/docs/specification/2025-11-25/basic/transports.mdx#L192-L220)). Thus “no session ID” is standards-compatible and needs no Durable Object.
+- Subsequent HTTP requests carry the negotiated `MCP-Protocol-Version`; an unsupported value is `400`, while a missing value with no other knowledge defaults to `2025-03-26` for compatibility ([lines 263–281](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/cc2a84f5ca5404b2949683f7d7876f623344294f/docs/specification/2025-11-25/basic/transports.mdx#L263-L281)).
+- A present invalid `Origin` must receive `403`; origin-less non-browser clients remain possible ([lines 74–84](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/cc2a84f5ca5404b2949683f7d7876f623344294f/docs/specification/2025-11-25/basic/transports.mdx#L74-L84)).
+- Initialization must be the first interaction: `initialize` request/response, then `notifications/initialized`; protocol and capabilities are negotiated in the initialize exchange ([lifecycle lines 36–52](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/cc2a84f5ca5404b2949683f7d7876f623344294f/docs/specification/2025-11-25/basic/lifecycle.mdx#L36-L52), [98–175](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/cc2a84f5ca5404b2949683f7d7876f623344294f/docs/specification/2025-11-25/basic/lifecycle.mdx#L98-L175)).
+- A network disconnect is not itself 2025 cancellation; a client should send `notifications/cancelled` ([transport lines 126–131](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/cc2a84f5ca5404b2949683f7d7876f623344294f/docs/specification/2025-11-25/basic/transports.mdx#L126-L131)).
+
+### 2. Stock Effect `layerHttp` is sessionful and isolate-local
+
+Pinned Effect does several things correctly:
+
+- It supports protocol adapters `2024-11-05`, `2025-03-26`, `2025-06-18`, and `2025-11-25` ([`McpProtocol.ts:18-145`](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/src/unstable/ai/McpProtocol.ts#L18-L145)).
+- `layerHttp` is explicitly a single-endpoint Streamable HTTP implementation. It returns `405` for GET and other unsupported methods, accepts only JSON POSTs with both JSON and SSE in `Accept`, validates a present Origin against an exact configured list, and handles notifications/responses as `202` ([`McpServer.ts:1289-1476`](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/src/unstable/ai/McpServer.ts#L1289-L1476)). Its 2024 compatibility adapter is not the old two-endpoint transport.
+- It routes `notifications/cancelled` into an RPC interrupt for an active request ID ([`McpServer.ts:944-960`](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/src/unstable/ai/McpServer.ts#L944-L960)). It has no application execution deadline option in `layerHttp`; cancellation is not a timeout policy.
+
+But the decisive facts are:
+
+- Its protocol state contains `sessions.bySessionId: new Map()` and even carries a TODO to replace that shared map with an adapter-owned lifecycle strategy ([`McpServer.ts:605-647`](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/src/unstable/ai/McpServer.ts#L605-L647)).
+- Every HTTP initialize unconditionally generates `crypto.randomUUID()`, stores the session in that map, and returns `MCP-Session-Id`; there is no disable switch ([`McpServer.ts:2180-2266`](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/src/unstable/ai/McpServer.ts#L2180-L2266)).
+- The HTTP route looks up this map, returns `404` for an unknown session, and returns `400` for a non-initialize request without one ([`McpServer.ts:1362-1449`](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/src/unstable/ai/McpServer.ts#L1362-L1449)).
+
+Therefore a once-built layer works only while all session requests hit the same live isolate. Cloudflare provides no such affinity here. Persisting only the UUID would not be enough: the map also holds negotiated protocol/client capability profile, log level, and subscription state. Stock `layerHttp` is unsuitable for the agreed stateless first slice.
+
+### 3. Exact official SDK/package choices
+
+| Package/API | Version and status | Relevant behavior | Finding |
+|---|---|---|---|
+| `effect/unstable/ai/McpServer.layerHttp` | Effect `4.0.0-rc.112` | Strong Effect Tool/Schema integration; JSON response; GET `405`; exact Origin allowlist; four 2024/2025 protocol adapters; always in-memory UUID session | **Not Worker-stateless. Do not select at this pin.** |
+| `@modelcontextprotocol/server` `legacyStatelessFallback(factory)` | **2.0.0**, current split server package, MIT | Web-standard `Request`/`Response`; fresh server + transport per POST; `sessionIdGenerator: undefined`; 2025 initialize/notification/tool flow; GET/DELETE `405`; request/auth passed to factory; request responses default to SSE | Maintained proof/reference option, but not preferred where invocation-owned services must finish before the route returns. |
+| `@modelcontextprotocol/server` `createMcpHandler(factory, { legacy: "stateless" })` | **2.0.0** | Same 2025 fallback plus a newer 2026-era route and classifier; default 2025 posture is stateless | Compatible but broader than the agreed 2025 target. Prefer the exported fallback until a newer protocol is deliberately selected. |
+| `@modelcontextprotocol/server` `WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })` | **2.0.0** | Official Worker-compatible Web adapter; fresh instance per POST; JSON request response; notifications/responses `202`; app supplies GET `405`, Origin/auth, teardown | **Recommended initial transport**, subject to HITL acceptance of no streaming/session features. |
+| `@modelcontextprotocol/sdk` `WebStandardStreamableHTTPServerTransport` | **1.30.0**, older monolithic line | Same explicit stateless mode exists ([source](https://github.com/modelcontextprotocol/typescript-sdk/blob/2d889f2b329e46680ec9bdd565de4616c497825a/src/server/webStandardStreamableHttp.ts#L1-L217)) | No advantage for new code over the stable split v2 server package. |
+| `@modelcontextprotocol/server-legacy` | **2.0.0**, npm marks deprecated/frozen | Frozen v1 **SSE transport and OAuth AS helpers** | **Do not use.** This is the genuinely deprecated “legacy transport” package, unlike the 2025-era naming on `legacyStatelessFallback`. |
+| Narrow custom Effect HTTP/JSON-RPC adapter | Application-owned | Could preserve native Effect handlers while omitting sessions | Highest protocol burden; unnecessary unless the official package fails a Worker/build/interop spike. Maple's FSL code is a pattern only, not copy material. |
+
+The official split package's actual public exports are `McpServer`, `WebStandardStreamableHTTPServerTransport`, `createMcpHandler`, `legacyStatelessFallback`, Origin helpers, and Standard Schema support; its runtime dependencies are `@modelcontextprotocol/core@2.0.0` and Zod 4 ([package manifest](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/package.json)). Its 2025 list is exactly `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`, and `2024-10-07`, with `2025-11-25` latest ([constants](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/core/src/constants.ts#L1-L3)).
+
+### 4. Official stateless behavior: initialize, notification, JSON/SSE, methods
+
+- The v2 factory receives `{ era, authInfo?, requestInfo? }`; for 2025 traffic, a new product is requested per POST ([`createMcpHandler.ts:64-126`](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/createMcpHandler.ts#L64-L126)).
+- The maintained tests exercise `initialize` returning `2025-11-25`, a later tool call on a different fresh server, bodyless `202` for `notifications/initialized`, and `405` for GET/DELETE ([tests lines 460–540](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/test/server/createMcpHandler.test.ts#L460-L540)).
+- The fallback uses default transport response shaping. For a request, default `enableJsonResponse` is false, so the response is SSE; notification/response-only POSTs return `202` ([transport options/constructor](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/streamableHttp.ts#L78-L179), [POST path](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/streamableHttp.ts#L735-L930)). This per-POST SSE response is valid Streamable HTTP, not deprecated HTTP+SSE.
+- Direct use of the same Web transport with `enableJsonResponse: true` awaits and returns one JSON response. It cannot deliver mid-call streaming notifications; that is acceptable only because the agreed first slice is bounded request/response CRUD. It also gives the route a clear lifetime boundary: execution completes before its borrowed invocation context is released.
+- The stateless endpoint intentionally does not preserve initialization state. It can serve the required `initialize → initialized → tools/list/tools/call` wire sequence, but later requests do not have the initialize request's client-capability state. The official v2 documentation explicitly notes that stateless legacy HTTP has “no initialize handshake” available to the fresh operational instance and cannot perform server-to-client request flows ([migration source lines 578–585](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/docs/migration/support-2026-07-28.md#L578-L585)). The agreed Brands CRUD slice does not need sampling, elicitation, roots, resource subscriptions, resumability, standalone server push, or per-client log-level state.
+
+### 5. Origin, cancellation, timeout, and lifetime limits
+
+**Origin.** `createMcpHandler`/`legacyStatelessFallback` performs no Origin, Host, or token verification. The v2 SDK provides Web helpers, but its Origin helper compares only parsed hostnames and deliberately ignores scheme/port ([helper source](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/middleware/originValidation.ts#L1-L93)). Digital Shelf should keep an application-owned exact-origin policy before transport dispatch: missing Origin passes; a present non-allowlisted or malformed Origin gets `403`. Bearer validation also stays before transport, with `authInfo` treated only as already-validated pass-through ([entry warning](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/createMcpHandler.ts#L1-L25)).
+
+**Cancellation.** The SDK gives each inbound handler an AbortSignal and maps an in-instance `notifications/cancelled` to that request's AbortController ([protocol source](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/core-internal/src/shared/protocol.ts#L558-L617), [request handling](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/core-internal/src/shared/protocol.ts#L1036-L1159)). However, under the 2025 per-POST factory the cancellation notification arrives at a different fresh instance, so it cannot find the original instance's active-request map. Client abort of the original HTTP request does tear down the per-request server/transport and abort its handler signal; the official test covers that path ([fallback test lines 97–160](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/test/server/legacyStatelessFallback.test.ts#L97-L160)). Therefore **full cross-POST 2025 cancellation is not provided by this stateless option**.
+
+**Direct-adapter wiring caveat (parent source check).** The cited abort test covers `legacyStatelessFallback`, whose source explicitly connects `request.signal` to server/transport teardown. Choosing the lower-level Web transport in JSON mode does not inherit that wrapper's wiring. The application must explicitly bridge HTTP request abort, the SDK handler signal, and Effect interruption, and guarantee SDK cleanup on success, failure, abort and timeout; test that exact adapter, not only the upstream fallback.
+
+**Timeout.** Neither the spec's client cancellation nor the transport supplies Digital Shelf's execution deadline. Every tool must have an application-owned Effect timeout. The SDK handler's `ctx.mcpReq.signal` should also be passed into pinned Effect's `Effect.runPromiseWith(context)(program, { signal })`; Effect's run options explicitly accept an `AbortSignal` ([`Effect.ts:8759-8764, 8990-9018`](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/src/Effect.ts#L8759-L8764)). Deadline expiry and abort must interrupt the Effect fiber, bound the HTTP response, and not be reported as a successful domain result.
+
+**Lifetime.** The fallback constructs and closes only SDK protocol objects per POST. The Digital Shelf Effect/core graph remains once per isolate. The repository's existing rule is that a request borrows invocation-owned DB/auth/telemetry state and never captures a socket or per-request service in the built graph ([ADR 0010](https://github.com/NicePakProducts/effect-digital-shelf/blob/1eb7fa2af407c65c12a7af7325caa9dedb77d4e4/docs/adr/0010-the-worker-builds-its-graph-once-and-borrows-the-invocation.md)). The MCP adapter must capture the current Effect context/principal only inside the route invocation and release it when that POST completes; no module-global `McpServer`, transport, principal, request, or session map.
+
+### 6. Effect schema compatibility and parity
+
+Pinned Effect provides all needed pieces, but parity is a test obligation rather than an assumption:
+
+1. `Schema.toStandardSchemaV1` adds `~standard.validate` using Effect's decoder; `Schema.toStandardJSONSchemaV1` adds input/output JSON Schema generation, including `$defs` ([`Schema.ts:1240-1403`](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/src/Schema.ts#L1240-L1403)). The same schema can therefore satisfy SDK v2's `StandardSchemaWithJSON`.
+2. SDK v2 requires object-root tool input. It uses the Standard JSON Schema facet for publication and the Standard Schema facet for runtime validation; it rejects an explicit non-object input root ([`standardSchema.ts:96-202`](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/core-internal/src/util/standardSchema.ts#L96-L202), [`mcp.ts:260-320`](https://github.com/modelcontextprotocol/typescript-sdk/blob/cc4b41617ce3601b1290d67216ea0b194a3cd9ac/packages/server/src/server/mcp.ts#L260-L320)). Every Digital Shelf tool should therefore wrap even a single ID in its existing named `Schema.Struct` input.
+3. `Schema.optionalKey` omits the property from JSON Schema `required`; it does **not** admit JSON `null`. `Schema.NullOr` adds `type: "null"`. Pinned tests show both in one document, including `$ref` reuse ([Effect test lines 418–472](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/test/schema/toJsonSchemaDocument.test.ts#L418-L472)) and the plain optional case ([lines 2330–2346](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/test/schema/toJsonSchemaDocument.test.ts#L2330-L2346)). MCP tool inputs must preserve this distinction; do not translate optional fields into nullable ones.
+4. Identified schemas produce `$ref` plus `$defs`; the SDK requests draft 2020-12 and passes the generated document through. `$refs` are therefore representable, but actual target-client acceptance remains an interop test.
+5. A brand only narrows the TypeScript type and adds metadata; it adds no runtime check ([`Schema.ts:5234-5245`](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/src/Schema.ts#L5234-L5245)). Digital Shelf's IDs retain their underlying `Schema.isUUID()` check, and pinned JSON Schema generation emits both `format: "uuid"` and a UUID pattern ([domain IDs](https://github.com/NicePakProducts/effect-digital-shelf/blob/1eb7fa2af407c65c12a7af7325caa9dedb77d4e4/packages/domain/src/Shared/Ids.ts#L3-L41), [Effect test](https://github.com/Effect-TS/effect/blob/2600f62f4532026928454dcea8d1c48557b3f942/packages/effect/test/schema/toJsonSchemaDocument.test.ts#L1254-L1267)). Runtime decode therefore rejects a non-UUID while TypeScript preserves `BrandId` versus other ID brands internally.
+6. The first-slice schemas already have object roots and correct optionality (`CreateBrand`, `UpdateBrand`, and named ID operation inputs) ([`BrandManagement.ts`](https://github.com/NicePakProducts/effect-digital-shelf/blob/1eb7fa2af407c65c12a7af7325caa9dedb77d4e4/packages/domain/src/Catalog/BrandManagement.ts#L1-L40)). MCP execution should call the public Brands feature, never a repository.
+
+## Recommended minimum seam (requires HITL selection)
+
+Select **Option A** unless a focused Worker build/compatibility spike disproves it:
+
+```text
+same-host /mcp route (packages/api execution module)
+  -> exact Origin policy
+  -> Better Auth bearer validation (issuer/audience/scope/subject)
+  -> capture current invocation Effect Context + validated User
+  -> @modelcontextprotocol/server@2.0.0
+       fresh McpServer + WebStandardStreamableHTTPServerTransport
+         ({ sessionIdGenerator: undefined, enableJsonResponse: true })
+  -> register closed Brands tool catalog
+       inputSchema = Effect schema augmented with Standard validation + JSON Schema facets
+  -> callback runs one bounded Effect through current context
+       { signal: ctx.mcpReq.signal } + application timeout
+  -> existing core Brands service (no repository, no new transaction in API)
+```
+
+Suggested ownership, preserving project boundaries:
+
+- `packages/api/src/Mcp/Tools.ts`: core-free descriptors and the tiny `toStandardSchema` helper; each descriptor points to an existing domain object-root schema.
+- `packages/api/src/Mcp/Executor.ts`: closed tool-name lookup, result/error shaping, and execution adapters that bind named core feature services once in the Effect program. No business rules or repository access.
+- `packages/api/src/Mcp/Http.ts`: exact Origin/method handling, already-validated principal handoff, per-POST official Web transport/server construction and teardown, current-context bridge, timeout/abort mapping.
+- `packages/core/src/Auth/Auth.ts`: only the smallest `withInvocation`-preserving bearer helper needed from pinned Better Auth; token logic is not duplicated.
+- `apps/server/src/Http.ts` / `Worker.ts`: composition and route/asset precedence only (`/mcp` and well-known routes run Worker first).
+
+Do **not** build the core graph per tool call or per MCP POST. Do not retain an SDK server, request, auth principal, Effect context, or DB handle beyond the response. Do not add a Durable Object for the initial stateless slice.
+
+## Required verification before implementation can claim compatibility
+
+1. **Pure schema parity fixtures:** for every tool, snapshot `tools/list.inputSchema`; verify root `type: object`, required set, `additionalProperties`, `$ref/$defs` closure, UUID format/pattern, and optional-versus-null behavior. For a generated corpus, assert every input accepted by runtime Effect decode is described by the published schema and representative invalid/null inputs fail. A valid UUID from another entity kind is not distinguishable by TypeScript branding at the JSON boundary; prove the correct core lookup/not-found behavior separately rather than expecting UUID schema validation to reject it.
+2. **Protocol fixtures:** `initialize` for `2025-11-25`, response version equality/fallback, bodyless `202` for `notifications/initialized`, `tools/list`, valid/invalid `tools/call`, malformed JSON/JSON-RPC, unsupported version `400`, wrong media types, GET `405`, and present invalid Origin `403`.
+3. **No-affinity regression:** create two entirely separate handler/Effect contexts. Send initialize to A, then initialized/list/call to B with no `MCP-Session-Id`; verify success and verify no server response ever assigns a session ID. Recreate B between each request.
+4. **Invocation ownership:** overlapping real-Postgres CI requests under two principals must reach the correct User/context; completion, cancellation, timeout, and malformed calls must leave no DB/socket/request/principal retained after invocation scope closes. This is not provable with a repository fake or one PGlite connection.
+5. **Cancellation/timeout:** prove request-stream abort interrupts the running Effect and closes SDK objects; prove an application deadline interrupts even when the client remains connected. Explicitly document that a separate stateless `notifications/cancelled` POST cannot correlate to the earlier request.
+6. **Response modes:** test the recommended official JSON mode with the intended client fixture and prove `handleRequest` does not resolve until tool execution has finished. If a real client requires an SSE request response, redesign the response-stream/invocation-scope ownership explicitly rather than returning a stream over a context that may already be closing.
+7. **Build/runtime:** pin exactly `@modelcontextprotocol/server@2.0.0`; run package checks/tests and a local workerd/Miniflare-style Worker test to catch bundle, Web Stream, timer, and Zod compatibility. This research did not install or bundle it.
+8. **Live acceptance:** after implementation, perform the already-planned non-production Claude.ai smoke. It is release evidence, not part of this completed source research.
+
+## Recommendations requiring HITL decision
+
+| Decision option | What is accepted | Recommendation |
+|---|---|---|
+| **A — official v2 Web transport, fresh JSON-mode instance per POST** | No isolate affinity; no MCP session ID; initialize/initialized and ordinary tools work; JSON request response; no standalone GET stream, resumability, server push, retained client-capability state, streaming progress, or reliable separate-POST cancellation; hard application timeout still required | **Choose for Brands CRUD foundation.** It is the smallest maintained seam with a clear invocation-lifetime boundary and needs no speculative state service. |
+| **B — preserve full 2025 session semantics** | Cross-request capability state, cancellation correlation, subscriptions/server push may be required | Do not improvise a Durable Object. Commission a separately bounded state/lifecycle design against current Worker primitives and client evidence. Stock Effect cannot satisfy this at the pin. |
+| **C — custom Effect stateless transport** | Keep native `McpServer`/`Toolkit` surface while implementing HTTP lifecycle manually | Reject unless Option A fails a concrete build or interop test; protocol and security ownership is disproportionate for Brands CRUD. |
+
+## Unexecuted/live evidence gaps
+
+- `@modelcontextprotocol/server@2.0.0` was inspected from its npm metadata/tarball and pinned first-party source, but was **not installed, bundled, or executed** in this repository or workerd.
+- No Claude.ai request was observed. Its actual `Origin`, response-framing preference, version offer/fallback, timeout behavior, and tolerance of `$defs` remain live acceptance evidence.
+- No Better Auth bearer-to-SDK `authInfo` bridge was run; OAuth details remain governed by the foundation report and its implementation tests.
+- No real-Postgres overlapping invocation, timeout, abort, or isolate-rebuild test was run.
+- Maple at `7a2982c87e60f5adb6699f9c470c41d9e62c4290` was used only as the prior problem/test-pattern pointer required by the ticket. Its FSL-covered adapter is neither needed nor authorized for copying.
+
+## Newly exposed decision questions only
+
+1. **HITL:** Is the first Brands CRUD release allowed to omit reliable separate-POST `notifications/cancelled` correlation and all server-initiated/session features, relying instead on HTTP abort plus a strict application timeout? If yes, select Option A. If no, the requirement has changed from stateless CRUD and needs a separately scoped stateful transport decision.
+2. **Only after a compatibility fixture:** if the intended client rejects the official JSON response mode and requires per-POST SSE, is streaming important enough to design and prove ownership of invocation services for the entire response-stream lifetime? No decision is needed absent that evidence.
