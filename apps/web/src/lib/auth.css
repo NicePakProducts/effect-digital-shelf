@@ -1,0 +1,194 @@
+.auth-page {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  padding: 48px 28px 112px;
+  background: #fcfcf9;
+  color: #23372e;
+  text-align: center;
+  font:
+    14px/1.5 Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+.auth-page header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.auth-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: -1px;
+}
+.auth-logo-period {
+  color: #7c955c;
+}
+.auth-logo-mark {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  width: 28px;
+  height: 29px;
+}
+.auth-logo-mark i {
+  display: block;
+  width: 24px;
+  height: 5px;
+  border-radius: 1px;
+  background: currentColor;
+}
+.auth-logo-mark i:nth-child(2) {
+  width: 18px;
+  opacity: 0.65;
+}
+.auth-logo-mark i:nth-child(3) {
+  opacity: 0.38;
+}
+.auth-email-input {
+  position: relative;
+}
+.auth-email-input svg {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #616e59;
+}
+.auth-page button > svg {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.auth-page .fine-print > svg {
+  margin: 0 auto 8px;
+}
+.auth-page header p {
+  font-size: 9px;
+  letter-spacing: 1.3px;
+}
+.auth-page main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  padding: 56px 0;
+  gap: 18px;
+}
+.auth-page h1 {
+  font-size: 25px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.7px;
+  outline: none;
+}
+.auth-page .entry-heading {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  font-weight: 650;
+}
+.auth-page p {
+  color: #616e59;
+}
+.auth-page form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.auth-page input {
+  width: 100%;
+  border: 1px solid #dfe4dc;
+  border-radius: 7px;
+  background: white;
+  padding: 14px 24px;
+  text-align: center;
+  color: #23372e;
+}
+.auth-page button {
+  position: relative;
+  width: 100%;
+  padding: 14px 18px;
+  background: #315d43;
+  color: white;
+  border-radius: 7px;
+  cursor: pointer;
+  font-weight: 550;
+}
+.auth-page button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.auth-page button:focus-visible,
+.auth-page input:focus-visible {
+  outline: 3px solid #9cba7e;
+  outline-offset: 4px;
+}
+.auth-page .text-button {
+  background: transparent;
+  color: #315d43;
+  padding: 5px;
+}
+.auth-page .fine-print {
+  font-size: 12px;
+  line-height: 1.8;
+}
+.auth-page [role="alert"] {
+  color: #a44837;
+}
+.auth-page strong {
+  overflow-wrap: anywhere;
+}
+.workspace-page {
+  min-height: 100svh;
+  background: #fcfcf9;
+  color: #23372e;
+  padding: 32px;
+}
+.workspace-page header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid #dfe4dc;
+  padding-bottom: 24px;
+}
+.workspace-page button {
+  cursor: pointer;
+  border: 1px solid #dfe4dc;
+  border-radius: 6px;
+  padding: 8px 16px;
+}
+.workspace-page main {
+  max-width: 800px;
+  margin: 64px auto;
+}
+.workspace-page h1 {
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+.workspace-page [role="alert"] {
+  color: #a44837;
+}
+@media (max-width: 600px) {
+  .auth-page {
+    padding: 32px 24px 48px;
+  }
+  .auth-page main {
+    padding: 48px 0;
+  }
+  .workspace-page {
+    padding: 24px;
+  }
+}

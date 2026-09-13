@@ -18,6 +18,7 @@
     "@digital-shelf/api": "workspace:*",
     "@effect/atom-react": "catalog:",
     "@tanstack/react-router": "^1.170.35",
+    "better-auth": "catalog:",
     "effect": "catalog:",
     "react": "19.2.8",
     "react-dom": "19.2.8"
