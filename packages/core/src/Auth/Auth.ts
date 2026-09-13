@@ -59,6 +59,8 @@ const make = Effect.gen(function* () {
         basePath: "/api/auth",
         secret: Redacted.value(secret),
         trustedOrigins: [baseURL],
+        // Better Auth otherwise disables these checks under NODE_ENV=test.
+        advanced: { disableOriginCheck: false, disableCSRFCheck: false },
         database: makeAdapter(db, context),
         session: {
           expiresIn: 30 * 24 * 60 * 60,
