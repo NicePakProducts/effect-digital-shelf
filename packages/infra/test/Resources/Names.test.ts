@@ -3,7 +3,7 @@ import {
   isDeployedStage,
   resourceName,
   stageOf,
-} from "@digital-shelf/infra/Resources/Names"
+} from "@app/infra/Resources/Names"
 
 describe("resource names", () => {
   it.each(["dev", "prod"])("accepts deployed stage %s", (stage) => {

@@ -1,20 +1,15 @@
-import { Transitions } from "@digital-shelf/core/Scraping/Transitions"
+import { Transitions } from "../../src/scrapes/transitions"
 import * as Effect from "effect/Effect"
-import * as CoreTest from "../layers/Core.ts"
-import {
-  reset,
-  seed,
-  successfulScrape,
-  extraction,
-} from "../fixtures/Scraping.ts"
+import * as CoreTest from "../layers/Core"
+import { reset, seed, successfulScrape, extraction } from "../fixtures/Scraping"
 import { expect, it } from "@effect/vitest"
 import {
   canTransition,
   isTerminal,
   classifyMissedTransition,
-} from "@digital-shelf/core/Scraping/Transitions"
-import { traceparentOf } from "@digital-shelf/core/Scraping/Trace"
-import { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
+} from "@app/core/scrapes/lifecycle"
+import { traceparentOf } from "@app/core/scrapes/trace"
+import { ScrapeId } from "@app/schema/ids"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
@@ -44,14 +39,14 @@ it("transitions are terminal and missed writes distinguish replay from rejection
   ).toBe("00-00000000000040008000000000000001-0123456789abcdef-01")
 })
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })(
   "Extraction transitions",
   (it) => {
     it.effect(
       "conditional writes classify apply, replay and rejected late outcomes",
       () =>
         Effect.gen(function* () {
-          const transitions = yield* Transitions
+          const transitions = yield* Transitions.Service
 
           yield* reset
 

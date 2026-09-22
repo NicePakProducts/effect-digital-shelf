@@ -1,5 +1,5 @@
-import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
-import { Transitions } from "@digital-shelf/core/Scraping/Transitions"
+import { ScrapesRepo } from "../../src/scrapes/repository"
+import { Transitions } from "../../src/scrapes/transitions"
 import * as Predicate from "effect/Predicate"
 import * as OpenAiClient from "@effect/ai-openai-compat/OpenAiClient"
 import * as OpenAiLanguageModel from "@effect/ai-openai-compat/OpenAiLanguageModel"
@@ -12,11 +12,11 @@ import {
   ExtractionRunner,
   ExtractOutcome,
   ExtractTarget,
-} from "@digital-shelf/core/Scraping/ExtractionRunner"
-import { ExtractionsRepo } from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import { retailers } from "@digital-shelf/domain/Sql/Catalog"
+} from "@app/core/scrapes/extractions/runner"
+import { ExtractionsRepo } from "../../src/scrapes/extractions/repository"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import { RetailersTable } from "@app/db/schema/retailers"
 import { eq } from "drizzle-orm"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as DateTime from "effect/DateTime"
@@ -27,15 +27,10 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as TestClock from "effect/testing/TestClock"
 import * as AiError from "effect/unstable/ai/AiError"
-import * as CoreTest from "../layers/Core.ts"
-import { LanguageModelTest } from "../layers/LanguageModel.ts"
-import { R2BucketTest } from "../layers/R2Bucket.ts"
-import {
-  reset,
-  seed,
-  successfulScrape,
-  extraction,
-} from "../fixtures/Scraping.ts"
+import * as CoreTest from "../layers/Core"
+import { LanguageModelTest } from "../layers/LanguageModel"
+import { R2BucketTest } from "../layers/R2Bucket"
+import { reset, seed, successfulScrape, extraction } from "../fixtures/Scraping"
 
 const stringify = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
@@ -61,13 +56,14 @@ const setup = Effect.gen(function* () {
     catalog,
     scrape,
     row,
-    runner: yield* ExtractionRunner,
+    runner: yield* ExtractionRunner.Service,
     fake: yield* LanguageModelTest,
   }
 })
 
 const configured = (config: Record<string, number>) =>
-  ExtractionRunner.make.pipe(
+  ExtractionRunner.Service.pipe(
+    Effect.provide(Layer.fresh(ExtractionRunner.layerNoDeps)),
     Effect.provide(ConfigProvider.layerAdd(ConfigProvider.fromUnknown(config))),
     Effect.provide([
       ExtractionsRepo.layer,
@@ -76,14 +72,14 @@ const configured = (config: Record<string, number>) =>
     ]),
   )
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })(
   "ExtractionRunner",
   (it) => {
     it.effect(
       "claim uses snapshots and replays without changing start time; extract and finish store JSON-safe data and usage",
       () =>
         Effect.gen(function* () {
-          const extractionsRepo = yield* ExtractionsRepo
+          const extractionsRepo = yield* ExtractionsRepo.Service
 
           const setupResult = yield* setup
           const catalog = setupResult.catalog
@@ -93,9 +89,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const db = yield* Db
           yield* query(
             db
-              .update(retailers)
+              .update(RetailersTable)
               .set({ listingExtractPrompt: "Changed after creation" })
-              .where(eq(retailers.id, catalog.retailerId)),
+              .where(eq(RetailersTable.id, catalog.retailerId)),
           )
           const target = yield* runner.claim(row.id)
           expect(target).toMatchObject({
@@ -291,7 +287,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "missing storage produces unknown and a replay-safe failed finish",
       () =>
         Effect.gen(function* () {
-          const extractionsRepo = yield* ExtractionsRepo
+          const extractionsRepo = yield* ExtractionsRepo.Service
 
           const setupResult = yield* setup
           const row = setupResult.row
@@ -323,7 +319,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "compensation fails pending and a late successful finish cannot resurrect swept rows",
       () =>
         Effect.gen(function* () {
-          const extractionsRepo = yield* ExtractionsRepo
+          const extractionsRepo = yield* ExtractionsRepo.Service
 
           const setupResult = yield* setup
           const row = setupResult.row
@@ -388,7 +384,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             }),
           )
 
-          const model = OpenAiLanguageModel.layer({
+          const ModelLayer = OpenAiLanguageModel.layer({
             model: "changed-global-model",
             config: { chat_template_kwargs: { enable_thinking: false } },
           }).pipe(
@@ -399,8 +395,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             ),
           )
 
-          const runner = yield* ExtractionRunner.make.pipe(
-            Effect.provide(model),
+          const runner = yield* ExtractionRunner.Service.pipe(
+            Effect.provide(Layer.fresh(ExtractionRunner.layerNoDeps)),
+            Effect.provide(ModelLayer),
             Effect.provide([
               ExtractionsRepo.layer,
               ScrapesRepo.layer,

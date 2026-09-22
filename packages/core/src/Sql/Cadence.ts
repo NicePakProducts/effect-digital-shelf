@@ -1,4 +1,4 @@
-import type { Cadence } from "@digital-shelf/domain/Catalog/Cadence"
+import type { Cadence } from "@app/schema/cadence"
 import * as Duration from "effect/Duration"
 
 /** Shared intervals for SQL selection and the pure cadence predicate. */

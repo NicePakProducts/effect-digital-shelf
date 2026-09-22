@@ -1,26 +1,22 @@
+import { BrandsErrors, Brands } from "@app/core/brands"
+import { ProductsErrors, Products } from "@app/core/products"
 import { expect, it } from "@effect/vitest"
-import { Brands } from "@digital-shelf/core/Catalog/Brands"
-import { Products } from "@digital-shelf/core/Catalog/Products"
-import { Variants } from "@digital-shelf/core/Catalog/Variants"
-import { Listings } from "@digital-shelf/core/Catalog/Listings"
-import {
-  BrandNotFound,
-  ProductNotFound,
-} from "@digital-shelf/domain/Catalog/Errors"
-import { BrandId, ProductId } from "@digital-shelf/domain/Shared/Ids"
+import { ProductVariants } from "@app/core/products/variants"
+import { Listings } from "@app/core/listings"
+import { BrandId, ProductId } from "@app/schema/ids"
 import { Effect, Schema } from "effect"
-import * as CoreTest from "../layers/Core.ts"
-import * as DbTest from "../layers/Db.ts"
-import { seed } from "../fixtures/Catalog.ts"
+import * as CoreTest from "../layers/Core"
+import * as DbTest from "../layers/Db"
+import { seed } from "../fixtures/Catalog"
 
 const missingId = Schema.decodeUnknownSync(BrandId)(
   "00000000-0000-4000-8000-000000000404",
 )
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })("Products", (it) => {
   it.effect("creates under a Brand with paused false and reads back", () =>
     Effect.gen(function* () {
-      const products = yield* Products
+      const products = yield* Products.Service
       yield* DbTest.reset
       const seeded = yield* seed()
       const productId = seeded.productId
@@ -31,19 +27,19 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
   )
   it.effect("rejects a missing Brand with its id", () =>
     Effect.gen(function* () {
-      const products = yield* Products
+      const products = yield* Products.Service
       yield* DbTest.reset
       expect(
         yield* Effect.flip(
           products.create({ brandId: missingId, name: "Missing" }),
         ),
-      ).toEqual(new BrandNotFound({ brandId: missingId }))
+      ).toEqual(new BrandsErrors.NotFound({ brandId: missingId }))
     }),
   )
   it.effect("filters by Brand and orders by name", () =>
     Effect.gen(function* () {
-      const brands = yield* Brands
-      const products = yield* Products
+      const brands = yield* Brands.Service
+      const products = yield* Products.Service
       yield* DbTest.reset
       const a = yield* seed()
       yield* seed()
@@ -56,9 +52,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
   )
   it.effect("updates and removes with the Product's descendant impact", () =>
     Effect.gen(function* () {
-      const listings = yield* Listings
-      const variants = yield* Variants
-      const products = yield* Products
+      const listings = yield* Listings.Service
+      const variants = yield* ProductVariants.Service
+      const products = yield* Products.Service
       yield* DbTest.reset
       const c = yield* seed()
       yield* variants.create({
@@ -89,11 +85,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Products", (it) => {
       expect(yield* products.remove({ productId: c.productId })).toEqual(impact)
       expect(
         yield* Effect.flip(products.get({ productId: c.productId })),
-      ).toEqual(new ProductNotFound({ productId: c.productId }))
+      ).toEqual(new ProductsErrors.NotFound({ productId: c.productId }))
       const missing = Schema.decodeUnknownSync(ProductId)(missingId)
       expect(
         yield* Effect.flip(products.impact({ productId: missing })),
-      ).toEqual(new ProductNotFound({ productId: missing }))
+      ).toEqual(new ProductsErrors.NotFound({ productId: missing }))
     }),
   )
 })

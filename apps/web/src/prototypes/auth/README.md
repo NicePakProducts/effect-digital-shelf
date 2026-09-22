@@ -9,7 +9,7 @@
 From the repository root, with dependencies installed:
 
 ```sh
-bun run --filter @digital-shelf/web prototype:auth
+bun run --filter @app/web prototype:auth
 ```
 
 Opens `http://localhost:3000/prototype/auth`. No Worker, environment file, database or email service is needed. The route is unavailable in production builds.

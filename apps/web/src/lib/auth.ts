@@ -1,6 +1,6 @@
+import { createClient, sessionAtom } from "@app/client/auth"
 // oxlint-disable-next-line anti-slop-effect/no-service-constructor-imports -- Browser composition of a foreign SDK adapter, not an Effect service constructor.
-import { createClient, makeAuthActions } from "./auth-actions"
-import { sessionAtom } from "./auth-session"
+import { makeAuthActions } from "./auth-actions"
 
 export const authClient = createClient()
 

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
-import { packageName } from "@digital-shelf/infra"
+import { packageName } from "@app/infra"
 
-describe("@digital-shelf/infra", () => {
+describe("@app/infra", () => {
   it.effect("runs an Effect on the RC toolchain", () =>
     Effect.gen(function* () {
       const name = yield* Effect.succeed(packageName)
-      expect(name).toBe("@digital-shelf/infra")
+      expect(name).toBe("@app/infra")
     }),
   )
 })

@@ -6,11 +6,8 @@ import {
   type ExecutionStatusInput,
   type TerminateExecutionInput,
   type StartReport,
-} from "@digital-shelf/core/Scheduling/Executions"
-import {
-  ExecutionStatus,
-  type ExecutionKind,
-} from "@digital-shelf/domain/Scraping/Execution"
+} from "@app/core/executions"
+import { Execution } from "@app/schema/execution"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -109,7 +106,7 @@ const terminal = (defect: unknown) =>
   )
 
 const start = <Params>(
-  kind: ExecutionKind,
+  kind: Execution.Kind,
   handle: WorkflowHandle<Params>,
   batch: CreateOptions<Params>[],
 ): Effect.Effect<StartReport, ExecutionsError> => {
@@ -160,8 +157,8 @@ export const layer = (handles: {
   readonly extraction: WorkflowHandle<ExtractionParams>
 }) =>
   Layer.succeed(
-    Executions,
-    Executions.of({
+    Executions.Service,
+    Executions.Service.of({
       start: Effect.fn("Executions.start")(function* (
         input: StartExecutionsInput,
       ) {
@@ -217,7 +214,7 @@ export const layer = (handles: {
 
           return Option.some(
             Option.getOrElse(
-              Schema.decodeUnknownOption(ExecutionStatus)(report.status),
+              Schema.decodeUnknownOption(Execution.Status)(report.status),
               () => "unknown" as const,
             ),
           )

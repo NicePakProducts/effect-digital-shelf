@@ -24,14 +24,15 @@
       },
     },
     "apps/server": {
-      "name": "@digital-shelf/server",
+      "name": "@app/server",
       "version": "0.0.0",
       "dependencies": {
+        "@app/core": "workspace:*",
+        "@app/db": "workspace:*",
+        "@app/infra": "workspace:*",
+        "@app/protocol": "workspace:*",
+        "@app/schema": "workspace:*",
         "@cloudflare/playwright": "catalog:",
-        "@digital-shelf/api": "workspace:*",
-        "@digital-shelf/core": "workspace:*",
-        "@digital-shelf/domain": "workspace:*",
-        "@digital-shelf/infra": "workspace:*",
         "@effect/platform-node": "catalog:",
         "@effect/sql-pg": "catalog:",
         "alchemy": "catalog:",
@@ -39,6 +40,7 @@
         "pg": "catalog:",
       },
       "devDependencies": {
+        "@app/client": "workspace:*",
         "@effect/vitest": "catalog:",
         "typescript": "catalog:",
         "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
@@ -46,12 +48,11 @@
       },
     },
     "apps/web": {
-      "name": "@digital-shelf/web",
+      "name": "@app/web",
       "dependencies": {
-        "@digital-shelf/api": "workspace:*",
+        "@app/client": "workspace:*",
         "@effect/atom-react": "catalog:",
         "@tanstack/react-router": "^1.170.35",
-        "better-auth": "catalog:",
         "effect": "catalog:",
         "react": "19.2.8",
         "react-dom": "19.2.8",
@@ -69,12 +70,13 @@
         "vite-plus": "catalog:",
       },
     },
-    "packages/api": {
-      "name": "@digital-shelf/api",
+    "packages/client": {
+      "name": "@app/client",
       "version": "0.0.0",
       "dependencies": {
-        "@digital-shelf/core": "workspace:*",
-        "@digital-shelf/domain": "workspace:*",
+        "@app/protocol": "workspace:*",
+        "@app/schema": "workspace:*",
+        "better-auth": "catalog:",
         "effect": "catalog:",
       },
       "devDependencies": {
@@ -85,13 +87,14 @@
       },
     },
     "packages/core": {
-      "name": "@digital-shelf/core",
+      "name": "@app/core",
       "version": "0.0.0",
       "dependencies": {
+        "@app/db": "workspace:*",
+        "@app/schema": "workspace:*",
         "@better-auth/core": "catalog:",
         "@better-auth/mcp": "catalog:",
         "@cloudflare/playwright": "catalog:",
-        "@digital-shelf/domain": "workspace:*",
         "@effect/ai-openai-compat": "catalog:",
         "better-auth": "catalog:",
         "drizzle-orm": "catalog:",
@@ -108,26 +111,11 @@
         "vite-plus": "catalog:",
       },
     },
-    "packages/domain": {
-      "name": "@digital-shelf/domain",
+    "packages/db": {
+      "name": "@app/db",
       "version": "0.0.0",
       "dependencies": {
-        "drizzle-orm": "catalog:",
-        "effect": "catalog:",
-      },
-      "devDependencies": {
-        "@effect/vitest": "catalog:",
-        "typescript": "catalog:",
-        "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
-        "vite-plus": "catalog:",
-      },
-    },
-    "packages/infra": {
-      "name": "@digital-shelf/infra",
-      "version": "0.0.0",
-      "dependencies": {
-        "@digital-shelf/core": "workspace:*",
-        "@digital-shelf/domain": "workspace:*",
+        "@app/schema": "workspace:*",
         "@effect/sql-pg": "catalog:",
         "alchemy": "catalog:",
         "drizzle-orm": "catalog:",
@@ -140,6 +128,53 @@
         "@electric-sql/pglite": "catalog:",
         "@types/pg": "catalog:",
         "drizzle-kit": "catalog:",
+        "typescript": "catalog:",
+        "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
+        "vite-plus": "catalog:",
+      },
+    },
+    "packages/infra": {
+      "name": "@app/infra",
+      "version": "0.0.0",
+      "dependencies": {
+        "@app/core": "workspace:*",
+        "@app/db": "workspace:*",
+        "@app/schema": "workspace:*",
+        "alchemy": "catalog:",
+        "drizzle-orm": "catalog:",
+        "effect": "catalog:",
+        "pg": "catalog:",
+      },
+      "devDependencies": {
+        "@effect/vitest": "catalog:",
+        "@types/pg": "catalog:",
+        "typescript": "catalog:",
+        "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
+        "vite-plus": "catalog:",
+      },
+    },
+    "packages/protocol": {
+      "name": "@app/protocol",
+      "version": "0.0.0",
+      "dependencies": {
+        "@app/schema": "workspace:*",
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@effect/vitest": "catalog:",
+        "typescript": "catalog:",
+        "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
+        "vite-plus": "catalog:",
+      },
+    },
+    "packages/schema": {
+      "name": "@app/schema",
+      "version": "0.0.0",
+      "dependencies": {
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@effect/vitest": "catalog:",
         "typescript": "catalog:",
         "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
         "vite-plus": "catalog:",
@@ -190,6 +225,22 @@
     "@alchemy.run/node-utils": ["@alchemy.run/node-utils@2.0.0-beta.77", "", { "dependencies": { "chokidar": "^5.0.0", "rolldown": "1.2.5" } }, "sha512-+Z8hf9EAHMdgSVbB1O04nQLYVosElYhZtENhT4gIDCYcQrHUUu6BKpjof5P9x+tLpiR2eIOadTuGXi5KR3S/Sg=="],
 
     "@alchemy.run/sigil": ["@alchemy.run/sigil@0.0.0-alpha.10", "", { "dependencies": { "react-reconciler": "^0.33.0", "scheduler": "^0.27.0" }, "peerDependencies": { "@types/react": ">=19.2.0", "react": ">=19.2.0", "react-devtools-core": ">=6.1.2" }, "optionalPeers": ["@types/react", "react-devtools-core"] }, "sha512-lsTxOZeJdyJH34leBaECAXomwjtN8fZh2fL8wnkZPOg6dU5gBwkoVZQs8Yd5Gg4X17zbShDq6ctv0VHYrQp3/w=="],
+
+    "@app/client": ["@app/client@workspace:packages/client"],
+
+    "@app/core": ["@app/core@workspace:packages/core"],
+
+    "@app/db": ["@app/db@workspace:packages/db"],
+
+    "@app/infra": ["@app/infra@workspace:packages/infra"],
+
+    "@app/protocol": ["@app/protocol@workspace:packages/protocol"],
+
+    "@app/schema": ["@app/schema@workspace:packages/schema"],
+
+    "@app/server": ["@app/server@workspace:apps/server"],
+
+    "@app/web": ["@app/web@workspace:apps/web"],
 
     "@aws-crypto/crc32": ["@aws-crypto/crc32@5.2.0", "", { "dependencies": { "@aws-crypto/util": "5.2.0", "@aws-sdk/types": "3.974.5", "tslib": "2.8.1" } }, "sha512-nLbCWqQNgUiwwtFsen1AdzAtvuLRsQS8rYgMuxCrdKf9kOssamGLuPwyTY9wyYblNr9+1XM8v6zoDTPPSIeANg=="],
 
@@ -310,18 +361,6 @@
     "@cloudflare/workerd-windows-64": ["@cloudflare/workerd-windows-64@1.20260901.1", "", { "os": "win32", "cpu": "x64" }, "sha512-3oJnCV7mWwzqmqz+3E+KYLbw1FylH+8n+p84srWv9MEsY9II1QuKiRKVf3CQTIdTDb6rkr5fCuRtkmLgRpAsNg=="],
 
     "@cloudflare/workers-types": ["@cloudflare/workers-types@5.20260908.1", "", {}, "sha512-cILmYEd/YtL+Hlwytc5n+QVV8F+E5doQOtc6QiBtPb51kK+5fkk909db+G8dxeUsMd2ytJgdpAt/lyciUEobcw=="],
-
-    "@digital-shelf/api": ["@digital-shelf/api@workspace:packages/api"],
-
-    "@digital-shelf/core": ["@digital-shelf/core@workspace:packages/core"],
-
-    "@digital-shelf/domain": ["@digital-shelf/domain@workspace:packages/domain"],
-
-    "@digital-shelf/infra": ["@digital-shelf/infra@workspace:packages/infra"],
-
-    "@digital-shelf/server": ["@digital-shelf/server@workspace:apps/server"],
-
-    "@digital-shelf/web": ["@digital-shelf/web@workspace:apps/web"],
 
     "@distilled.cloud/aws": ["@distilled.cloud/aws@1.0.0-rc.9", "", { "dependencies": { "@aws-crypto/crc32": "^5.2.0", "@aws-crypto/util": "^5.2.0", "@aws-sdk/credential-providers": "^3.994.0", "@aws-sdk/types": "^3.973.1", "@distilled.cloud/core": "1.0.0-rc.9", "@smithy/shared-ini-file-loader": "^4.4.3", "@smithy/types": "^4.12.0", "@smithy/util-base64": "^4.3.0", "aws4fetch": "^1.0.20", "fast-xml-parser": "^5.3.4" }, "peerDependencies": { "effect": ">=4.0.0-rc.112 || >=4.0.0" } }, "sha512-JVw6pRsl5Z+0iHdUI0Kw0r9gIGNDui/q7iYSVGgzlqiU9OXltOxxvgzW2FZ1jEzToBFUabIb9Ew2SjsWO+W82Q=="],
 

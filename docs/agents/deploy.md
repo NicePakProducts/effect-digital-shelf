@@ -33,10 +33,18 @@ points directly at the stage database, so the dev server uses real dev data.
 Auth's configured base URL is the stage host; a localhost session needs an
 intentional local `AUTH_BASE_URL` override. Follow the URL printed by Alchemy.
 
-API handlers, cron ticks and individual Workflow steps each build their own
-database pool and telemetry exporters. Request resources close in Alchemy's
-`ctx.waitUntil` after the response; cron and Workflow steps await scope closure
-and telemetry flushing inline. Keep those lifetimes when adding entrypoints.
+The Worker builds its feature/router graph once per isolate. One stable Db
+adapter resolves the connection through Alchemy's invocation scope; no socket
+is captured at graph construction. Workflow steps build their graph inside
+each step's own invocation. Telemetry is registered once with Alchemy and
+flushed by its event scope (`ctx.waitUntil` for requests), not by rebuilding
+the HTTP graph. Keep these ADR 0010 lifetimes when adding entrypoints.
+`apps/server` is workspace `@app/server`; its handlers and auth mounts are app-local,
+contracts live in `@app/protocol` and browser bindings in `@app/client`.
+`Worker.ts` directly exports the resource and owns the Layer graph (ADR 0012).
+The root supplies its current Postgres/Bucket handles through Alchemy's typed
+resource Self services: persisted refs alone cannot plan a fresh stage or
+track a replacement in the same plan. Standalone Worker evaluation uses refs.
 Put new core config keys in `apps/server/src/ConfigKeys.ts`: reads during Worker init
 register secrets with Alchemy, even for `Config.string`. Missing optional
 keys are skipped; core then applies its defaults at runtime. Provider retry
@@ -44,10 +52,10 @@ keys are also covered, including those assembled from a prefix.
 
 ## Schema changes and deployment
 
-Generate a migration in the infra workspace:
+Generate a migration in the db workspace (ADR 0012):
 
 ```sh
-bun run --filter @digital-shelf/infra db:generate --name <change>
+bun run --filter @app/db db:generate --name <change>
 ```
 
 Commit Drizzle Kit's generated `migration.sql` and `snapshot.json`. Migrations
@@ -102,7 +110,7 @@ Optional `SCRAPPEY_ENDPOINT` and `EXTRACTION_MODEL` overrides fall back to
 core's defaults because the wizard does not provision them.
 
 When `AXIOM_DOMAIN` and `AXIOM_TOKEN` are set, the Worker exports traces and
-logs to Axiom over OTLP. Each invocation builds an exporter and flushes it
+logs to Axiom over OTLP. Alchemy builds the registered exporters in each invocation and flushes them
 when its Scope closes; each Workflow step builds and flushes its own exporter
 inside the step, so buffered spans need not survive hibernation.
 `packages/infra/src/Resources/AiGateway.ts` declares the gateway's
@@ -174,8 +182,22 @@ The standalone research projects remain on their research branches:
 - [Hyperdrive/Postgres smoke](https://github.com/NicePakProducts/effect-digital-shelf/tree/research/drizzle-effect-postgres-hyperdrive/docs/research)
 - [Playwright inside a Workflow](https://github.com/NicePakProducts/effect-digital-shelf/blob/research/playwright-browser-workflow/docs/research/playwright-browser-workflow.md)
 
-The Node-import regression protects deployment-time module evaluation, where
-a static Playwright import would fail. It does not replace deployed binding
-smokes. Run the repository's checks and tests before deployment; real-Postgres
+Relative TypeScript imports omit extensions. TypeScript uses bundler resolution;
+Bun/Vite and Alchemy's installed Oxc loader resolve the source graph. Node-import
+regressions run Node with Alchemy's `nodeLoaderArgs` hook, matching its CLI rather
+than bare Node's resolver. They protect deployment-time module evaluation, where
+a static Playwright import would fail, and do not replace deployed binding
+smokes. Run the standalone InstantDB importer through
+`bun run --filter @app/infra db:migrate-instantdb`, not bare `node`. Run the repository's checks and tests before deployment; real-Postgres
 tests use only `DIGITAL_SHELF_TEST_POSTGRES_URL` against a disposable server,
 never the stage's database.
+
+## Offline architecture verification
+
+`bun run --filter @app/server test --maxWorkers=2 --no-file-parallelism`
+executes the actual default Worker with Alchemy's planning context, empty
+provider registry and in-memory state. It checks dynamic properties, current
+resource dependencies, standalone refs and binding registration without a
+cloud credential or database connection. Composition tests separately prove
+shared HTTP/cron services and independently closed real Workflow step graphs.
+This is not a deployment or cloud-binding smoke.

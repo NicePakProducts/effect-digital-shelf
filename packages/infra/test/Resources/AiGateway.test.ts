@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { otelOf } from "@digital-shelf/infra/Resources/AiGateway"
+import { otelOf } from "@app/infra/Resources/AiGateway"
 import * as Option from "effect/Option"
 import * as Redacted from "effect/Redacted"
 

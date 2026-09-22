@@ -1,21 +1,45 @@
 import { expect, it } from "@effect/vitest"
-import { Auth } from "@digital-shelf/core/Auth/Auth"
+import { Auth } from "@app/core/auth"
 import * as Effect from "effect/Effect"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import * as Sql from "@digital-shelf/domain/Sql/index"
-import * as CoreTest from "../layers/Core.ts"
-import * as DbTest from "../layers/Db.ts"
-import { EmailSenderTest } from "../layers/EmailSender.ts"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import * as Sql from "@app/db/schema"
+import * as CoreTest from "../layers/Core"
+import * as DbTest from "../layers/Db"
+import { EmailSenderTest } from "../layers/EmailSender"
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })(
   "Browser auth HTTP",
   (it) => {
+    it.effect("registers the JWT and MCP OAuth HTTP metadata endpoints", () =>
+      Effect.gen(function* () {
+        const auth = yield* Auth.Service
+
+        const jwks = yield* auth.handle(
+          new Request("http://localhost/api/auth/jwks"),
+        )
+
+        expect(jwks.status).toBe(200)
+        expect(yield* Effect.promise(() => jwks.json())).toHaveProperty("keys")
+
+        const oauth = yield* auth.handle(
+          new Request(
+            "http://localhost/api/auth/.well-known/oauth-authorization-server",
+          ),
+        )
+
+        expect(oauth.status).toBe(200)
+        expect(yield* Effect.promise(() => oauth.json())).toMatchObject({
+          authorization_endpoint: "http://localhost/api/auth/oauth2/authorize",
+          token_endpoint: "http://localhost/api/auth/oauth2/token",
+        })
+      }),
+    )
     it.effect(
       "keeps origin and callback checks enabled in the test environment",
       () =>
         Effect.gen(function* () {
-          const auth = yield* Auth
+          const auth = yield* Auth.Service
 
           for (const input of [
             { origin: "https://evil.test", callbackURL: "/" },
@@ -44,7 +68,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           yield* DbTest.resetAuth
-          const auth = yield* Auth
+          const auth = yield* Auth.Service
           const emails = yield* EmailSenderTest
           const db = yield* Db
           yield* emails.clear
@@ -72,7 +96,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           // Fixture setup only: Better Auth reads wall time outside Effect's TestClock.
           yield* query(
             db
-              .update(Sql.verification)
+              .update(Sql.VerificationsTable)
               .set({ expiresAt: new Date("2000-01-01T00:00:00Z") }),
           )
           const expired = yield* auth.handle(new Request(url))
@@ -89,7 +113,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       () =>
         Effect.gen(function* () {
           yield* DbTest.resetAuth
-          const auth = yield* Auth
+          const auth = yield* Auth.Service
           const emails = yield* EmailSenderTest
           yield* emails.clear
           const path = "/?q=Nice%20Pak%26Co#list"

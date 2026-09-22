@@ -1,7 +1,7 @@
 import * as PgClient from "@effect/sql-pg/PgClient"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import * as Sql from "@digital-shelf/domain/Sql/index"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import * as Sql from "@app/db/schema"
 import {
   generateDrizzleJson,
   generateMigration,
@@ -18,7 +18,7 @@ import type { SqlError } from "effect/unstable/sql/SqlError"
  * A real PostgreSQL for the tests PGlite cannot host: those that need two
  * transactions to overlap on two connections. `DIGITAL_SHELF_TEST_POSTGRES_URL` names a
  * disposable database whose `public` schema this layer drops and recreates
- * from the domain tables (ADR 0002) on boot, so it must hold throwaway data
+ * from db's tables on boot, so it must hold throwaway data
  * only: the CI workflow's service container, or a local instance started for
  * the purpose. A test file that needs it skips itself when the variable is
  * unset, and a skip is reported as one, never counted as the proof.
@@ -44,7 +44,7 @@ const schema = Effect.gen(function* () {
   return db
 })
 
-export const layerTest: Layer.Layer<
+export const TestLayer: Layer.Layer<
   Db | PgClient.PgClient | SqlClient.SqlClient,
   SqlError
 > = Layer.effect(

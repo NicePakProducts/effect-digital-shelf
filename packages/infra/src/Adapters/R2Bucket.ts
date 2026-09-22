@@ -1,4 +1,4 @@
-import { R2Bucket, StorageError } from "@digital-shelf/core/Storage/R2Bucket"
+import { R2Bucket, StorageError } from "@app/core/storage/r2-bucket"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -25,7 +25,7 @@ export interface BucketClient<R = never> {
 /** Capture the client's runtime services when built inside the invocation. */
 export const layer = <R>(client: BucketClient<R>) =>
   Layer.effect(
-    R2Bucket,
+    R2Bucket.Service,
     Effect.gen(function* () {
       // Captures the build-time context, including Scope and ParentSpan: client
       // calls use the layer's build span, not the per-call R2Bucket.* span.
@@ -47,7 +47,7 @@ export const layer = <R>(client: BucketClient<R>) =>
           ),
         )
 
-      return R2Bucket.of({
+      return R2Bucket.Service.of({
         put: Effect.fn("R2Bucket.put")((key, body, contentType) =>
           run("put", key, () =>
             client.put(key, body, { httpMetadata: { contentType } }),

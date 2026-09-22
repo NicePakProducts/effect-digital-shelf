@@ -1,5 +1,5 @@
 {
-  "name": "@digital-shelf/server",
+  "name": "@app/server",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,11 +8,12 @@
     "test": "vp test --run"
   },
   "dependencies": {
+    "@app/core": "workspace:*",
+    "@app/db": "workspace:*",
+    "@app/infra": "workspace:*",
+    "@app/protocol": "workspace:*",
+    "@app/schema": "workspace:*",
     "@cloudflare/playwright": "catalog:",
-    "@digital-shelf/api": "workspace:*",
-    "@digital-shelf/core": "workspace:*",
-    "@digital-shelf/domain": "workspace:*",
-    "@digital-shelf/infra": "workspace:*",
     "@effect/platform-node": "catalog:",
     "@effect/sql-pg": "catalog:",
     "alchemy": "catalog:",
@@ -20,6 +21,7 @@
     "pg": "catalog:"
   },
   "devDependencies": {
+    "@app/client": "workspace:*",
     "@effect/vitest": "catalog:",
     "typescript": "catalog:",
     "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",

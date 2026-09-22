@@ -1,9 +1,10 @@
+import { Stage } from "alchemy/Stage"
 import { expect, it } from "@effect/vitest"
-import * as Core from "@digital-shelf/core/Layers"
-import * as EmailSenderTest from "@digital-shelf/core/test/layers/EmailSender"
-import * as ExecutionsTest from "@digital-shelf/core/test/layers/Executions"
-import * as R2BucketTest from "@digital-shelf/core/test/layers/R2Bucket"
-import * as DbAdapter from "@digital-shelf/infra/Adapters/Db"
+import * as Core from "@app/core/test/layers/Features"
+import * as EmailSenderTest from "@app/core/test/layers/EmailSender"
+import * as ExecutionsTest from "@app/core/test/layers/Executions"
+import * as R2BucketTest from "@app/core/test/layers/R2Bucket"
+import * as DbAdapter from "@app/db/adapter"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -11,24 +12,25 @@ import * as Redacted from "effect/Redacted"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import * as HttpRouter from "effect/unstable/http/HttpRouter"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
-import * as Http from "../src/Http.ts"
+import * as Http from "../src/http"
 
 // Nothing listens on this port, so any connection attempt is refused at once.
 const unreachable = Redacted.make("postgres://nobody:nothing@127.0.0.1:1/none")
 
 /**
- * The Worker builds the whole application layer for every invocation, so a
- * layer that connected or queried while it was built would charge every
- * request one database round trip. Ping never touches the database and must
- * answer without a connection; health is the one route that asks for one.
+ * The Worker builds the application graph once per isolate without I/O.
+ * Ping must answer without an invocation connection; health is the route
+ * that asks for one.
  */
-const appLayer = Http.layer("dev").pipe(
-  Layer.provide(Core.Api.pipe(Layer.provide(EmailSenderTest.layerTest))),
+const ApplicationLayer = Http.RoutesLayer.pipe(
+  Layer.provide(Layer.succeed(Stage, "dev")),
+).pipe(
+  Layer.provide(Core.ApiLayer.pipe(Layer.provide(EmailSenderTest.TestLayer))),
   Layer.provide(
     Layer.mergeAll(
       DbAdapter.layer(Effect.succeed(unreachable)),
-      R2BucketTest.layerTest,
-      ExecutionsTest.layerTest,
+      R2BucketTest.TestLayer,
+      ExecutionsTest.TestLayer,
     ),
   ),
   Layer.provide(
@@ -43,7 +45,7 @@ const appLayer = Http.layer("dev").pipe(
 
 const get = (path: string) =>
   Effect.gen(function* () {
-    const handler = yield* HttpRouter.toHttpEffect(appLayer)
+    const handler = yield* HttpRouter.toHttpEffect(ApplicationLayer)
 
     return yield* handler.pipe(
       Effect.provideService(

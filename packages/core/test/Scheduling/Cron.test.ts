@@ -1,18 +1,24 @@
-import { successfulScrape, extraction } from "../fixtures/Scraping.ts"
-import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
+import {
+  successfulScrape,
+  extraction,
+  reset,
+  cadenceFixture,
+  history,
+  seed,
+} from "../fixtures/Scraping"
+import { ScrapesRepo } from "../../src/scrapes/repository"
 import * as Option from "effect/Option"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Layer from "effect/Layer"
 import { expect, it } from "@effect/vitest"
-import { Cron } from "@digital-shelf/core/Scheduling/Cron"
+import { Cron } from "@app/core/cron"
 import * as Effect from "effect/Effect"
 import * as TestClock from "effect/testing/TestClock"
-import * as CoreTest from "../layers/Core.ts"
-import { ExecutionsTest } from "../layers/Executions.ts"
-import { reset, cadenceFixture, history, seed } from "../fixtures/Scraping.ts"
+import * as CoreTest from "../layers/Core"
+import { ExecutionsTest } from "../layers/Executions"
 
 it.layer(
-  CoreTest.layerTest.pipe(
+  CoreTest.TestLayer.pipe(
     Layer.provide(
       ConfigProvider.layer(ConfigProvider.fromUnknown({ CRON_START_CAP: 50 })),
     ),
@@ -24,7 +30,7 @@ it.layer(
       yield* reset
       yield* TestClock.setTime(Date.UTC(2026, 8, 9))
       yield* cadenceFixture
-      const cron = yield* Cron
+      const cron = yield* Cron.Service
       const report = yield* cron.tick()
       expect(report.phases.map((entry) => entry.phase)).toEqual([
         "stuck",
@@ -56,7 +62,7 @@ it.layer(
       )
       const executionsTest = yield* ExecutionsTest
       yield* executionsTest.failNext
-      const cron = yield* Cron
+      const cron = yield* Cron.Service
       const report = yield* cron.tick()
       expect(report.phases[2]).toMatchObject({
         phase: "scrapeDrain",
@@ -77,7 +83,7 @@ it.layer(
     "cron reconciles an orphan and dispatches its due Parent again",
     () =>
       Effect.gen(function* () {
-        const scrapesRepo = yield* ScrapesRepo
+        const scrapesRepo = yield* ScrapesRepo.Service
 
         yield* reset
         const fixture = yield* seed()
@@ -90,7 +96,7 @@ it.layer(
 
         const executionsTest = yield* ExecutionsTest
         yield* executionsTest.setStatus("scrape", row.id, "errored")
-        const cron = yield* Cron
+        const cron = yield* Cron.Service
         const report = yield* cron.tick()
         expect(report.phases[2]).toMatchObject({
           counts: { recoveredFailed: 1, started: 0 },
@@ -107,7 +113,7 @@ it.layer(
     "60 pending rows consume the configured 50-start cap before cadence",
     () =>
       Effect.gen(function* () {
-        const scrapesRepo = yield* ScrapesRepo
+        const scrapesRepo = yield* ScrapesRepo.Service
 
         yield* reset
         const fixture = yield* seed()
@@ -116,7 +122,7 @@ it.layer(
           yield* history((yield* fixture.listing).parent, "pending", "1 hour")
         yield* fixture.listing
         yield* fixture.page
-        const cron = yield* Cron
+        const cron = yield* Cron.Service
         const report = yield* cron.tick()
         expect(report.phases[2]).toMatchObject({ counts: { started: 50 } })
         expect(report.phases[3]).toMatchObject({
@@ -136,7 +142,7 @@ it.layer(
 })
 
 it.layer(
-  CoreTest.layerTest.pipe(
+  CoreTest.TestLayer.pipe(
     Layer.provide(
       ConfigProvider.layer(
         ConfigProvider.fromUnknown({
@@ -160,7 +166,7 @@ it.layer(
           "pending",
         )
       yield* history((yield* catalog.listing).parent, "pending", "1 hour")
-      const cron = yield* Cron
+      const cron = yield* Cron.Service
       const report = yield* cron.tick()
       expect(report.phases[1]).toMatchObject({
         phase: "extractionDrain",
@@ -184,7 +190,7 @@ it.layer(
         yield* history((yield* catalog.listing).parent, "pending", "1 hour")
         const executionsTest = yield* ExecutionsTest
         yield* executionsTest.failNext
-        const cron = yield* Cron
+        const cron = yield* Cron.Service
         const report = yield* cron.tick()
         expect(report.phases[1]).toMatchObject({
           phase: "extractionDrain",

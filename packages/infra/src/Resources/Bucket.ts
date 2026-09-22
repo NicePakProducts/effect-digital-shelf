@@ -1,6 +1,6 @@
 import { Bucket, type BucketLifecycleRule } from "alchemy/Cloudflare/R2"
 import * as RemovalPolicy from "alchemy/RemovalPolicy"
-import { resourceName, type Stage } from "./Names.ts"
+import { resourceName, type Stage } from "./Names"
 
 /** ADR 0001: retention's 90 days plus a seven-day orphan backstop. */
 export const lifecycleRules: BucketLifecycleRule[] = ["html/", "raw/"].map(

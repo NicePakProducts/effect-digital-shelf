@@ -1,62 +1,57 @@
 import * as Result from "effect/Result"
-import { isAPIError } from "better-auth/api"
 import * as Context from "effect/Context"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as PgDrizzle from "drizzle-orm/effect-pglite"
 import { EffectLogger } from "drizzle-orm/effect-core"
-import { expect, expectTypeOf, it } from "@effect/vitest"
-import { Auth, type BetterAuthApi } from "@digital-shelf/core/Auth/Auth"
-import { makeAdapter } from "@digital-shelf/core/Auth/BetterAuthAdapter"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import * as Sql from "@digital-shelf/domain/Sql/index"
+import { expect, it } from "@effect/vitest"
+import { Auth } from "@app/core/auth"
+import { makeAdapter } from "../../src/auth/adapter"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import * as Sql from "@app/db/schema"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
-import * as CoreTest from "../layers/Core.ts"
-import * as DbTest from "../layers/Db.ts"
-import { EmailSenderTest } from "../layers/EmailSender.ts"
-
-it("retains the OAuth endpoint API types", () => {
-  expectTypeOf<BetterAuthApi["oauth2Authorize"]>().not.toBeAny()
-  expectTypeOf<BetterAuthApi["oauth2Token"]>().not.toBeAny()
-  expectTypeOf<
-    NonNullable<Parameters<BetterAuthApi["oauth2Authorize"]>[0]>
-  >().toHaveProperty("body")
-})
+import * as CoreTest from "../layers/Core"
+import * as DbTest from "../layers/Db"
+import { EmailSenderTest } from "../layers/EmailSender"
 
 const prepare = Effect.gen(function* () {
   yield* DbTest.resetAuth
   const emails = yield* EmailSenderTest
   yield* emails.clear
 
-  const auth = yield* Auth
+  const auth = yield* Auth.Service
 
-  return { auth, api: yield* auth.api, emails, db: yield* Db }
+  return { auth, emails, db: yield* Db }
 })
 
-const requestLink = (api: BetterAuthApi, email = "someone@npbrands.com.au") =>
-  Effect.promise(() =>
-    api.signInMagicLink({
-      headers: new Headers(),
-      body: { email, callbackURL: "/" },
+const requestLink = (auth: Auth.Interface, email = "someone@npbrands.com.au") =>
+  auth.handle(
+    new Request("http://localhost/api/auth/sign-in/magic-link", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost",
+      },
+      body: JSON.stringify({ email, callbackURL: "/" }),
     }),
   )
 
 const tokenFrom = (text: string) =>
   new URL(text.trim().split("\n").at(-1)!).searchParams.get("token")!
 
-const verify = (api: BetterAuthApi, token: string) =>
-  api.magicLinkVerify({
-    query: { token },
-    headers: new Headers(),
-    returnHeaders: true,
-  })
+const verify = (auth: Auth.Interface, token: string) =>
+  auth.handle(
+    new Request(
+      `http://localhost/api/auth/magic-link/verify?token=${encodeURIComponent(token)}`,
+    ),
+  )
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })("Auth", (it) => {
   it.effect("sends a magic link to an allowlisted address", () =>
     Effect.gen(function* () {
-      const { api, emails } = yield* prepare
-      yield* requestLink(api)
+      const { auth, emails } = yield* prepare
+      yield* requestLink(auth)
       const sent = yield* emails.sent
       expect(sent).toHaveLength(1)
       expect(sent[0]!.to).toBe("someone@npbrands.com.au")
@@ -67,48 +62,39 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
     "silently drops non-allowlisted addresses and creates no user",
     () =>
       Effect.gen(function* () {
-        const { api, emails, db } = yield* prepare
-        yield* requestLink(api, "someone@example.com")
+        const { auth, emails, db } = yield* prepare
+        yield* requestLink(auth, "someone@example.com")
         expect(yield* emails.sent).toEqual([])
-        expect(yield* query(db.select().from(Sql.user))).toEqual([])
+        expect(yield* query(db.select().from(Sql.UsersTable))).toEqual([])
       }),
   )
   it.effect(
     "blocks user creation even when a disallowed address has a valid token",
     () =>
       Effect.gen(function* () {
-        const { api, db } = yield* prepare
-        yield* requestLink(api, "someone@example.com")
-        const tokens = yield* query(db.select().from(Sql.verification))
+        const { auth, db } = yield* prepare
+        yield* requestLink(auth, "someone@example.com")
+        const tokens = yield* query(db.select().from(Sql.VerificationsTable))
         expect(tokens).toHaveLength(1)
 
-        const result = yield* Effect.tryPromise(() =>
-          verify(api, tokens[0]!.identifier),
-        ).pipe(Effect.result)
+        const result = yield* verify(auth, tokens[0]!.identifier)
+        expect(result.status).toBe(302)
+        expect(result.headers.get("location")).toContain(
+          "error=failed_to_create_user",
+        )
 
-        expect(result._tag).toBe("Failure")
-
-        if (Result.isFailure(result)) {
-          expect(isAPIError(result.failure.cause)).toBe(true)
-
-          if (isAPIError(result.failure.cause))
-            expect(
-              new Headers(result.failure.cause.headers).get("location"),
-            ).toContain("error=failed_to_create_user")
-        }
-
-        expect(yield* query(db.select().from(Sql.user))).toEqual([])
-        expect(yield* query(db.select().from(Sql.session))).toEqual([])
+        expect(yield* query(db.select().from(Sql.UsersTable))).toEqual([])
+        expect(yield* query(db.select().from(Sql.SessionsTable))).toEqual([])
       }),
   )
   it.effect(
     "verifies once, creates a user and session, and reuses the user on a later sign-in",
     () =>
       Effect.gen(function* () {
-        const { auth, api, emails, db } = yield* prepare
-        yield* requestLink(api)
+        const { auth, emails, db } = yield* prepare
+        yield* requestLink(auth)
         const token = tokenFrom((yield* emails.sent)[0]!.text)
-        const verified = yield* Effect.promise(() => verify(api, token))
+        const verified = yield* verify(auth, token)
 
         const cookies = verified.headers
           .getSetCookie()
@@ -116,7 +102,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
           .join("; ")
 
         expect(cookies).toContain("better-auth.session_token=")
-        const users = yield* query(db.select().from(Sql.user))
+        const users = yield* query(db.select().from(Sql.UsersTable))
         expect(users).toHaveLength(1)
         expect(
           yield* auth.getSession(new Headers({ cookie: cookies })),
@@ -128,26 +114,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
           ),
         ).toEqual(Option.none())
 
-        const replay = yield* Effect.tryPromise(() => verify(api, token)).pipe(
-          Effect.result,
-        )
-
-        expect(replay._tag).toBe("Failure")
-
-        if (Result.isFailure(replay)) {
-          expect(isAPIError(replay.failure.cause)).toBe(true)
-
-          if (isAPIError(replay.failure.cause))
-            expect(
-              new Headers(replay.failure.cause.headers).get("location"),
-            ).toContain("error=INVALID_TOKEN")
-        }
+        const replay = yield* verify(auth, token)
+        expect(replay.status).toBe(302)
+        expect(replay.headers.get("location")).toContain("error=INVALID_TOKEN")
 
         yield* emails.clear
-        yield* requestLink(api)
+        yield* requestLink(auth)
         const nextToken = tokenFrom((yield* emails.sent)[0]!.text)
-        yield* Effect.promise(() => verify(api, nextToken))
-        expect(yield* query(db.select().from(Sql.user))).toHaveLength(1)
+        yield* verify(auth, nextToken)
+        expect(yield* query(db.select().from(Sql.UsersTable))).toHaveLength(1)
       }),
   )
   it.effect("rolls back a failing Better Auth transaction", () =>
@@ -210,7 +185,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
         expect(
           Context.getOption(inner, sqlClient.transactionService)._tag,
         ).toBe("Some")
-      expect(yield* query(db.select().from(Sql.user))).toEqual([])
+      expect(yield* query(db.select().from(Sql.UsersTable))).toEqual([])
     }),
   )
   it.effect(
@@ -301,17 +276,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Auth", (it) => {
   )
   it.effect("propagates email delivery failures", () =>
     Effect.gen(function* () {
-      const { api, emails } = yield* prepare
+      const { auth, emails } = yield* prepare
       yield* emails.fail
 
-      const result = yield* Effect.tryPromise(() =>
-        api.signInMagicLink({
-          headers: new Headers(),
-          body: { email: "someone@npbrands.com.au", callbackURL: "/" },
-        }),
-      ).pipe(Effect.result)
-
-      expect(result._tag).toBe("Failure")
+      const result = yield* requestLink(auth)
+      expect(result.status).toBe(500)
       expect(yield* emails.sent).toEqual([])
     }),
   )

@@ -78,7 +78,19 @@ jobs:
         run: bun run check
 
       - name: Check every package
-        run: bun run --filter '@digital-shelf/*' check
+        run: |
+          for directory in packages/* apps/*; do
+            [ -f "$directory/package.json" ] || continue
+            (cd "$directory" && bun run check)
+          done
 
       - name: Test every package
-        run: bun run --filter '@digital-shelf/*' test
+        # PostgreSQL fixtures rebuild public schema: files and packages are serial.
+        run: |
+          for directory in packages/* apps/*; do
+            [ -f "$directory/package.json" ] || continue
+            (cd "$directory" && bun run test --maxWorkers=2 --no-file-parallelism)
+          done
+
+      - name: Build the browser
+        run: bun run build:web

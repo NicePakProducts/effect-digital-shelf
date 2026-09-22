@@ -59,13 +59,15 @@ const edges = walk(src)
   .flatMap((file) => edgesOf(file, readFileSync(file, "utf8")))
 
 describe("infra import boundary (ADR 0006)", () => {
-  it("never reaches API or an app, even through a type or dynamic import", () => {
+  it("never reaches HTTP packages or an app, even through a type or dynamic import", () => {
     expect(
       edges.filter(
         ({ specifier }) =>
-          /^@digital-shelf\/(?:api|server)(?:\/|$)/.test(specifier) ||
+          /^@app\/(?:protocol|server|client|web)(?:\/|$)/.test(specifier) ||
           /(?:^|\/)apps(?:\/|$)/.test(specifier) ||
-          /(?:^|\/)packages\/api(?:\/|$)/.test(specifier),
+          /(?:^|\/)packages\/(?:protocol|server|client)(?:\/|$)/.test(
+            specifier,
+          ),
       ),
     ).toEqual([])
   })

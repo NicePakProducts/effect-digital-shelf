@@ -1,4 +1,4 @@
-import * as Trace from "@digital-shelf/core/Scraping/Trace"
+import * as Trace from "@app/core/scrapes/trace"
 import { describe, expect, it } from "@effect/vitest"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -11,11 +11,11 @@ const traceId = "0123456789abcdef0123456789abcdef"
 const annotations = Context.make(Trace.RootTraceId, Option.some(traceId))
 
 class FirstTracer extends Context.Service<FirstTracer, Tracer.Tracer>()(
-  "test/FirstTracer",
+  "@app/core/test/Scraping/Trace.test/FirstTracer",
 ) {}
 
 class SecondTracer extends Context.Service<SecondTracer, Tracer.Tracer>()(
-  "test/SecondTracer",
+  "@app/core/test/Scraping/Trace.test/SecondTracer",
 ) {}
 
 describe("Scrape trace identity", () => {
@@ -62,12 +62,12 @@ describe("Scrape trace identity", () => {
         },
       })
 
-    const first = Layer.effect(FirstTracer, Effect.tracer).pipe(
+    const FirstTracerLayer = Layer.effect(FirstTracer, Effect.tracer).pipe(
       Layer.provide(Trace.layer()),
       Layer.provide(Layer.succeed(Tracer.Tracer, base("first"))),
     )
 
-    const second = Layer.effect(SecondTracer, Effect.tracer).pipe(
+    const SecondTracerLayer = Layer.effect(SecondTracer, Effect.tracer).pipe(
       Layer.provide(Trace.layer()),
       Layer.provide(Layer.succeed(Tracer.Tracer, base("second"))),
     )
@@ -83,6 +83,6 @@ describe("Scrape trace identity", () => {
       }
 
       expect(calls).toEqual(["first:probe", "second:probe"])
-    }).pipe(Effect.provide(Layer.mergeAll(first, second)))
+    }).pipe(Effect.provide(Layer.mergeAll(FirstTracerLayer, SecondTracerLayer)))
   })
 })

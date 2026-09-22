@@ -1,36 +1,31 @@
-import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import { keysOf } from "@digital-shelf/core/Scraping/R2Keys"
-import { emptyImpact } from "@digital-shelf/domain/Catalog/CascadeImpact"
-import { scrapes, extractions } from "@digital-shelf/domain/Sql/Scraping"
-import { R2BucketTest } from "../layers/R2Bucket.ts"
+import { BrandsErrors, Brands } from "@app/core/brands"
+import { RetailersErrors, Retailers } from "@app/core/retailers"
+import { PagesErrors, Pages } from "@app/core/pages"
+import { Scrape } from "@app/schema/scrape"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import { keysOf } from "@app/core/scrapes/r2-keys"
+import { emptyImpact } from "@app/schema/cascade"
+import { ScrapesTable } from "@app/db/schema/scrapes"
+import { ExtractionsTable } from "@app/db/schema/extractions"
+import { R2BucketTest } from "../layers/R2Bucket"
 import { expect, it } from "@effect/vitest"
-import { Brands } from "@digital-shelf/core/Catalog/Brands"
-import { Products } from "@digital-shelf/core/Catalog/Products"
-import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
-import { Pages } from "@digital-shelf/core/Catalog/Pages"
-import {
-  BrandNotFound,
-  RetailerNotFound,
-  PageNotFound,
-  PageAlreadyExists,
-} from "@digital-shelf/domain/Catalog/Errors"
-import { BrandId, RetailerId, PageId } from "@digital-shelf/domain/Shared/Ids"
+import { Products } from "@app/core/products"
+import { BrandId, RetailerId, PageId } from "@app/schema/ids"
 import { Effect, Schema } from "effect"
-import * as CoreTest from "../layers/Core.ts"
-import * as DbTest from "../layers/Db.ts"
-import { seed } from "../fixtures/Catalog.ts"
-import { history, extraction } from "../fixtures/Scraping.ts"
+import * as CoreTest from "../layers/Core"
+import * as DbTest from "../layers/Db"
+import { seed } from "../fixtures/Catalog"
+import { history, extraction } from "../fixtures/Scraping"
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })("Pages", (it) => {
   it.effect(
     "removes two descendant Scrapes, their Extractions and R2 objects",
     () =>
       Effect.gen(function* () {
         yield* DbTest.reset
         const c = yield* seed()
-        const service = yield* Pages
+        const service = yield* Pages.Service
 
         const row = yield* service.create({
           brandId: c.brandId,
@@ -43,7 +38,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
 
         for (const age of ["2 hours", "1 hour"] as const) {
           const scrape = yield* history(
-            ScrapeParent.members[1].make({ pageId: row.id }),
+            Scrape.Parent.members[1].make({ pageId: row.id }),
             "success",
             age,
           )
@@ -55,15 +50,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         }
 
         const db = yield* Db
-        expect(yield* query(db.select().from(scrapes))).toHaveLength(2)
-        expect(yield* query(db.select().from(extractions))).toHaveLength(2)
+        expect(yield* query(db.select().from(ScrapesTable))).toHaveLength(2)
+        expect(yield* query(db.select().from(ExtractionsTable))).toHaveLength(2)
         expect((yield* bucket.inspect).size).toBe(4)
         expect(yield* service.remove({ pageId: row.id })).toEqual({
           ...emptyImpact,
           scrapes: 2,
         })
-        expect(yield* query(db.select().from(scrapes))).toEqual([])
-        expect(yield* query(db.select().from(extractions))).toEqual([])
+        expect(yield* query(db.select().from(ScrapesTable))).toEqual([])
+        expect(yield* query(db.select().from(ExtractionsTable))).toEqual([])
         expect((yield* bucket.inspect).size).toBe(0)
       }),
   )
@@ -73,7 +68,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const c = yield* seed()
-        const pages = yield* Pages
+        const pages = yield* Pages.Service
 
         const command = {
           brandId: c.brandId,
@@ -85,7 +80,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         expect(page.cadence).toBe("monthly")
         expect(page.paused).toBe(false)
         expect(yield* Effect.flip(pages.create(command))).toEqual(
-          new PageAlreadyExists({
+          new PagesErrors.AlreadyExists({
             brandId: c.brandId,
             retailerId: c.retailerId,
             pageId: page.id,
@@ -102,7 +97,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
         Effect.gen(function* () {
           yield* DbTest.reset
           const c = yield* seed()
-          const pages = yield* Pages
+          const pages = yield* Pages.Service
 
           const page = yield* pages.create({
             brandId: c.brandId,
@@ -111,7 +106,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
           })
 
           if (source === "Brand") {
-            const brands = yield* Brands
+            const brands = yield* Brands.Service
             yield* brands.update({
               brandId: c.brandId,
               command: { paused: true },
@@ -119,7 +114,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
           }
 
           if (source === "Retailer") {
-            const retailers = yield* Retailers
+            const retailers = yield* Retailers.Service
             yield* retailers.update({
               retailerId: c.retailerId,
               command: { paused: true },
@@ -127,7 +122,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
           }
 
           if (source === "Product") {
-            const products = yield* Products
+            const products = yield* Products.Service
             yield* products.update({
               productId: c.productId,
               command: { paused: true },
@@ -149,7 +144,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const c = yield* seed()
-        const pages = yield* Pages
+        const pages = yield* Pages.Service
 
         const page = yield* pages.create({
           brandId: c.brandId,
@@ -159,7 +154,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
 
         expect(page.combinedStatus).toBe("none")
         yield* history(
-          ScrapeParent.members[1].make({ pageId: page.id }),
+          Scrape.Parent.members[1].make({ pageId: page.id }),
           "running",
           "1 minute",
         )
@@ -174,7 +169,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
       yield* DbTest.reset
       const a = yield* seed()
       const b = yield* seed()
-      const pages = yield* Pages
+      const pages = yield* Pages.Service
 
       const first = yield* pages.create({
         brandId: a.brandId,
@@ -213,7 +208,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* seed()
-      const pages = yield* Pages
+      const pages = yield* Pages.Service
 
       const brandId = Schema.decodeUnknownSync(BrandId)(
         "00000000-0000-4000-8000-000000000404",
@@ -229,7 +224,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
             url: c.url(""),
           }),
         ),
-      ).toEqual(new BrandNotFound({ brandId }))
+      ).toEqual(new BrandsErrors.NotFound({ brandId }))
       expect(
         yield* Effect.flip(
           pages.create({
@@ -238,8 +233,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Pages", (it) => {
             url: c.url(""),
           }),
         ),
-      ).toEqual(new RetailerNotFound({ retailerId }))
-      const error = new PageNotFound({ pageId: id })
+      ).toEqual(new RetailersErrors.NotFound({ retailerId }))
+      const error = new PagesErrors.NotFound({ pageId: id })
       expect(yield* Effect.flip(pages.get({ pageId: id }))).toEqual(error)
       expect(
         yield* Effect.flip(pages.update({ pageId: id, command: {} })),

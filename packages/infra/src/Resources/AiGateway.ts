@@ -2,7 +2,7 @@ import { Gateway, type GatewayOtel } from "alchemy/Cloudflare/AI"
 import * as RemovalPolicy from "alchemy/RemovalPolicy"
 import * as Option from "effect/Option"
 import * as Redacted from "effect/Redacted"
-import { resourceName, type Stage } from "./Names.ts"
+import { resourceName, type Stage } from "./Names"
 
 export interface Axiom {
   readonly domain: string

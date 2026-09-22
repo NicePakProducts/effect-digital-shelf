@@ -1,6 +1,5 @@
 import * as Predicate from "effect/Predicate"
 import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
 import type * as Schema from "effect/Schema"
 import * as Ref from "effect/Ref"
 import * as HttpClient from "effect/unstable/http/HttpClient"
@@ -83,6 +82,3 @@ export const json = (body: Schema.Json, status = 200) =>
     status,
     headers: { "content-type": "application/json" },
   })
-
-export const layerTest = (client: HttpClient.HttpClient) =>
-  Layer.succeed(HttpClient.HttpClient, client)

@@ -1,5 +1,7 @@
 # Drizzle tables are the source of truth for entity schemas
 
+_Placement and wiring superseded by [ADR 0011](0011-explicit-packages-and-feature-owned-persistence.md); the historical decision below is retained._
+
 Each entity (Brand, Product, Variant, Retailer, Listing, Page, Scrape, Extraction) has one definition: its Drizzle `pgTable` in `packages/domain/src/Sql/`. The Effect entity schemas are derived from those tables with `drizzle-orm/effect-schema` (`createSelectSchema`, `createInsertSchema`, `createUpdateSchema`), with a small refine layer swapping in the domain vocabulary: branded ids, `DateTime.Utc` for timestamps, `Option` for nullable columns, literal unions for status and error codes. We chose this over hand-written `Model.Class` or `Schema.Class` entities because one declaration cannot drift from the other: a column change that the refine layer does not follow fails type checking in the domain tests, not at runtime against a live database.
 
 ## Considered options

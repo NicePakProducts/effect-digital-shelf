@@ -41,7 +41,7 @@ export function callbacks(input: string) {
 
 interface SignInSearch {
   readonly redirect: string
-  readonly error?: "invalid" | "unknown"
+  readonly error?: "invalid" | "unknown" | undefined
 }
 
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- TanStack Router supplies untrusted search parameters at this boundary.

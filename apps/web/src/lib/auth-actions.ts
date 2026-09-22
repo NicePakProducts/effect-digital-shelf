@@ -1,25 +1,6 @@
-import { createAuthClient } from "better-auth/client"
-import { magicLinkClient } from "better-auth/client/plugins"
+import { AuthActionError, createClient } from "@app/client/auth"
 import * as Effect from "effect/Effect"
-import * as Schema from "effect/Schema"
 import { callbacks } from "./auth-navigation"
-
-export const createClient = (options: { readonly baseURL?: string } = {}) =>
-  createAuthClient({
-    ...options,
-    plugins: [magicLinkClient()],
-    fetchOptions: {
-      onResponse: ({ response }) => {
-        if (!response.headers.get("content-type")?.includes("application/json"))
-          throw new AuthActionError()
-      },
-    },
-  })
-
-export class AuthActionError extends Schema.TaggedError<AuthActionError>()(
-  "AuthActionError",
-  {},
-) {}
 
 export function makeAuthActions(client: ReturnType<typeof createClient>) {
   return {

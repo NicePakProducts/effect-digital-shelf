@@ -1,43 +1,38 @@
-import { LanguageModelTest } from "../layers/LanguageModel.ts"
-import { ExtractionsRepo } from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
-import { htmlKey } from "@digital-shelf/core/Scraping/R2Keys"
-import { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
-import type { ExtractionStatus } from "@digital-shelf/domain/Scraping/Vocabulary"
-import type { Cadence } from "@digital-shelf/domain/Catalog/Cadence"
-import type {
-  ScrapeMode,
-  ScrapeStatus,
-} from "@digital-shelf/domain/Scraping/Vocabulary"
+import { LanguageModelTest } from "../layers/LanguageModel"
+import { ExtractionsRepo } from "../../src/scrapes/extractions/repository"
+import { htmlKey } from "@app/core/scrapes/r2-keys"
 import {
+  ScrapeId,
   BrandId,
   ProductId,
   RetailerId,
   ListingId,
   PageId,
-} from "@digital-shelf/domain/Shared/Ids"
-import {
-  brands,
-  retailers,
-  products,
-  listings,
-  pages,
-} from "@digital-shelf/domain/Sql/Catalog"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
-import {
-  parentColumns,
-  ScrapeParent,
-} from "@digital-shelf/domain/Scraping/Scrape"
+} from "@app/schema/ids"
+import type {
+  ExtractionStatus,
+  ScrapeMode,
+  ScrapeStatus,
+} from "@app/schema/scraping-vocabulary"
+import type { Cadence } from "@app/schema/cadence"
+import { BrandsTable } from "@app/db/schema/brands"
+import { RetailersTable } from "@app/db/schema/retailers"
+import { ProductsTable } from "@app/db/schema/products"
+import { ListingsTable } from "@app/db/schema/listings"
+import { PagesTable } from "@app/db/schema/pages"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import { ScrapesRepo } from "../../src/scrapes/repository"
+import { Scrape } from "@app/schema/scrape"
 import * as DateTime from "effect/DateTime"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import * as DbTest from "../layers/Db.ts"
-import { ExecutionsTest } from "../layers/Executions.ts"
-import { ScrapeProvidersTest } from "../layers/ScrapeProviders.ts"
-import { R2BucketTest } from "../layers/R2Bucket.ts"
+import * as DbTest from "../layers/Db"
+import { ExecutionsTest } from "../layers/Executions"
+import { ScrapeProvidersTest } from "../layers/ScrapeProviders"
+import { R2BucketTest } from "../layers/R2Bucket"
 
 export const reset = Effect.gen(function* () {
   const languageModelTest = yield* LanguageModelTest
@@ -66,11 +61,11 @@ export const seed = Effect.fn("fixture.seed")(function* (
   const productId = Schema.decodeUnknownSync(ProductId)(crypto.randomUUID())
   yield* query(
     db
-      .insert(brands)
+      .insert(BrandsTable)
       .values({ id: brandId, name: "Gaia", createdAt: now, updatedAt: now }),
   )
   yield* query(
-    db.insert(retailers).values({
+    db.insert(RetailersTable).values({
       id: retailerId,
       name: "Retailer",
       domain: `${retailerId}.example.com`,
@@ -83,7 +78,7 @@ export const seed = Effect.fn("fixture.seed")(function* (
     }),
   )
   yield* query(
-    db.insert(products).values({
+    db.insert(ProductsTable).values({
       id: productId,
       brandId,
       name: "Product",
@@ -98,7 +93,7 @@ export const seed = Effect.fn("fixture.seed")(function* (
     const listingId = Schema.decodeUnknownSync(ListingId)(crypto.randomUUID())
     const url = `https://${retailerId}.example.com/${listingId}`
     yield* query(
-      db.insert(listings).values({
+      db.insert(ListingsTable).values({
         id: listingId,
         productId,
         retailerId,
@@ -110,9 +105,9 @@ export const seed = Effect.fn("fixture.seed")(function* (
     )
 
     return {
-      parent: ScrapeParent.members[0].make({
+      parent: Scrape.Parent.members[0].make({
         listingId,
-      }) satisfies ScrapeParent,
+      }) satisfies Scrape.Parent,
       url,
     }
   })
@@ -121,7 +116,7 @@ export const seed = Effect.fn("fixture.seed")(function* (
     const pageId = Schema.decodeUnknownSync(PageId)(crypto.randomUUID())
     const url = `https://${retailerId}.example.com/brand`
     yield* query(
-      db.insert(pages).values({
+      db.insert(PagesTable).values({
         id: pageId,
         brandId,
         retailerId,
@@ -134,7 +129,7 @@ export const seed = Effect.fn("fixture.seed")(function* (
     )
 
     return {
-      parent: ScrapeParent.members[1].make({ pageId }) satisfies ScrapeParent,
+      parent: Scrape.Parent.members[1].make({ pageId }) satisfies Scrape.Parent,
       url,
     }
   })
@@ -144,12 +139,12 @@ export const seed = Effect.fn("fixture.seed")(function* (
 
 export const history = Effect.fn("fixture.history")(
   function* (
-    parent: ScrapeParent,
+    parent: Scrape.Parent,
     status: ScrapeStatus,
     age: Duration.Input,
     startedAge?: Duration.Input,
   ) {
-    const scrapesRepo = yield* ScrapesRepo
+    const scrapesRepo = yield* ScrapesRepo.Service
 
     const now = yield* DateTime.now
 
@@ -160,7 +155,7 @@ export const history = Effect.fn("fixture.history")(
 
     return Option.getOrThrow(
       yield* scrapesRepo.insertUnlessInFlight({
-        ...parentColumns(parent),
+        ...Scrape.parentColumns(parent),
         status,
         requestUrl: "https://example.com/snapshot",
         mode: "basic",
@@ -214,10 +209,10 @@ export const cadenceFixture = Effect.gen(function* () {
 
 export const successfulScrape = Effect.fn("fixture.successfulScrape")(
   function* (
-    parent: ScrapeParent,
+    parent: Scrape.Parent,
     options: { age?: Duration.Input; html?: string } = {},
   ) {
-    const scrapesRepo = yield* ScrapesRepo
+    const scrapesRepo = yield* ScrapesRepo.Service
 
     const now = yield* DateTime.now
     const at = DateTime.subtractDuration(now, options.age ?? "0 seconds")
@@ -226,7 +221,7 @@ export const successfulScrape = Effect.fn("fixture.successfulScrape")(
 
     const row = yield* scrapesRepo.insert({
       id,
-      ...parentColumns(parent),
+      ...Scrape.parentColumns(parent),
       status: "success",
       requestUrl: "https://example.com/snapshot",
       mode: "basic",
@@ -256,8 +251,8 @@ export const extraction = Effect.fn("fixture.extraction")(
     status: ExtractionStatus,
     options: { prompt?: string; model?: string; age?: Duration.Input } = {},
   ) {
-    const scrapesRepo = yield* ScrapesRepo
-    const extractionsRepo = yield* ExtractionsRepo
+    const scrapesRepo = yield* ScrapesRepo.Service
+    const extractionsRepo = yield* ExtractionsRepo.Service
 
     const at = DateTime.subtractDuration(
       yield* DateTime.now,

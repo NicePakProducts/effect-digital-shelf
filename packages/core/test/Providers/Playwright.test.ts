@@ -1,12 +1,12 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as Playwright from "@digital-shelf/core/Providers/Playwright"
-import { ScrapeProviderError } from "@digital-shelf/core/Providers/ScrapeProviders"
+import * as Playwright from "../../src/scrapes/providers/playwright"
+import { ScrapeProviderError } from "@app/core/scrapes/providers"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as Option from "effect/Option"
 import * as TestClock from "effect/testing/TestClock"
-import * as Browser from "../layers/Browser.ts"
+import * as Browser from "../layers/Browser"
 
 const request = { url: "https://example.com/", country: Option.none() }
 

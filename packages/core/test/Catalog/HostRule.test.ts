@@ -1,16 +1,15 @@
+import { RetailersErrors, Retailers } from "@app/core/retailers"
 import { expect, it } from "@effect/vitest"
-import { Listings } from "@digital-shelf/core/Catalog/Listings"
-import { Pages } from "@digital-shelf/core/Catalog/Pages"
-import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
-import { RetailersRepo } from "@digital-shelf/core/Catalog/repositories/RetailersRepo"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import { UrlHostMismatch } from "@digital-shelf/domain/Catalog/Errors"
+import { Listings } from "@app/core/listings"
+import { Pages } from "@app/core/pages"
+import { RetailersRepo } from "../../src/retailers/repository"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
 import { sql } from "drizzle-orm"
 import { Effect } from "effect"
-import * as CoreTest from "../layers/Core.ts"
-import * as DbTest from "../layers/Db.ts"
-import { catalog, rowsOf } from "../fixtures/Catalog.ts"
+import * as CoreTest from "../layers/Core"
+import * as DbTest from "../layers/Db"
+import { catalog, rowsOf } from "../fixtures/Catalog"
 
 /** The `url` column of a Listing as the table holds it. */
 const storedUrl = Effect.fn("HostRuleFixture.storedUrl")(function* (
@@ -26,12 +25,12 @@ const storedUrl = Effect.fn("HostRuleFixture.storedUrl")(function* (
   return rows[0]?.url
 })
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })("host rule", (it) => {
   it.effect("refuses a Listing whose URL sits off the Retailer's domain", () =>
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* catalog("bigw.com.au")
-      const listings = yield* Listings
+      const listings = yield* Listings.Service
 
       const command = {
         productId: c.productId,
@@ -40,7 +39,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
       }
 
       expect(yield* Effect.flip(listings.create(command))).toEqual(
-        new UrlHostMismatch({
+        new RetailersErrors.UrlHostMismatch({
           url: "https://evilbigw.com.au/p/123",
           domain: "bigw.com.au",
           listingIds: [],
@@ -56,7 +55,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
       yield* DbTest.reset
       const c = yield* catalog("www.BigW.com.au")
       expect(c.domain).toBe("bigw.com.au")
-      const listings = yield* Listings
+      const listings = yield* Listings.Service
 
       for (const url of [
         "https://www.bigw.com.au/p/1",
@@ -76,7 +75,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* catalog("bigw.com.au")
-      const listings = yield* Listings
+      const listings = yield* Listings.Service
 
       const row = yield* listings.create({
         productId: c.productId,
@@ -92,7 +91,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
           }),
         ),
       ).toEqual(
-        new UrlHostMismatch({
+        new RetailersErrors.UrlHostMismatch({
           url: "https://coles.com.au/p/1",
           domain: "bigw.com.au",
           listingIds: [],
@@ -109,7 +108,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* catalog("bigw.com.au")
-      const listings = yield* Listings
+      const listings = yield* Listings.Service
 
       const row = yield* listings.create({
         productId: c.productId,
@@ -133,7 +132,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* catalog("bigw.com.au")
-      const pages = yield* Pages
+      const pages = yield* Pages.Service
       expect(
         yield* Effect.flip(
           pages.create({
@@ -143,7 +142,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
           }),
         ),
       ).toEqual(
-        new UrlHostMismatch({
+        new RetailersErrors.UrlHostMismatch({
           url: "https://coles.com.au/brand/gaia",
           domain: "bigw.com.au",
           listingIds: [],
@@ -165,7 +164,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
           }),
         ),
       ).toEqual(
-        new UrlHostMismatch({
+        new RetailersErrors.UrlHostMismatch({
           url: "https://bigw.com.au.evil.com/x",
           domain: "bigw.com.au",
           listingIds: [],
@@ -182,8 +181,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
     "refuses a Retailer domain change that would strand children, naming them",
     () =>
       Effect.gen(function* () {
-        const listings = yield* Listings
-        const pages = yield* Pages
+        const listings = yield* Listings.Service
+        const pages = yield* Pages.Service
         yield* DbTest.reset
         const c = yield* catalog("a.example.com")
 
@@ -199,7 +198,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
           url: "https://a.example.com/brand",
         })
 
-        const retailers = yield* Retailers
+        const retailers = yield* Retailers.Service
         expect(
           yield* Effect.flip(
             retailers.update({
@@ -208,7 +207,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
             }),
           ),
         ).toEqual(
-          new UrlHostMismatch({
+          new RetailersErrors.UrlHostMismatch({
             url: "https://a.example.com/p/1",
             domain: "b.example.com",
             listingIds: [listing.id],
@@ -274,7 +273,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* catalog("bigw.com.au")
-      const retailersRepo = yield* RetailersRepo
+      const retailersRepo = yield* RetailersRepo.Service
       // A plain read takes only AccessShareLock, which blocks nothing.
       expect(yield* locksHeld(retailersRepo.get(c.retailerId))).toEqual([
         "AccessShareLock",
@@ -296,8 +295,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
     () =>
       Effect.gen(function* () {
         yield* DbTest.reset
-        const listings = yield* Listings
-        const retailers = yield* Retailers
+        const listings = yield* Listings.Service
+        const retailers = yield* Retailers.Service
 
         // Child first: the domain change then sees it and is refused by id.
         const first = yield* catalog("a.example.com")
@@ -316,7 +315,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
             }),
           ),
         ).toEqual(
-          new UrlHostMismatch({
+          new RetailersErrors.UrlHostMismatch({
             url: "https://a.example.com/p/1",
             domain: "b.example.com",
             listingIds: [row.id],
@@ -343,7 +342,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("host rule", (it) => {
             }),
           ),
         ).toEqual(
-          new UrlHostMismatch({
+          new RetailersErrors.UrlHostMismatch({
             url: "https://c.example.com/p/1",
             domain: "d.example.com",
             listingIds: [],

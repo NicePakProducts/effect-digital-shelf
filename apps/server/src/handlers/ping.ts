@@ -1,0 +1,14 @@
+import * as DateTime from "effect/DateTime"
+import * as Effect from "effect/Effect"
+import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
+import { Api } from "@app/protocol/api"
+
+export const PingHandlersLayer = HttpApiBuilder.group(Api, "ping", (handlers) =>
+  handlers.handle("get", () =>
+    Effect.gen(function* () {
+      const timestamp = yield* DateTime.now
+
+      return { message: "pong", timestamp }
+    }),
+  ),
+)

@@ -1,21 +1,26 @@
-import { ExtractionsRepo } from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
-import { successfulScrape, extraction } from "../fixtures/Scraping.ts"
+import { ExtractionsRepo } from "../../src/scrapes/extractions/repository"
+import {
+  successfulScrape,
+  extraction,
+  reset,
+  seed,
+  history,
+} from "../fixtures/Scraping"
 import { expect, it } from "@effect/vitest"
-import { Sweeps } from "@digital-shelf/core/Scheduling/Sweeps"
-import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
-import { R2Bucket } from "@digital-shelf/core/Storage/R2Bucket"
-import { ScrapesRepo } from "@digital-shelf/core/Scraping/repositories/ScrapesRepo"
+import { Sweeps } from "@app/core/scrapes/sweeps"
+import { Scrapes } from "@app/core/scrapes"
+import { R2Bucket } from "@app/core/storage/r2-bucket"
+import { ScrapesRepo } from "../../src/scrapes/repository"
 import * as Array from "effect/Array"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as TestClock from "effect/testing/TestClock"
-import * as CoreTest from "../layers/Core.ts"
-import { ExecutionsTest } from "../layers/Executions.ts"
-import { R2BucketTest } from "../layers/R2Bucket.ts"
-import { reset, seed, history } from "../fixtures/Scraping.ts"
+import * as CoreTest from "../layers/Core"
+import { ExecutionsTest } from "../layers/Executions"
+import { R2BucketTest } from "../layers/R2Bucket"
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })("Sweeps", (it) => {
   it.effect(
     "stuck fails every overdue running row, terminates executions and removes objects",
     () =>
@@ -63,14 +68,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         yield* executions.setStatus("scrape", terminal.id, "errored")
         yield* executions.setStatus("scrape", active.id, "running")
         yield* executions.setStatus("scrape", unknown.id, "unknown")
-        const bucket = yield* R2Bucket
+        const bucket = yield* R2Bucket.Service
 
         for (const row of [terminal, active, missing, unknown]) {
           yield* bucket.put(`html/${row.id}.html`, "html", "text/html")
           yield* bucket.put(`raw/${row.id}.json`, "{}", "application/json")
         }
 
-        const sweeps = yield* Sweeps
+        const sweeps = yield* Sweeps.Service
         expect(yield* sweeps.stuck({ now: yield* DateTime.now })).toEqual({
           examined: 4,
           failed: 4,
@@ -79,7 +84,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           extractionsFailed: 0,
           extractionsAlreadyTerminal: 0,
         })
-        const scrapes = yield* Scrapes
+        const scrapes = yield* Scrapes.Service
 
         for (const row of [recent])
           expect((yield* scrapes.get({ scrapeId: row.id })).status).toBe(
@@ -103,13 +108,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
     "retention deletes oldest terminal rows up to its cap, objects after rows, and reports backlog",
     () =>
       Effect.gen(function* () {
-        const scrapesRepo = yield* ScrapesRepo
+        const scrapesRepo = yield* ScrapesRepo.Service
 
         yield* reset
         yield* TestClock.setTime(Date.UTC(2026, 8, 9))
         const fixture = yield* seed()
         const parent = (yield* fixture.listing).parent
-        const bucket = yield* R2Bucket
+        const bucket = yield* R2Bucket.Service
 
         for (const i of Array.range(0, 51)) {
           const row = yield* history(parent, "success", `${100 + i} days`)
@@ -118,7 +123,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
         }
 
         const pending = yield* history(parent, "pending", "200 days")
-        const sweeps = yield* Sweeps
+        const sweeps = yield* Sweeps.Service
         const report = yield* sweeps.retention({ now: yield* DateTime.now })
         expect(report.deleted).toBe(50)
         expect(report.remaining).toBe(2)
@@ -141,17 +146,17 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
     "object deletion failures leave rows deleted and are swallowed",
     () =>
       Effect.gen(function* () {
-        const scrapesRepo = yield* ScrapesRepo
+        const scrapesRepo = yield* ScrapesRepo.Service
 
         yield* reset
         const seededCatalog = yield* seed()
         const parent = (yield* seededCatalog.listing).parent
         const row = yield* history(parent, "failed", "100 days")
-        const bucket = yield* R2Bucket
+        const bucket = yield* R2Bucket.Service
         yield* bucket.put(`html/${row.id}.html`, "html", "text/html")
         const bucketTest = yield* R2BucketTest
         yield* bucketTest.failNextDelete
-        const sweeps = yield* Sweeps
+        const sweeps = yield* Sweeps.Service
         expect(yield* sweeps.retention({ now: yield* DateTime.now })).toEqual({
           deleted: 1,
           remaining: 0,
@@ -165,7 +170,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
     "termination and storage failures do not undo failure or stop the remaining rows",
     () =>
       Effect.gen(function* () {
-        const scrapesRepo = yield* ScrapesRepo
+        const scrapesRepo = yield* ScrapesRepo.Service
 
         yield* reset
         const fixture = yield* seed()
@@ -185,14 +190,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
 
         for (const row of rows) {
           yield* executions.setStatus("scrape", row.id, "running")
-          const bucket = yield* R2Bucket
+          const bucket = yield* R2Bucket.Service
           yield* bucket.put(`html/${row.id}.html`, "html", "text/html")
         }
 
         yield* executions.failTerminate("scrape", rows[0]!.id)
         const bucketTest = yield* R2BucketTest
         yield* bucketTest.failNextDelete
-        const sweeps = yield* Sweeps
+        const sweeps = yield* Sweeps.Service
         expect(yield* sweeps.stuck({ now: yield* DateTime.now })).toEqual({
           examined: 3,
           failed: 3,
@@ -214,7 +219,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
     "one stuck sweep covers Scrapes and Extractions without deleting Extraction HTML",
     () =>
       Effect.gen(function* () {
-        const extractionsRepo = yield* ExtractionsRepo
+        const extractionsRepo = yield* ExtractionsRepo.Service
 
         yield* reset
         const catalog = yield* seed()
@@ -237,7 +242,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Sweeps", (it) => {
           "7 minutes",
           "6 minutes",
         )
-        const sweeps = yield* Sweeps
+        const sweeps = yield* Sweeps.Service
         const report = yield* sweeps.stuck({ now: yield* DateTime.now })
         expect(report).toEqual({
           examined: 1,

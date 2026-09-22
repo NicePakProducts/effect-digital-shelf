@@ -1,18 +1,14 @@
-import type { Brand } from "@digital-shelf/domain/Catalog/Brand"
+import { BrandsErrors, Brands } from "@app/core/brands"
+import type { Brand } from "@app/schema/brand"
 import type { SqlError } from "effect/unstable/sql/SqlError"
-import {
-  type CascadeImpact,
-  emptyImpact,
-} from "@digital-shelf/domain/Catalog/CascadeImpact"
+import { type CascadeImpact, emptyImpact } from "@app/schema/cascade"
 import { expect, it } from "@effect/vitest"
-import { Brands } from "@digital-shelf/core/Catalog/Brands"
-import { BrandsRepo } from "@digital-shelf/core/Catalog/repositories/BrandsRepo"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { BrandNotFound } from "@digital-shelf/domain/Catalog/Errors"
-import { BrandId } from "@digital-shelf/domain/Shared/Ids"
+import { BrandsRepo } from "../../src/brands/repository"
+import { Db } from "@app/db"
+import { BrandId } from "@app/schema/ids"
 import { DateTime, Effect, Schema } from "effect"
-import * as CoreTest from "../layers/Core.ts"
-import * as DbTest from "../layers/Db.ts"
+import * as CoreTest from "../layers/Core"
+import * as DbTest from "../layers/Db"
 
 const missingId = Schema.decodeUnknownSync(BrandId)(
   "00000000-0000-4000-8000-000000000404",
@@ -20,13 +16,13 @@ const missingId = Schema.decodeUnknownSync(BrandId)(
 
 // Booting PGlite and pushing the schema is slow on a cold cache, slower still
 // when another file boots its own PGlite alongside.
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })("Brands", (it) => {
   it.effect("creates a Brand and reads it back in the domain vocabulary", () =>
     Effect.gen(function* () {
       yield* DbTest.reset
-      const brands = yield* Brands
+      const brands = yield* Brands.Service
 
-      const create: Effect.Effect<Brand, SqlError, never> = brands.create({
+      const create: Effect.Effect<Brand.Info, SqlError, never> = brands.create({
         name: "Gaia",
       })
 
@@ -35,13 +31,16 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
       expect(created.paused).toBe(false)
       expect(DateTime.isDateTime(created.createdAt)).toBe(true)
 
-      const get: Effect.Effect<Brand, BrandNotFound | SqlError, never> =
-        brands.get({ brandId: created.id })
+      const get: Effect.Effect<
+        Brand.Info,
+        BrandsErrors.NotFound | SqlError,
+        never
+      > = brands.get({ brandId: created.id })
 
       expect(yield* get).toEqual(created)
 
       const list: Effect.Effect<
-        ReadonlyArray<Brand>,
+        ReadonlyArray<Brand.Info>,
         SqlError,
         never
       > = brands.list
@@ -53,11 +52,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
   it.effect("updates and removes, then fails with BrandNotFound", () =>
     Effect.gen(function* () {
       yield* DbTest.reset
-      const brands = yield* Brands
+      const brands = yield* Brands.Service
       const created = yield* brands.create({ name: "Gaia" })
 
-      const update: Effect.Effect<Brand, BrandNotFound | SqlError, never> =
-        brands.update({ brandId: created.id, command: { paused: true } })
+      const update: Effect.Effect<
+        Brand.Info,
+        BrandsErrors.NotFound | SqlError,
+        never
+      > = brands.update({ brandId: created.id, command: { paused: true } })
 
       const paused = yield* update
       expect(paused.paused).toBe(true)
@@ -67,7 +69,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
 
       const impact: Effect.Effect<
         CascadeImpact,
-        BrandNotFound | SqlError,
+        BrandsErrors.NotFound | SqlError,
         never
       > = brands.impact({ brandId: created.id })
 
@@ -75,7 +77,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
 
       const remove: Effect.Effect<
         CascadeImpact,
-        BrandNotFound | SqlError,
+        BrandsErrors.NotFound | SqlError,
         never
       > = brands.remove({ brandId: created.id })
 
@@ -84,9 +86,9 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
       expect(yield* brands.list).toEqual([])
       expect(
         yield* Effect.flip(brands.get({ brandId: created.id })),
-      ).toBeInstanceOf(BrandNotFound)
+      ).toBeInstanceOf(BrandsErrors.NotFound)
       expect(yield* Effect.flip(brands.get({ brandId: missingId }))).toEqual(
-        new BrandNotFound({ brandId: missingId }),
+        new BrandsErrors.NotFound({ brandId: missingId }),
       )
     }),
   )
@@ -96,7 +98,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Brands", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const db = yield* Db
-      const repo = yield* BrandsRepo
+      const repo = yield* BrandsRepo.Service
 
       const rolledBack = yield* Effect.flip(
         db.transaction(() =>

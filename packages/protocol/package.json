@@ -1,0 +1,44 @@
+{
+  "name": "@app/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json",
+    "./api": "./src/api.ts",
+    "./auth/security": "./src/auth/security.ts",
+    "./brand-wire": "./src/brand-wire.ts",
+    "./brands": "./src/brands.ts",
+    "./listing-wire": "./src/listing-wire.ts",
+    "./listings": "./src/listings.ts",
+    "./page-wire": "./src/page-wire.ts",
+    "./pages": "./src/pages.ts",
+    "./pagination": "./src/pagination.ts",
+    "./ping": "./src/ping.ts",
+    "./product-variant-wire": "./src/product-variant-wire.ts",
+    "./product-variants": "./src/product-variants.ts",
+    "./product-wire": "./src/product-wire.ts",
+    "./products": "./src/products.ts",
+    "./retailer-wire": "./src/retailer-wire.ts",
+    "./retailers": "./src/retailers.ts",
+    "./extraction-wire": "./src/extraction-wire.ts",
+    "./extractions": "./src/extractions.ts",
+    "./scrape-wire": "./src/scrape-wire.ts",
+    "./scrapes": "./src/scrapes.ts",
+    "./timestamp": "./src/timestamp.ts"
+  },
+  "scripts": {
+    "check": "vp check",
+    "test": "vp test --run"
+  },
+  "dependencies": {
+    "@app/schema": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "typescript": "catalog:",
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
+    "vite-plus": "catalog:"
+  }
+}

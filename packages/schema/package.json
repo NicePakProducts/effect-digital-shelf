@@ -1,0 +1,38 @@
+{
+  "name": "@app/schema",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json",
+    "./brand": "./src/brand.ts",
+    "./cadence": "./src/cadence.ts",
+    "./cascade": "./src/cascade.ts",
+    "./execution": "./src/execution.ts",
+    "./extraction": "./src/extraction.ts",
+    "./ids": "./src/ids.ts",
+    "./latest-extracted-data": "./src/latest-extracted-data.ts",
+    "./listing": "./src/listing.ts",
+    "./page": "./src/page.ts",
+    "./product": "./src/product.ts",
+    "./product-variant": "./src/product-variant.ts",
+    "./refine": "./src/refine.ts",
+    "./retailer": "./src/retailer.ts",
+    "./scrape": "./src/scrape.ts",
+    "./scrape-envelope": "./src/scrape-envelope.ts",
+    "./scraping-vocabulary": "./src/scraping-vocabulary.ts"
+  },
+  "scripts": {
+    "check": "vp check",
+    "test": "vp test --run"
+  },
+  "dependencies": {
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "typescript": "catalog:",
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
+    "vite-plus": "catalog:"
+  }
+}

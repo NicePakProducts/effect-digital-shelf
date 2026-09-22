@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { lifecycleRules } from "@digital-shelf/infra/Resources/Bucket"
+import { lifecycleRules } from "@app/infra/Resources/Bucket"
 
 describe("R2 orphan backstop", () => {
   it("expires only HTML and raw payloads at 97 days", () => {

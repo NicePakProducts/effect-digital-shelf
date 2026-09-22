@@ -1,13 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "@effect/vitest"
-import {
-  Executions,
-  ExecutionsError,
-} from "@digital-shelf/core/Scheduling/Executions"
-import {
-  ExecutionStatuses,
-  type ExecutionKind,
-} from "@digital-shelf/domain/Scraping/Execution"
-import * as Adapter from "@digital-shelf/infra/Adapters/Executions"
+import { Executions, ExecutionsError } from "@app/core/executions"
+import { Execution } from "@app/schema/execution"
+import * as Adapter from "@app/infra/Adapters/Executions"
 import type { WorkflowHandle } from "alchemy/Cloudflare/Workflows"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
@@ -113,7 +107,7 @@ describe("Executions adapter", () => {
         env[kind].states.set("old", "complete")
 
         return Effect.gen(function* () {
-          const executions = yield* Executions
+          const executions = yield* Executions.Service
           expect(
             yield* executions.start({
               kind,
@@ -150,7 +144,7 @@ describe("Executions adapter", () => {
     const env = setup()
 
     return Effect.gen(function* () {
-      const executions = yield* Executions
+      const executions = yield* Executions.Service
       expect(
         yield* executions.start({
           kind: "scrape",
@@ -177,7 +171,7 @@ describe("Executions adapter", () => {
       env.scrape.states.set("old", "complete")
 
       return Effect.gen(function* () {
-        const executions = yield* Executions
+        const executions = yield* Executions.Service
         expect(
           yield* executions.start({
             kind: "scrape",
@@ -215,7 +209,7 @@ describe("Executions adapter", () => {
     const cause = rpcDefect("workflow not found in env")
 
     return Effect.gen(function* () {
-      const executions = yield* Executions
+      const executions = yield* Executions.Service
       expect(
         yield* Effect.flip(
           executions.start({ kind: "scrape", instances: [request("one")] }),
@@ -242,7 +236,7 @@ describe("Executions adapter", () => {
     const cause = rpcDefect("rate limit exceeded")
 
     return Effect.gen(function* () {
-      const executions = yield* Executions
+      const executions = yield* Executions.Service
       expect(
         yield* Effect.flip(
           executions.start({ kind: "scrape", instances: [request("one")] }),
@@ -270,7 +264,7 @@ describe("Executions adapter", () => {
       const env = setup()
 
       return Effect.gen(function* () {
-        const executions = yield* Executions
+        const executions = yield* Executions.Service
         expect(
           yield* executions.start({ kind: "scrape", instances: [] }),
         ).toEqual({
@@ -311,7 +305,7 @@ describe("Executions adapter", () => {
     const env = setup()
 
     return Effect.gen(function* () {
-      const executions = yield* Executions
+      const executions = yield* Executions.Service
       expect(
         yield* executions.start({
           kind: "scrape",
@@ -330,9 +324,9 @@ describe("Executions adapter", () => {
       const env = setup()
 
       return Effect.gen(function* () {
-        const executions = yield* Executions
+        const executions = yield* Executions.Service
 
-        for (const status of ExecutionStatuses) {
+        for (const status of Execution.Statuses) {
           env.extraction.states.set("id", status)
           expect(
             yield* executions.status({ kind: "extraction", id: "id" }),
@@ -356,7 +350,7 @@ describe("Executions adapter", () => {
       const env = setup()
 
       return Effect.gen(function* () {
-        const executions = yield* Executions
+        const executions = yield* Executions.Service
         expect(yield* executions.status({ kind: "scrape", id: "one" })).toEqual(
           Option.none(),
         )
@@ -384,7 +378,7 @@ describe("Executions adapter", () => {
     env.extraction.states.set("id", "running")
 
     return Effect.gen(function* () {
-      const executions = yield* Executions
+      const executions = yield* Executions.Service
       yield* executions.terminate({ kind: "extraction", id: "id" })
       expect(env.extraction.states.get("id")).toBe("terminated")
       yield* executions.terminate({ kind: "extraction", id: "absent" })
@@ -400,7 +394,7 @@ describe("Executions adapter", () => {
       const env = setup()
 
       return Effect.gen(function* () {
-        const executions = yield* Executions
+        const executions = yield* Executions.Service
         yield* executions.terminate({ kind: "scrape", id: "id" })
       }).pipe(
         Effect.provide(
@@ -428,7 +422,7 @@ describe("Executions adapter", () => {
         const cause = rpcDefect("permission denied")
 
         return Effect.gen(function* () {
-          const executions = yield* Executions
+          const executions = yield* Executions.Service
           expect(
             yield* Effect.flip(
               executions[operation]({ kind: "scrape", id: "id" }),
@@ -462,7 +456,7 @@ describe("Executions adapter", () => {
       const env = setup()
 
       return Effect.gen(function* () {
-        const executions = yield* Executions
+        const executions = yield* Executions.Service
 
         const exit = yield* Effect.exit(
           executions.start({ kind: "scrape", instances: [request("id")] }),
@@ -511,9 +505,9 @@ describe("Executions adapter", () => {
     })
 
     return Effect.gen(function* () {
-      const executions = yield* Executions
+      const executions = yield* Executions.Service
 
-      for (const kind of ["scrape", "extraction"] satisfies ExecutionKind[]) {
+      for (const kind of ["scrape", "extraction"] satisfies Execution.Kind[]) {
         yield* executions.start({ kind, instances: [request("one")] })
         yield* executions.status({ kind, id: "one" })
         yield* executions.terminate({ kind, id: "one" })
