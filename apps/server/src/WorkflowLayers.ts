@@ -1,5 +1,5 @@
-import type { ScrapeRunner } from "@digital-shelf/core/Scraping/ScrapeRunner"
-import type { ExtractionRunner } from "@digital-shelf/core/Scraping/ExtractionRunner"
+import type { ScrapeRunner } from "@app/core/scrapes/runner"
+import type { ExtractionRunner } from "@app/core/scrapes/extractions/runner"
 import type { RuntimeContext } from "alchemy/RuntimeContext"
 import type { ConfigError } from "effect/Config"
 import * as Context from "effect/Context"
@@ -11,14 +11,14 @@ export class WorkflowLayers extends Context.Service<
   WorkflowLayers,
   {
     readonly scrape: Layer.Layer<
-      ScrapeRunner,
+      ScrapeRunner.Service,
       ConfigError | SqlError,
       RuntimeContext
     >
     readonly extraction: Layer.Layer<
-      ExtractionRunner,
+      ExtractionRunner.Service,
       ConfigError | SqlError,
       RuntimeContext
     >
   }
->()("@digital-shelf/server/WorkflowLayers") {}
+>()("@app/server/WorkflowLayers") {}

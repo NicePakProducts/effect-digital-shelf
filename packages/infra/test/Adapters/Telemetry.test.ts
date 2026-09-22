@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "@effect/vitest"
-import { RootTraceId } from "@digital-shelf/core/Scraping/Trace"
-import * as Telemetry from "@digital-shelf/infra/Adapters/Telemetry"
+import { RootTraceId } from "@app/core/scrapes/trace"
+import * as Telemetry from "@app/infra/Adapters/Telemetry"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

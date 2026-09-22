@@ -1,9 +1,31 @@
+import { canonicalDomain } from "@app/core/retailers"
+import { htmlKey, rawKey } from "@app/core/scrapes/r2-keys"
+import { Cadences } from "@app/schema/cadence"
+import { Retailer } from "@app/schema/retailer"
+import {
+  ScrapeModes,
+  LifecycleStatuses,
+  ParentKinds,
+  ScrapeErrorCodes,
+  ExtractionErrorCodes,
+} from "@app/schema/scraping-vocabulary"
+import type { ScrapeId } from "@app/schema/ids"
+import { Url } from "@app/schema/refine"
+import * as Sql from "@app/db/schema"
+import { count, sql } from "drizzle-orm"
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+import { readFile, writeFile } from "node:fs/promises"
+import { parseArgs } from "node:util"
+import { Pool } from "pg"
+
 /**
- * One-off InstantDB -> Postgres/R2 migration. Run with Node 26:
+ * One-off InstantDB -> Postgres/R2 migration. Run with Bun:
  *
- * bun run --filter @digital-shelf/infra db:migrate-instantdb export --out snapshot.json
- * bun run --filter @digital-shelf/infra db:migrate-instantdb load --snapshot snapshot.json --bucket digital-shelf-bucket-dev --since 2026-06-13T00:00:00Z --dry-run
- * bun run --filter @digital-shelf/infra db:migrate-instantdb load --snapshot snapshot.json --bucket digital-shelf-bucket-dev --since 2026-06-13T00:00:00Z --exclude <id>,<id>
+ * bun run --filter @app/infra db:migrate-instantdb export --out snapshot.json
+ * bun run --filter @app/infra db:migrate-instantdb load --snapshot snapshot.json --bucket digital-shelf-bucket-dev --since 2026-06-13T00:00:00Z --dry-run
+ * bun run --filter @app/infra db:migrate-instantdb load --snapshot snapshot.json --bucket digital-shelf-bucket-dev --since 2026-06-13T00:00:00Z --exclude <id>,<id>
  *
  * export: INSTANT_APP_ID, INSTANT_ADMIN_TOKEN.
  * load: DATABASE_URL (direct Postgres), CLOUDFLARE_ACCOUNT_ID,
@@ -20,44 +42,16 @@
  * skipped. A completed load requires --replace to run again. Migrated Scrapes
  * have synthetic root span ids with no historical trace (ADR 0007).
  */
-import { canonicalDomain } from "@digital-shelf/core/Catalog/Retailers"
-import { htmlKey, rawKey } from "@digital-shelf/core/Scraping/R2Keys"
-import { Cadences } from "@digital-shelf/domain/Catalog/Cadence"
-import { hostMatches } from "@digital-shelf/domain/Catalog/Retailer"
-import {
-  defaultScrapeMode,
-  defaultScrapeCountry,
-  defaultListingExtractPrompt,
-  defaultPageExtractPrompt,
-} from "@digital-shelf/domain/Catalog/RetailerManagement"
-import {
-  ScrapeModes,
-  LifecycleStatuses,
-  ParentKinds,
-  ScrapeErrorCodes,
-  ExtractionErrorCodes,
-} from "@digital-shelf/domain/Scraping/Vocabulary"
-import type { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
-import { Url } from "@digital-shelf/domain/Shared/Refine"
-import * as Sql from "@digital-shelf/domain/Sql/index"
-import { count, sql } from "drizzle-orm"
-import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres"
-import * as Option from "effect/Option"
-import * as Schema from "effect/Schema"
-import { readFile, writeFile } from "node:fs/promises"
-import { parseArgs } from "node:util"
-import { Pool } from "pg"
-
 const tables = {
-  brands: Sql.brands,
-  retailers: Sql.retailers,
-  products: Sql.products,
-  variants: Sql.variants,
-  listings: Sql.listings,
-  listing_variants: Sql.listingVariants,
-  pages: Sql.pages,
-  scrapes: Sql.scrapes,
-  extractions: Sql.extractions,
+  brands: Sql.BrandsTable,
+  retailers: Sql.RetailersTable,
+  products: Sql.ProductsTable,
+  variants: Sql.ProductVariantsTable,
+  listings: Sql.ListingsTable,
+  listing_variants: Sql.ListingVariantsTable,
+  pages: Sql.PagesTable,
+  scrapes: Sql.ScrapesTable,
+  extractions: Sql.ExtractionsTable,
 }
 
 type Table = keyof typeof tables
@@ -413,16 +407,16 @@ function transform(snapshot: Snapshot, options: TransformOptions) {
       scrapeMode: literal(
         ScrapeModes,
         "scrapeMode",
-        defaulted("scrapeMode", defaultScrapeMode),
+        defaulted("scrapeMode", Retailer.defaultScrapeMode),
       ),
-      scrapeCountry: defaulted("scrapeCountry", defaultScrapeCountry),
+      scrapeCountry: defaulted("scrapeCountry", Retailer.defaultScrapeCountry),
       listingExtractPrompt: defaulted(
         "listingExtractPrompt",
-        defaultListingExtractPrompt,
+        Retailer.defaultListingExtractPrompt,
       ),
       pageExtractPrompt: defaulted(
         "pageExtractPrompt",
-        defaultPageExtractPrompt,
+        Retailer.defaultPageExtractPrompt,
       ),
     })
     domains.set(domain.value, r.id)
@@ -458,7 +452,7 @@ function transform(snapshot: Snapshot, options: TransformOptions) {
 
     if (
       !/^[a-z][a-z0-9+.-]*:/i.test(url) &&
-      hostMatches(`https://${url}`, domain)
+      Retailer.hostMatches(`https://${url}`, domain)
     ) {
       url = `https://${url}`
       decide(
@@ -475,7 +469,7 @@ function transform(snapshot: Snapshot, options: TransformOptions) {
       problem("url", r.url, String(error))
     }
 
-    if (!hostMatches(url, domain))
+    if (!Retailer.hostMatches(url, domain))
       problem("url", r.url, `URL host does not match Retailer ${domain}`)
 
     return {
@@ -977,11 +971,11 @@ async function insertRows(url: string, rows: Rows, replace: boolean) {
         counts: await counts(db),
         scrapes: await db
           .select({
-            id: Sql.scrapes.id,
-            htmlR2Key: Sql.scrapes.htmlR2Key,
-            rawR2Key: Sql.scrapes.rawR2Key,
+            id: Sql.ScrapesTable.id,
+            htmlR2Key: Sql.ScrapesTable.htmlR2Key,
+            rawR2Key: Sql.ScrapesTable.rawR2Key,
           })
-          .from(Sql.scrapes),
+          .from(Sql.ScrapesTable),
       }
     } finally {
       client.release()
@@ -991,7 +985,7 @@ async function insertRows(url: string, rows: Rows, replace: boolean) {
   }
 }
 
-const help = `Usage: node packages/infra/scripts/migrate-instantdb.ts <export|load>
+const help = `Usage: bun run packages/infra/scripts/migrate-instantdb.ts <export|load>
   export --out <snapshot.json>
   load --snapshot <snapshot.json> --bucket <target-bucket>
        [--source-bucket scrapes-html] [--since <ISO>] [--exclude <id>,<id>]

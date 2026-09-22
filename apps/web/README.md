@@ -6,7 +6,7 @@ From the repository root:
 
 ```sh
 bun install
-bun run --filter @digital-shelf/web dev
+bun run --filter @app/web dev
 ```
 
 The development server runs on port 3000. Use `bun run dev` from the repository
@@ -19,9 +19,9 @@ the browser's Network tab shows each request through the `/api` proxy.
 No login is needed for this connection check.
 
 ```sh
-bun run --filter @digital-shelf/web check
-bun run --filter @digital-shelf/web test
-bun run --filter @digital-shelf/web build
+bun run --filter @app/web check
+bun run --filter @app/web test
+bun run --filter @app/web build
 ```
 
 Linting uses Oxlint and formatting uses Oxfmt through Vite Plus, with the
@@ -50,7 +50,7 @@ The matching v4 reference is `.repos/effect/packages/atom/react`.
 
 ## API client
 
-`src/lib/api-client.ts` connects `AtomHttpApi` to the shared `RootApi` contract,
+`@app/client/reactivity` connects `AtomHttpApi` to the shared protocol,
 without importing server handlers. It owns the Effect runtime for API atoms;
 no separate `Atom.runtime` is needed.
 
@@ -58,7 +58,7 @@ Create a query at module scope, then read it in a component:
 
 ```tsx
 import { useAtomValue } from "@effect/atom-react"
-import { ApiClient } from "./lib/api-client"
+import { ApiClient } from "@app/client/reactivity"
 
 const brandsAtom = ApiClient.query("brands", "list", {})
 

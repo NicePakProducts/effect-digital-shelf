@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { useState } from "react"
 import { authActions } from "../lib/auth"
-import { AuthActionError } from "../lib/auth-actions"
+import { AuthActionError } from "@app/client/auth"
 import { safeReturnPath, signInSearch } from "../lib/auth-navigation"
 import {
   AuthFrame,

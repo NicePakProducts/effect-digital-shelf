@@ -25,11 +25,10 @@ export type RowOf<S extends Schema.Constraint> = {
 }
 
 /**
- * Rows cross the repository seam through the derived entity schemas (ADR
- * 0002): decoding turns Drizzle's `Date` and `null` into `DateTime.Utc` and
+ * Rows cross the repository seam through the shared entity schemas: decoding turns Drizzle's `Date` and `null` into `DateTime.Utc` and
  * `Option`, encoding does the reverse for inserts and updates. A row that
- * fails to decode is a defect, not an error: the table and the entity come
- * from one definition, so a mismatch can only be a bug.
+ * fails to decode is a defect, not an error: schema parity tests enforce their agreement with the tables, so a mismatch
+ * can only be a bug.
  */
 export const decode = <S extends Schema.Constraint>(schema: S) => {
   const decodeRow = Schema.decodeUnknownEffect(schema)
@@ -37,7 +36,7 @@ export const decode = <S extends Schema.Constraint>(schema: S) => {
   return (
     row: RowOf<S>,
   ): Effect.Effect<S["Type"], never, S["DecodingServices"]> =>
-    // SAFETY: the row and the schema derive from one Drizzle table (ADR 0002); a decode failure can only be a bug.
+    // SAFETY: stored rows must satisfy the shared schema (guarded by SchemaParity tests); a decode failure can only be a bug.
     Effect.orDie(decodeRow(row))
 }
 

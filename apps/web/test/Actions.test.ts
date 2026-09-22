@@ -1,11 +1,8 @@
 import { expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
-import {
-  AuthActionError,
-  createClient,
-  makeAuthActions,
-} from "../src/lib/auth-actions"
+import { AuthActionError, createClient } from "@app/client/auth"
+import { makeAuthActions } from "../src/lib/auth-actions"
 import { httpServer } from "./HttpServer"
 
 it.effect(

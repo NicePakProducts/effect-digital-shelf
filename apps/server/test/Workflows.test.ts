@@ -1,20 +1,16 @@
+import { LifecycleErrors } from "@app/core/scrapes/lifecycle"
 import { describe, expect, it } from "@effect/vitest"
 import {
   ScrapeRunner,
   type FetchTarget,
   FetchOutcome,
-} from "@digital-shelf/core/Scraping/ScrapeRunner"
+} from "@app/core/scrapes/runner"
 import {
   ExtractionRunner,
   type ExtractTarget,
   ExtractOutcome,
-} from "@digital-shelf/core/Scraping/ExtractionRunner"
-import { TransitionRejected } from "@digital-shelf/core/Scraping/Transitions"
-import {
-  ExtractionId,
-  RetailerId,
-  ScrapeId,
-} from "@digital-shelf/domain/Shared/Ids"
+} from "@app/core/scrapes/extractions/runner"
+import { ExtractionId, RetailerId, ScrapeId } from "@app/schema/ids"
 import {
   WorkflowStep,
   type WorkflowStepConfig,
@@ -28,9 +24,9 @@ import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import * as Tracer from "effect/Tracer"
-import { run as scrape } from "../src/ScrapeWorkflow.ts"
-import { run as extraction } from "../src/ExtractionWorkflow.ts"
-import { databaseStep } from "../src/WorkflowSupport.ts"
+import { run as scrape } from "../src/ScrapeWorkflow"
+import { run as extraction } from "../src/ExtractionWorkflow"
+import { databaseStep } from "../src/WorkflowSupport"
 
 const id = Schema.decodeUnknownSync(ScrapeId)(
   "00000000-0000-4000-8000-000000000001",
@@ -126,7 +122,7 @@ const setup = (
       })
 
       if (options.reject === name)
-        return yield* new TransitionRejected({
+        return yield* new LifecycleErrors.TransitionRejected({
           kind: name.startsWith("scrape") ? "scrape" : "extraction",
           id,
           from: "pending",
@@ -138,7 +134,7 @@ const setup = (
         return yield* Effect.die(new Error("platform unavailable"))
     })
 
-  const scrapeRunner = ScrapeRunner.of({
+  const scrapeRunner = ScrapeRunner.Service.of({
     claim: () => observe("scrape.claim").pipe(Effect.as(fetchTarget)),
     fetch: (scrapeId, target) => {
       expect(scrapeId).toBe(id)
@@ -169,7 +165,7 @@ const setup = (
     },
   })
 
-  const extractionRunner = ExtractionRunner.of({
+  const extractionRunner = ExtractionRunner.Service.of({
     claim: () => observe("extraction.claim").pipe(Effect.as(extractTarget)),
     extract: (eid, target) => {
       expect(eid).toBe(extractionId)
@@ -211,7 +207,7 @@ const setup = (
     })
 
   // This fixture covers adapter lifetime only; infra Telemetry and Http tests cover the real adapter.
-  const telemetry = Layer.effect(
+  const TelemetryLayer = Layer.effect(
     Tracer.Tracer,
     Effect.gen(function* () {
       const index = exportersOpened.length
@@ -239,12 +235,13 @@ const setup = (
   )
 
   const layers = {
-    scrape: Layer.effect(ScrapeRunner, scoped(scrapeRunner)).pipe(
-      Layer.provideMerge(telemetry),
+    scrape: Layer.effect(ScrapeRunner.Service, scoped(scrapeRunner)).pipe(
+      Layer.provideMerge(TelemetryLayer),
     ),
-    extraction: Layer.effect(ExtractionRunner, scoped(extractionRunner)).pipe(
-      Layer.provideMerge(telemetry),
-    ),
+    extraction: Layer.effect(
+      ExtractionRunner.Service,
+      scoped(extractionRunner),
+    ).pipe(Layer.provideMerge(TelemetryLayer)),
   }
 
   const steps = WorkflowStep.of({

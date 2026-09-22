@@ -1,16 +1,16 @@
-// Local-only browser fixture: in-memory PGlite and captured email, never stage data.
 import { createServer } from "node:http"
-import { Auth } from "@digital-shelf/core/Auth/Auth"
+import { Auth } from "@app/core/auth"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as ManagedRuntime from "effect/ManagedRuntime"
-import * as DbTest from "../layers/Db.ts"
-import * as EmailTest from "../layers/EmailSender.ts"
+import * as DbTest from "../layers/Db"
+import * as EmailTest from "../layers/EmailSender"
 
-const layer = Auth.layer.pipe(
-  Layer.provideMerge(EmailTest.layerTest),
-  Layer.provide(DbTest.layerTest),
+// Local-only browser fixture: in-memory PGlite and captured email, never stage data.
+const AuthLayer = Auth.layer.pipe(
+  Layer.provideMerge(EmailTest.TestLayer),
+  Layer.provide(DbTest.TestLayer),
   Layer.provide(
     ConfigProvider.layerAdd(
       ConfigProvider.fromUnknown({
@@ -21,7 +21,7 @@ const layer = Auth.layer.pipe(
   ),
 )
 
-const runtime = ManagedRuntime.make(layer)
+const runtime = ManagedRuntime.make(AuthLayer)
 
 const controls = { outage: false, signOutFailure: false, slow: false }
 
@@ -67,7 +67,7 @@ const handle = Effect.fn(function* (request: Request) {
     (controls.signOutFailure && path === "/api/auth/sign-out")
   )
     return Response.json({ message: "Test outage" }, { status: 503 })
-  const auth = yield* Auth
+  const auth = yield* Auth.Service
 
   return yield* auth.handle(request)
 })

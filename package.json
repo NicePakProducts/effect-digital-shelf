@@ -45,11 +45,11 @@
     "prepare": "effect-tsgo patch",
     "dev": "bun run dev:server & bun run dev:web & wait",
     "dev:server": "alchemy dev --env-file .env.dev",
-    "dev:web": "bun run --filter @digital-shelf/web dev",
-    "build:web": "bun run --filter @digital-shelf/web build",
+    "dev:web": "bun run --filter @app/web dev",
+    "build:web": "bun run --filter @app/web build",
     "deploy": "alchemy deploy",
     "deploy:dev": "bun run build:web && CI=true alchemy deploy --stage dev --env-file .env.dev --yes",
-    "db:migrate": "bun run --filter @digital-shelf/infra db:migrate"
+    "db:migrate": "bun run --filter @app/db db:migrate"
   },
   "devDependencies": {
     "@effect/platform-bun": "catalog:",

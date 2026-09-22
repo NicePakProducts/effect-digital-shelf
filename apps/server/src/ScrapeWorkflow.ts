@@ -1,16 +1,16 @@
-import { ScrapeRunner } from "@digital-shelf/core/Scraping/ScrapeRunner"
-import { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
-import { ScrapeParams } from "@digital-shelf/infra/Adapters/Executions"
+import { ScrapeRunner } from "@app/core/scrapes/runner"
+import { ScrapeId } from "@app/schema/ids"
+import { ScrapeParams } from "@app/infra/Adapters/Executions"
 import * as Cloudflare from "alchemy/Cloudflare"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import { WorkflowLayers } from "./WorkflowLayers.ts"
-import { parentSpan, step } from "./WorkflowSupport.ts"
+import { WorkflowLayers } from "./WorkflowLayers"
+import { parentSpan, step } from "./WorkflowSupport"
 
 export const run = <E, R>(
   input: ScrapeParams,
-  layer: Layer.Layer<ScrapeRunner, E, R>,
+  layer: Layer.Layer<ScrapeRunner.Service, E, R>,
 ) =>
   Effect.gen(function* () {
     // SAFETY: infra's Adapters/Executions.ts encodes these params and their id;
@@ -26,7 +26,7 @@ export const run = <E, R>(
     const parent = yield* parentSpan(params.traceparent)
 
     const claim = Effect.fn("ScrapeWorkflow.claim")(function* () {
-      const runner = yield* ScrapeRunner
+      const runner = yield* ScrapeRunner.Service
 
       return yield* runner.claim(id)
     })
@@ -39,7 +39,7 @@ export const run = <E, R>(
       )
 
       const fetch = Effect.fn("ScrapeWorkflow.fetch")(function* () {
-        const runner = yield* ScrapeRunner
+        const runner = yield* ScrapeRunner.Service
 
         return yield* runner.fetch(id, target)
       })
@@ -55,7 +55,7 @@ export const run = <E, R>(
       )
 
       const finish = Effect.fn("ScrapeWorkflow.finish")(function* () {
-        const runner = yield* ScrapeRunner
+        const runner = yield* ScrapeRunner.Service
 
         return yield* runner.finish(id, outcome)
       })
@@ -70,7 +70,7 @@ export const run = <E, R>(
         const extractionId = finished.extractionId
 
         const start = Effect.fn("ScrapeWorkflow.startExtraction")(function* () {
-          const runner = yield* ScrapeRunner
+          const runner = yield* ScrapeRunner.Service
           yield* runner.startExtraction(extractionId, id)
 
           return null
@@ -88,7 +88,7 @@ export const run = <E, R>(
       Effect.catchTag("WorkflowStopped", () => Effect.void),
       Effect.catchCause((cause) => {
         const fail = Effect.fn("ScrapeWorkflow.fail")(function* () {
-          const runner = yield* ScrapeRunner
+          const runner = yield* ScrapeRunner.Service
           yield* runner.fail(id, "unknown", "Scrape Workflow execution failed")
 
           return null

@@ -1,1 +1,1 @@
-export const packageName = "@digital-shelf/infra"
+export const packageName = "@app/infra"

@@ -4,15 +4,11 @@ import * as Config from "effect/Config"
 import { SourceError } from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
-import * as AiGateway from "./packages/infra/src/Resources/AiGateway.ts"
-import * as Bucket from "./packages/infra/src/Resources/Bucket.ts"
-import {
-  isDeployedStage,
-  stageOf,
-} from "./packages/infra/src/Resources/Names.ts"
-import * as Postgres from "./packages/infra/src/Resources/Postgres.ts"
-// oxlint-disable-next-line anti-slop-effect/no-service-constructor-imports -- makeServer is an Alchemy resource factory, not an Effect service constructor
-import { makeServer } from "./apps/server/src/Worker.ts"
+import * as AiGateway from "./packages/infra/src/Resources/AiGateway"
+import * as Bucket from "./packages/infra/src/Resources/Bucket"
+import { isDeployedStage, stageOf } from "./packages/infra/src/Resources/Names"
+import * as Postgres from "./packages/infra/src/Resources/Postgres"
+import Server from "./apps/server/src/Worker"
 
 export default Alchemy.Stack(
   "DigitalShelf",
@@ -59,33 +55,15 @@ export default Alchemy.Stack(
       )
     }
 
-    // A local Worker has no custom domain; the gateway is a cloud-only
-    // resource the local Worker reaches through AI_GATEWAY_ID like the
-    // deployed one does, so dev declares neither.
-    const hostname = context.dev
-      ? Option.none<string>()
-      : (yield* Config.option(Config.string("SERVER_HOSTNAME"))).pipe(
-          Option.filter((name) => name !== ""),
-        )
-
-    // The web app is built before a deploy (`bun run build:web`); under
-    // `alchemy dev` the Vite server on port 3000 serves it instead.
-    const assets = context.dev
-      ? Option.none<string>()
-      : Option.some(`${import.meta.dirname}/apps/web/dist`)
-
-    const hyperdrive = yield* Postgres.make({ stage, databaseUrl })
+    const postgres = yield* Postgres.make({ stage, databaseUrl })
     const bucket = yield* Bucket.make(stage)
 
     if (!context.dev) yield* AiGateway.make(stage, axiom)
 
-    const server = yield* makeServer({
-      stage,
-      hostname,
-      assets,
-      hyperdrive,
-      bucket,
-    })
+    const server = yield* Server.pipe(
+      Effect.provideService(Cloudflare.Hyperdrive.Connection.Self, postgres),
+      Effect.provideService(Cloudflare.R2.Bucket.Self, bucket),
+    )
 
     return { url: server.url }
   }),

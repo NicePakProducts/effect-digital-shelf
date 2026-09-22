@@ -1,19 +1,18 @@
+import { RetailersErrors, Retailers } from "@app/core/retailers"
 import { describe, expect, it } from "@effect/vitest"
-import { Listings } from "@digital-shelf/core/Catalog/Listings"
-import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
-import { RetailersRepo } from "@digital-shelf/core/Catalog/repositories/RetailersRepo"
-import * as Layers from "@digital-shelf/core/Layers"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import { UrlHostMismatch } from "@digital-shelf/domain/Catalog/Errors"
-import { RetailerDomain } from "@digital-shelf/domain/Catalog/Retailer"
+import { Listings } from "@app/core/listings"
+import { RetailersRepo } from "../../src/retailers/repository"
+import * as Layers from "../layers/Features"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import { Retailer } from "@app/schema/retailer"
 import { sql } from "drizzle-orm"
 import { Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect"
 import type { SqlError } from "effect/unstable/sql/SqlError"
-import * as DbTest from "../layers/Db.ts"
-import * as PostgresTest from "../layers/Postgres.ts"
-import * as R2BucketTest from "../layers/R2Bucket.ts"
-import { catalog, rowsOf } from "../fixtures/Catalog.ts"
+import * as DbTest from "../layers/Db"
+import * as PostgresTest from "../layers/Postgres"
+import * as R2BucketTest from "../layers/R2Bucket"
+import { catalog, rowsOf } from "../fixtures/Catalog"
 
 /**
  * The lock contract of the host rule, which PGlite cannot exercise (see
@@ -25,13 +24,13 @@ import { catalog, rowsOf } from "../fixtures/Catalog.ts"
  * variable set, as CI does over its service container. Without it the block
  * is skipped, and the skip is reported as such.
  */
-const layer = Layers.Catalog.pipe(
+const TestLayer = Layers.CatalogLayer.pipe(
   Layer.provideMerge(
-    Layer.mergeAll(PostgresTest.layerTest, R2BucketTest.layerTest),
+    Layer.mergeAll(PostgresTest.TestLayer, R2BucketTest.TestLayer),
   ),
 )
 
-const domain = Schema.decodeUnknownSync(RetailerDomain)
+const domain = Schema.decodeUnknownSync(Retailer.Domain)
 
 /**
  * Run `body` inside a transaction on a connection of its own and keep that
@@ -105,15 +104,15 @@ const blocksWithin = (attempts: number): Effect.Effect<boolean, SqlError, Db> =>
 describe.skipIf(PostgresTest.url === undefined)(
   "host rule on PostgreSQL",
   () => {
-    it.layer(layer, { timeout: "60 seconds" })("two connections", (it) => {
+    it.layer(TestLayer, { timeout: "60 seconds" })("two connections", (it) => {
       it.effect(
         "makes a child write wait for a domain change in flight, then judges it on the new domain",
         () =>
           Effect.gen(function* () {
             yield* DbTest.reset
             const c = yield* catalog("a.example.com")
-            const listings = yield* Listings
-            const retailersRepo = yield* RetailersRepo
+            const listings = yield* Listings.Service
+            const retailersRepo = yield* RetailersRepo.Service
 
             const change = yield* holdOpen(
               Effect.gen(function* () {
@@ -139,7 +138,7 @@ describe.skipIf(PostgresTest.url === undefined)(
             expect(yield* blocksWithin(100)).toBe(true)
             yield* change.commit
             expect(yield* Fiber.join(write)).toEqual(
-              new UrlHostMismatch({
+              new RetailersErrors.UrlHostMismatch({
                 url: "https://a.example.com/p/1",
                 domain: "b.example.com",
                 listingIds: [],
@@ -157,8 +156,8 @@ describe.skipIf(PostgresTest.url === undefined)(
           Effect.gen(function* () {
             yield* DbTest.reset
             const c = yield* catalog("a.example.com")
-            const retailers = yield* Retailers
-            const listings = yield* Listings
+            const retailers = yield* Retailers.Service
+            const listings = yield* Listings.Service
 
             const write = yield* holdOpen(
               listings.create({
@@ -182,7 +181,7 @@ describe.skipIf(PostgresTest.url === undefined)(
             expect(yield* blocksWithin(100)).toBe(true)
             yield* write.commit
             expect(yield* Fiber.join(change)).toEqual(
-              new UrlHostMismatch({
+              new RetailersErrors.UrlHostMismatch({
                 url: "https://a.example.com/p/1",
                 domain: "b.example.com",
                 listingIds: [row.id],

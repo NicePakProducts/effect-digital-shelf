@@ -18,7 +18,7 @@ bun packages/core/test/Auth/browser-server.ts
 
 # Terminal 2, repository root; keep port 3002 free
 WEB_API_PROXY_TARGET=http://127.0.0.1:1437 \
-  bun run --filter @digital-shelf/web dev --port 3002
+  bun run --filter @app/web dev --port 3002
 
 # Terminal 3
 bunx agent-browser open http://localhost:3002

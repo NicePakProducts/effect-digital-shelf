@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react"
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 import { authSession } from "../lib/auth"
-import { AuthActionError } from "../lib/auth-actions"
+import { AuthActionError } from "@app/client/auth"
 import { safeReturnPath } from "../lib/auth-navigation"
 import { SessionError, SessionLoading } from "../lib/AuthView"
 

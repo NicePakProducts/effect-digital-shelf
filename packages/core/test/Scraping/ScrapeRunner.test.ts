@@ -1,20 +1,15 @@
+import { LifecycleErrors } from "@app/core/scrapes/lifecycle"
 import * as Predicate from "effect/Predicate"
 import { expect, it } from "@effect/vitest"
-import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
-import {
-  ScrapeRunner,
-  FetchOutcome,
-  TransitionRejected,
-} from "@digital-shelf/core/Scraping/ScrapeRunner"
-import { ExtractionsRepo } from "@digital-shelf/core/Scraping/repositories/ExtractionsRepo"
-import { ScrapeProviderError } from "@digital-shelf/core/Providers/ScrapeProviders"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import {
-  extractions,
-  scrapes as scrapeTable,
-} from "@digital-shelf/domain/Sql/Scraping"
-import { listings } from "@digital-shelf/domain/Sql/Catalog"
+import { Scrapes } from "@app/core/scrapes"
+import { ScrapeRunner, FetchOutcome } from "@app/core/scrapes/runner"
+import { ExtractionsRepo } from "../../src/scrapes/extractions/repository"
+import { ScrapeProviderError } from "@app/core/scrapes/providers"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import { ExtractionsTable } from "@app/db/schema/extractions"
+import { ScrapesTable } from "@app/db/schema/scrapes"
+import { ListingsTable } from "@app/db/schema/listings"
 import { eq } from "drizzle-orm"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
@@ -22,23 +17,23 @@ import * as Fiber from "effect/Fiber"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as TestClock from "effect/testing/TestClock"
-import * as CoreTest from "../layers/Core.ts"
-import { ExecutionsTest } from "../layers/Executions.ts"
-import { ScrapeProvidersTest, fetched } from "../layers/ScrapeProviders.ts"
-import { R2BucketTest } from "../layers/R2Bucket.ts"
-import { reset, seed } from "../fixtures/Scraping.ts"
+import * as CoreTest from "../layers/Core"
+import { ExecutionsTest } from "../layers/Executions"
+import { ScrapeProvidersTest, fetched } from "../layers/ScrapeProviders"
+import { R2BucketTest } from "../layers/R2Bucket"
+import { reset, seed } from "../fixtures/Scraping"
 
 const setup = Effect.gen(function* () {
   yield* reset
   const seededCatalog = yield* seed()
   const target = yield* seededCatalog.listing
-  const scrapes = yield* Scrapes
+  const scrapes = yield* Scrapes.Service
   const row = yield* scrapes.trigger({ parent: target.parent })
 
-  return { target, scrapes, row, runner: yield* ScrapeRunner }
+  return { target, scrapes, row, runner: yield* ScrapeRunner.Service }
 })
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })(
   "ScrapeRunner",
   (it) => {
     it.effect(
@@ -56,11 +51,11 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const parent = listing.parent
           const url = listing.url
 
-          const scrapes = yield* Scrapes
+          const scrapes = yield* Scrapes.Service
           const row = yield* scrapes.trigger({ parent })
           expect(row.mode).toBe("advance")
           expect(row.country).toEqual(Option.some("Canada"))
-          const runner = yield* ScrapeRunner
+          const runner = yield* ScrapeRunner.Service
           const claimed = yield* runner.claim(row.id)
           expect(claimed.country).toBe("Canada")
           yield* runner.fetch(row.id, claimed)
@@ -119,14 +114,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           yield* bucketTest.failNextDelete
           expect(
             yield* Effect.flip(runner.finish(row.id, outcome)),
-          ).toBeInstanceOf(TransitionRejected)
+          ).toBeInstanceOf(LifecycleErrors.TransitionRejected)
         }),
     )
     it.effect(
       "happy path stores objects, advances the parent and atomically creates one pinned Extraction; steps replay",
       () =>
         Effect.gen(function* () {
-          const extractionsRepo = yield* ExtractionsRepo
+          const extractionsRepo = yield* ExtractionsRepo.Service
 
           const setupResult = yield* setup
           const row = setupResult.row
@@ -154,7 +149,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             "success",
           )
           const db = yield* Db
-          const rows = yield* query(db.select().from(extractions))
+          const rows = yield* query(db.select().from(ExtractionsTable))
           expect(rows).toHaveLength(1)
           expect(rows[0]).toMatchObject({
             status: "pending",
@@ -166,8 +161,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           const parentRows = yield* query(
             db
               .select()
-              .from(listings)
-              .where(eq(listings.id, target.parent.listingId)),
+              .from(ListingsTable)
+              .where(eq(ListingsTable.id, target.parent.listingId)),
           )
 
           expect(parentRows[0]?.lastScrapedAt).toEqual(
@@ -200,19 +195,19 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           ])
           yield* query(
             db
-              .update(extractions)
+              .update(ExtractionsTable)
               .set({
                 status: "success",
                 updatedAt: DateTime.toDateUtc(yield* DateTime.now),
               })
-              .where(eq(extractions.id, initial.id)),
+              .where(eq(ExtractionsTable.id, initial.id)),
           )
           expect(yield* runner.finish(row.id, outcome)).toEqual(result)
         }).pipe(Effect.provide([ExtractionsRepo.layer])),
     )
     it.effect("a late finish cannot resurrect a failed Scrape", () =>
       Effect.gen(function* () {
-        const extractionsRepo = yield* ExtractionsRepo
+        const extractionsRepo = yield* ExtractionsRepo.Service
 
         const setupResult = yield* setup
         const row = setupResult.row
@@ -224,7 +219,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         yield* runner.fail(row.id, "unknown", "replay")
         expect(
           yield* Effect.flip(runner.finish(row.id, outcome)),
-        ).toBeInstanceOf(TransitionRejected)
+        ).toBeInstanceOf(LifecycleErrors.TransitionRejected)
         expect((yield* scrapes.get({ scrapeId: row.id })).status).toBe("failed")
         const bucketTest = yield* R2BucketTest
         const objects = yield* bucketTest.inspect
@@ -338,7 +333,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             "failed",
           )
           expect(yield* Effect.flip(runner.claim(row.id))).toBeInstanceOf(
-            TransitionRejected,
+            LifecycleErrors.TransitionRejected,
           )
         }),
     )
@@ -346,7 +341,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
       "finish rolls back success if initial Extraction insertion fails",
       () =>
         Effect.gen(function* () {
-          const extractionsRepo = yield* ExtractionsRepo
+          const extractionsRepo = yield* ExtractionsRepo.Service
 
           const setupResult = yield* setup
           const row = setupResult.row
@@ -375,7 +370,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           )
           const db = yield* Db
           expect(
-            (yield* query(db.select().from(scrapeTable)))[0]?.finishedAt,
+            (yield* query(db.select().from(ScrapesTable)))[0]?.finishedAt,
           ).toBeNull()
         }).pipe(Effect.provide([ExtractionsRepo.layer])),
     )

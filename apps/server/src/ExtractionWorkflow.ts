@@ -1,16 +1,16 @@
-import { ExtractionRunner } from "@digital-shelf/core/Scraping/ExtractionRunner"
-import { ExtractionId } from "@digital-shelf/domain/Shared/Ids"
-import { ExtractionParams } from "@digital-shelf/infra/Adapters/Executions"
+import { ExtractionRunner } from "@app/core/scrapes/extractions/runner"
+import { ExtractionId } from "@app/schema/ids"
+import { ExtractionParams } from "@app/infra/Adapters/Executions"
 import * as Cloudflare from "alchemy/Cloudflare"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import { WorkflowLayers } from "./WorkflowLayers.ts"
-import { parentSpan, step } from "./WorkflowSupport.ts"
+import { WorkflowLayers } from "./WorkflowLayers"
+import { parentSpan, step } from "./WorkflowSupport"
 
 export const run = <E, R>(
   input: ExtractionParams,
-  layer: Layer.Layer<ExtractionRunner, E, R>,
+  layer: Layer.Layer<ExtractionRunner.Service, E, R>,
 ) =>
   Effect.gen(function* () {
     // SAFETY: infra's Adapters/Executions.ts encodes these params and their id;
@@ -26,7 +26,7 @@ export const run = <E, R>(
     const parent = yield* parentSpan(params.traceparent)
 
     const claim = Effect.fn("ExtractionWorkflow.claim")(function* () {
-      const runner = yield* ExtractionRunner
+      const runner = yield* ExtractionRunner.Service
 
       return yield* runner.claim(id)
     })
@@ -39,7 +39,7 @@ export const run = <E, R>(
       )
 
       const extract = Effect.fn("ExtractionWorkflow.extract")(function* () {
-        const runner = yield* ExtractionRunner
+        const runner = yield* ExtractionRunner.Service
 
         return yield* runner.extract(id, target)
       })
@@ -55,7 +55,7 @@ export const run = <E, R>(
       )
 
       const finish = Effect.fn("ExtractionWorkflow.finish")(function* () {
-        const runner = yield* ExtractionRunner
+        const runner = yield* ExtractionRunner.Service
         yield* runner.finish(id, outcome)
 
         return null
@@ -68,7 +68,7 @@ export const run = <E, R>(
       Effect.catchTag("WorkflowStopped", () => Effect.void),
       Effect.catchCause((cause) => {
         const fail = Effect.fn("ExtractionWorkflow.fail")(function* () {
-          const runner = yield* ExtractionRunner
+          const runner = yield* ExtractionRunner.Service
           yield* runner.fail(
             id,
             "unknown",

@@ -1,6 +1,6 @@
-import { Brands } from "@digital-shelf/core/Catalog/Brands"
-import { Products } from "@digital-shelf/core/Catalog/Products"
-import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
+import { Brands } from "@app/core/brands"
+import { Products } from "@app/core/products"
+import { Retailers } from "@app/core/retailers"
 import * as Schema from "effect/Schema"
 import * as Effect from "effect/Effect"
 
@@ -18,15 +18,19 @@ export const rowsOf = (result: unknown): ReadonlyArray<unknown> => {
 }
 
 export const seed = Effect.fn("CatalogFixture.seed")(function* () {
-  const brand = yield* (yield* Brands).create({ name: "Gaia" })
+  const brand = yield* (yield* Brands.Service).create({ name: "Gaia" })
 
-  const product = yield* (yield* Products).create({
+  const product = yield* (yield* Products.Service).create({
     brandId: brand.id,
     name: "Wash",
   })
 
   const domain = `${crypto.randomUUID()}.example.com`
-  const retailer = yield* (yield* Retailers).create({ name: "Shop", domain })
+
+  const retailer = yield* (yield* Retailers.Service).create({
+    name: "Shop",
+    domain,
+  })
 
   return {
     brandId: brand.id,
@@ -43,7 +47,11 @@ export const catalog = Effect.fn("CatalogFixture.catalog")(function* (
   domain: string,
 ) {
   const base = yield* seed()
-  const retailer = yield* (yield* Retailers).create({ name: "Shop", domain })
+
+  const retailer = yield* (yield* Retailers.Service).create({
+    name: "Shop",
+    domain,
+  })
 
   return { ...base, retailerId: retailer.id, domain: retailer.domain }
 })

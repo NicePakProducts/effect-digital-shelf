@@ -1,10 +1,10 @@
-import type { ScrapeMode } from "@digital-shelf/domain/Scraping/Vocabulary"
+import type { ScrapeMode } from "@app/schema/scraping-vocabulary"
 import {
   ScrapeProviders,
   type ScrapeProviderError,
   type ScrapeResult,
   type ScrapeRequest,
-} from "@digital-shelf/core/Providers/ScrapeProviders"
+} from "@app/core/scrapes/providers"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -45,7 +45,7 @@ const make = Effect.gen(function* () {
     result: Effect.Effect<ScrapeResult, ScrapeProviderError>,
   ) => Ref.update(scripts, (map) => new Map(map).set(url, result))
 
-  const service: ScrapeProviders["Service"] = {
+  const service: ScrapeProviders.Interface = {
     fetch: (mode, request) =>
       Effect.gen(function* () {
         yield* Ref.update(requests, (calls) => [...calls, { mode, request }])
@@ -71,10 +71,10 @@ const make = Effect.gen(function* () {
 export class ScrapeProvidersTest extends Context.Service<
   ScrapeProvidersTest,
   Effect.Success<typeof make>
->()("test/ScrapeProviders", { make }) {}
+>()("@app/core/test/layers/ScrapeProviders", { make }) {}
 
-export const layerTest = Layer.effect(
-  ScrapeProviders,
+export const TestLayer = Layer.effect(
+  ScrapeProviders.Service,
   Effect.map(ScrapeProvidersTest, (test) => test.service),
 ).pipe(
   Layer.provideMerge(

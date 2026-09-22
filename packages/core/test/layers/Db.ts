@@ -1,7 +1,7 @@
 import * as PgliteClient from "@effect/sql-pglite/PgliteClient"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import * as Sql from "@digital-shelf/domain/Sql/index"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import * as Sql from "@app/db/schema"
 import { PGlite } from "@electric-sql/pglite"
 import { pushSchema } from "drizzle-kit/api-postgres"
 import { sql } from "drizzle-orm"
@@ -14,10 +14,10 @@ import type { SqlError } from "effect/unstable/sql/SqlError"
 
 /**
  * A Postgres in this process for core's tests: PGlite with the schema pushed
- * straight from the domain tables (ADR 0002), then the Effect Drizzle
+ * straight from db's tables, then the Effect Drizzle
  * database over the same instance. One PGlite per `it.layer` block, since
  * booting Postgres is the slow part; `reset` empties the catalog between
- * tests and the cascade takes the rest. Infra's tests prove the committed
+ * tests and the cascade takes the rest. Db's tests prove the committed
  * migration separately.
  */
 const boot = Effect.promise(async () => {
@@ -28,7 +28,7 @@ const boot = Effect.promise(async () => {
   return pglite
 })
 
-export const layerTest: Layer.Layer<
+export const TestLayer: Layer.Layer<
   Db | PgliteClient.PgliteClient | SqlClient.SqlClient,
   SqlError
 > = Layer.effect(Db, PgDrizzle.makeWithDefaults()).pipe(

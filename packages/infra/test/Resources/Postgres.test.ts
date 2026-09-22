@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { parseOrigin } from "@digital-shelf/infra/Resources/Postgres"
+import { parseOrigin } from "@app/infra/Resources/Postgres"
 import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
 

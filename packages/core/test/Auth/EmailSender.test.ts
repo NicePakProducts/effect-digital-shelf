@@ -1,13 +1,13 @@
 import * as Result from "effect/Result"
 import { expect, it } from "@effect/vitest"
-import { EmailSender } from "@digital-shelf/core/Auth/EmailSender"
+import { EmailSender } from "@app/core/auth/email-sender"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 
-const config = ConfigProvider.layer(
+const ConfigurationLayer = ConfigProvider.layer(
   ConfigProvider.fromUnknown({
     POSTMARK_SERVER_TOKEN: "test-postmark-token",
     POSTMARK_FROM: "shelf@npbrands.com.au",
@@ -30,7 +30,7 @@ it.effect(
       }
 
       const program = Effect.gen(function* () {
-        const emails = yield* EmailSender
+        const emails = yield* EmailSender.Service
         yield* emails.send({
           to: "person@npbrands.com.au",
           subject: "Sign in",
@@ -72,7 +72,9 @@ it.effect(
       })
 
       yield* program.pipe(
-        Effect.provide(EmailSender.layerPostmark.pipe(Layer.provide(config))),
+        Effect.provide(
+          EmailSender.layer.pipe(Layer.provide(ConfigurationLayer)),
+        ),
         Effect.provideService(FetchHttpClient.Fetch, fetch),
       )
     }),

@@ -1,8 +1,5 @@
 import { expect, it } from "@effect/vitest"
-import {
-  isCadenceDue,
-  waitAfter,
-} from "@digital-shelf/core/Scheduling/CadenceDue"
+import { isCadenceDue, waitAfter } from "../../src/scrapes/cadence-due"
 import * as DateTime from "effect/DateTime"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"

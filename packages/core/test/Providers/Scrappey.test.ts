@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as Scrappey from "@digital-shelf/core/Providers/Scrappey"
+import * as Scrappey from "../../src/scrapes/providers/scrappey"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
@@ -8,12 +8,12 @@ import * as Option from "effect/Option"
 import * as Redacted from "effect/Redacted"
 import * as TestClock from "effect/testing/TestClock"
 import * as Tracer from "effect/Tracer"
+import * as Http from "../layers/HttpClient"
 import blocked from "../fixtures/scrappey/blocked.json" with { type: "json" }
 import invalidUrl from "../fixtures/scrappey/invalid-url.json" with { type: "json" }
 import noPage from "../fixtures/scrappey/no-page.json" with { type: "json" }
 import overloaded from "../fixtures/scrappey/overloaded.json" with { type: "json" }
 import success from "../fixtures/scrappey/success.json" with { type: "json" }
-import * as Http from "../layers/HttpClient.ts"
 
 const KEY = Redacted.make("scrappey-secret-key")
 

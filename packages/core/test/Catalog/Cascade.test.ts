@@ -1,37 +1,34 @@
+import { BrandsErrors, Brands } from "@app/core/brands"
 import {
-  CascadeRepo,
   CascadeRoot,
-} from "../../src/Catalog/repositories/CascadeRepo.ts"
-import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
-import { R2Bucket } from "@digital-shelf/core/Storage/R2Bucket"
-import { BrandsRepo } from "@digital-shelf/core/Catalog/repositories/BrandsRepo"
-import { VariantsRepo } from "@digital-shelf/core/Catalog/repositories/VariantsRepo"
-import { expect, it } from "@effect/vitest"
-import { Brands } from "@digital-shelf/core/Catalog/Brands"
-import { Products } from "@digital-shelf/core/Catalog/Products"
-import { Variants } from "@digital-shelf/core/Catalog/Variants"
-import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
-import { Listings } from "@digital-shelf/core/Catalog/Listings"
-import { Pages } from "@digital-shelf/core/Catalog/Pages"
-import { Cascade } from "@digital-shelf/core/Catalog/Cascade"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import { keysOf } from "@digital-shelf/core/Scraping/R2Keys"
-import { BrandNotFound } from "@digital-shelf/domain/Catalog/Errors"
-import {
   type CascadeImpact,
   emptyImpact,
-} from "@digital-shelf/domain/Catalog/CascadeImpact"
-import { BrandId } from "@digital-shelf/domain/Shared/Ids"
+} from "@app/schema/cascade"
+import { CascadeRepo } from "../../src/cascade/repository"
+import { Scrape } from "@app/schema/scrape"
+import { R2Bucket } from "@app/core/storage/r2-bucket"
+import { BrandsRepo } from "../../src/brands/repository"
+import { VariantsRepo } from "../../src/products/variants/repository"
+import { expect, it } from "@effect/vitest"
+import { Products } from "@app/core/products"
+import { ProductVariants } from "@app/core/products/variants"
+import { Retailers } from "@app/core/retailers"
+import { Listings } from "@app/core/listings"
+import { Pages } from "@app/core/pages"
+import { Cascade } from "@app/core/cascade"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import { keysOf } from "@app/core/scrapes/r2-keys"
+import { BrandId } from "@app/schema/ids"
 import { sql } from "drizzle-orm"
-import type { Brand } from "@digital-shelf/domain/Catalog/Brand"
+import type { Brand } from "@app/schema/brand"
 import type { SqlError } from "effect/unstable/sql/SqlError"
-import { Array, Effect, Schema } from "effect"
-import * as CoreTest from "../layers/Core.ts"
-import * as DbTest from "../layers/Db.ts"
-import { R2BucketTest } from "../layers/R2Bucket.ts"
-import { seed } from "../fixtures/Catalog.ts"
-import { history, extraction } from "../fixtures/Scraping.ts"
+import { Array, Effect, Layer, Schema } from "effect"
+import * as CoreTest from "../layers/Core"
+import * as DbTest from "../layers/Db"
+import { R2BucketTest } from "../layers/R2Bucket"
+import { seed } from "../fixtures/Catalog"
+import { history, extraction } from "../fixtures/Scraping"
 
 const brandImpact = {
   products: 2,
@@ -41,19 +38,19 @@ const brandImpact = {
   scrapes: 3,
 }
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })("Cascade", (it) => {
   it.effect(
     "counts each root's descendants, excludes the root and does not count Extractions",
     () =>
       Effect.gen(function* () {
-        const brands = yield* Brands
-        const retailers = yield* Retailers
-        const products = yield* Products
-        const listings = yield* Listings
-        const pages = yield* Pages
+        const brands = yield* Brands.Service
+        const retailers = yield* Retailers.Service
+        const products = yield* Products.Service
+        const listings = yield* Listings.Service
+        const pages = yield* Pages.Service
         yield* DbTest.reset
         const c = yield* tree
-        const cascade = yield* Cascade
+        const cascade = yield* Cascade.Service
         expect(yield* brands.impact({ brandId: c.brandId })).toEqual(
           brandImpact,
         )
@@ -87,7 +84,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
     "removes the Brand subtree and its R2 objects while preserving the shared Retailer",
     () =>
       Effect.gen(function* () {
-        const brands = yield* Brands
+        const brands = yield* Brands.Service
         const bucket = yield* R2BucketTest
         yield* DbTest.reset
         const c = yield* tree
@@ -115,7 +112,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
     "commits row deletion even when R2 deletion fails and leaves the orphan keys",
     () =>
       Effect.gen(function* () {
-        const brands = yield* Brands
+        const brands = yield* Brands.Service
         yield* DbTest.reset
         const c = yield* tree
         const bucket = yield* R2BucketTest
@@ -144,7 +141,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
     "fails a missing root without deleting any rows or objects",
     () =>
       Effect.gen(function* () {
-        const brands = yield* Brands
+        const brands = yield* Brands.Service
         const bucket = yield* R2BucketTest
         yield* DbTest.reset
         const c = yield* tree
@@ -155,7 +152,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         )
 
         expect(yield* Effect.flip(brands.remove({ brandId: id }))).toEqual(
-          new BrandNotFound({ brandId: id }),
+          new BrandsErrors.NotFound({ brandId: id }),
         )
         expect(yield* remaining).toEqual(before)
         expect(new Set((yield* bucket.inspect).keys())).toEqual(new Set(c.keys))
@@ -166,7 +163,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
     "rolls back a failed caller delete without touching R2",
     () =>
       Effect.gen(function* () {
-        const cascade = yield* Cascade
+        const cascade = yield* Cascade.Service
         const bucket = yield* R2BucketTest
         yield* DbTest.reset
         const c = yield* tree
@@ -198,8 +195,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         yield* DbTest.reset
         const c = yield* tree
         const before = yield* remaining
-        const cascade = yield* Cascade
-        const brandsRepo = yield* BrandsRepo
+        const cascade = yield* Cascade.Service
+        const brandsRepo = yield* BrandsRepo.Service
         const bucket = yield* R2BucketTest
 
         const impact: Effect.Effect<CascadeImpact, SqlError, never> =
@@ -208,8 +205,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         expect(yield* impact).toEqual(brandImpact)
 
         const remove: Effect.Effect<
-          { readonly removed: Brand; readonly impact: CascadeImpact },
-          BrandNotFound | SqlError | "after delete",
+          { readonly removed: Brand.Info; readonly impact: CascadeImpact },
+          BrandsRepo.MissingBrand | SqlError | "after delete",
           never
         > = cascade.remove(
           CascadeRoot.Brand({ id: c.brandId }),
@@ -229,7 +226,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
     "deleting a Retailer preserves Products and Variants",
     () =>
       Effect.gen(function* () {
-        const retailers = yield* Retailers
+        const retailers = yield* Retailers.Service
         const bucket = yield* R2BucketTest
         yield* DbTest.reset
         const c = yield* tree
@@ -262,13 +259,14 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
         yield* DbTest.reset
         const c = yield* tree
         const bucket = yield* R2BucketTest
-        const brands = yield* Brands
-        const brandsRepo = yield* BrandsRepo
+        const brands = yield* Brands.Service
+        const brandsRepo = yield* BrandsRepo.Service
         const sizes: number[] = []
-        const variantsRepo = yield* VariantsRepo
+        const variantsRepo = yield* VariantsRepo.Service
 
-        const cascade = yield* Cascade.make.pipe(
-          Effect.provideService(R2Bucket, {
+        const cascade = yield* Cascade.Service.pipe(
+          Effect.provide(Layer.fresh(Cascade.layerNoDeps)),
+          Effect.provideService(R2Bucket.Service, {
             ...bucket.service,
             delete: (keys) =>
               Effect.gen(function* () {
@@ -294,7 +292,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
           () =>
             Effect.gen(function* () {
               const scrape = yield* history(
-                ScrapeParent.members[0].make({ listingId: c.listingId }),
+                Scrape.Parent.members[0].make({ listingId: c.listingId }),
                 "success",
                 "1 hour",
               )
@@ -322,18 +320,18 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Cascade", (it) => {
 const tree = Effect.gen(function* () {
   const c = yield* seed()
 
-  const products = yield* Products
+  const products = yield* Products.Service
 
   const product = yield* products.create({
     brandId: c.brandId,
     name: "Second",
   })
 
-  const variants = yield* Variants
+  const variants = yield* ProductVariants.Service
   const first = yield* variants.create({ productId: c.productId, name: "A" })
   yield* variants.create({ productId: c.productId, name: "B" })
   yield* variants.create({ productId: product.id, name: "C" })
-  const listings = yield* Listings
+  const listings = yield* Listings.Service
 
   const l1 = yield* listings.create({
     productId: c.productId,
@@ -348,7 +346,7 @@ const tree = Effect.gen(function* () {
     url: c.url("/two"),
   })
 
-  const pages = yield* Pages
+  const pages = yield* Pages.Service
 
   const page = yield* pages.create({
     brandId: c.brandId,
@@ -357,19 +355,19 @@ const tree = Effect.gen(function* () {
   })
 
   const s1 = yield* history(
-    ScrapeParent.members[0].make({ listingId: l1.id }),
+    Scrape.Parent.members[0].make({ listingId: l1.id }),
     "success",
     "1 hour",
   )
 
   const s2 = yield* history(
-    ScrapeParent.members[0].make({ listingId: l2.id }),
+    Scrape.Parent.members[0].make({ listingId: l2.id }),
     "success",
     "1 hour",
   )
 
   const s3 = yield* history(
-    ScrapeParent.members[1].make({ pageId: page.id }),
+    Scrape.Parent.members[1].make({ pageId: page.id }),
     "success",
     "1 hour",
   )

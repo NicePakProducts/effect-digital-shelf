@@ -10,7 +10,7 @@ import {
   secretKeys,
   optionalKeys,
   optionalSecretKeys,
-} from "../src/ConfigKeys.ts"
+} from "../src/ConfigKeys"
 
 const core = resolve(import.meta.dirname, "../../../packages/core/src")
 
@@ -44,10 +44,7 @@ describe("config binding coverage", () => {
   })
 
   it("includes the provider retry keys composed from prefixes", () => {
-    const source = readFileSync(
-      resolve(core, "Providers/ScrapeProviders.ts"),
-      "utf8",
-    )
+    const source = readFileSync(resolve(core, "scrapes/providers.ts"), "utf8")
 
     const prefixes = Array.from(
       source.matchAll(/policy\("([A-Z_]+)"\)/g),

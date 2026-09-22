@@ -1,30 +1,30 @@
-import * as Layers from "@digital-shelf/core/Layers"
+import * as Layers from "./Features"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Layer from "effect/Layer"
-import * as DbTest from "./Db.ts"
-import * as EmailSenderTest from "./EmailSender.ts"
-import * as ExecutionsTest from "./Executions.ts"
-import * as LanguageModelTest from "./LanguageModel.ts"
-import * as R2BucketTest from "./R2Bucket.ts"
-import * as ScrapeProvidersTest from "./ScrapeProviders.ts"
+import * as DbTest from "./Db"
+import * as EmailSenderTest from "./EmailSender"
+import * as ExecutionsTest from "./Executions"
+import * as LanguageModelTest from "./LanguageModel"
+import * as R2BucketTest from "./R2Bucket"
+import * as ScrapeProvidersTest from "./ScrapeProviders"
 
 /** Every entrypoint layer over one test database and shared scripted fakes. */
-export const layerTest = Layer.mergeAll(
-  Layers.Catalog,
-  Layers.Api,
-  Layers.Cron,
-  Layers.ScrapeWorkflow,
-  Layers.ExtractionWorkflow,
+export const TestLayer = Layer.mergeAll(
+  Layers.CatalogLayer,
+  Layers.ApiLayer,
+  Layers.CronLayer,
+  Layers.ScrapeWorkflowLayer,
+  Layers.ExtractionWorkflowLayer,
 ).pipe(
   Layer.provideMerge(Layers.TraceIdentity()),
   Layer.provideMerge(
     Layer.mergeAll(
-      DbTest.layerTest,
-      ExecutionsTest.layerTest,
-      R2BucketTest.layerTest,
-      ScrapeProvidersTest.layerTest,
-      LanguageModelTest.layerTest,
-      EmailSenderTest.layerTest,
+      DbTest.TestLayer,
+      ExecutionsTest.TestLayer,
+      R2BucketTest.TestLayer,
+      ScrapeProvidersTest.TestLayer,
+      LanguageModelTest.TestLayer,
+      EmailSenderTest.TestLayer,
     ),
   ),
   Layer.provideMerge(

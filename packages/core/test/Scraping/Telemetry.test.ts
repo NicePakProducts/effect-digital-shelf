@@ -1,26 +1,25 @@
-import { TriggerExtraction } from "@digital-shelf/domain/Scraping/ScrapingManagement"
-import { BulkScrape } from "@digital-shelf/domain/Scraping/ScrapingManagement"
+import { Extraction } from "@app/schema/extraction"
+import { Scrape } from "@app/schema/scrape"
 import * as Option from "effect/Option"
-import { Extractions } from "@digital-shelf/core/Scraping/Extractions"
-import { ExtractionRunner } from "@digital-shelf/core/Scraping/ExtractionRunner"
-import { extraction, successfulScrape } from "../fixtures/Scraping.ts"
+import { Extractions } from "@app/core/scrapes/extractions"
+import { ExtractionRunner } from "@app/core/scrapes/extractions/runner"
+import { extraction, successfulScrape, reset, seed } from "../fixtures/Scraping"
 import { expect, it } from "@effect/vitest"
-import { Scrapes } from "@digital-shelf/core/Scraping/Scrapes"
-import { ScrapeRunner } from "@digital-shelf/core/Scraping/ScrapeRunner"
-import { Cron } from "@digital-shelf/core/Scheduling/Cron"
-import { traceIdOf } from "@digital-shelf/core/Scraping/Trace"
-import { ScrapeId } from "@digital-shelf/domain/Shared/Ids"
+import { Scrapes } from "@app/core/scrapes"
+import { ScrapeRunner } from "@app/core/scrapes/runner"
+import { Cron } from "@app/core/cron"
+import { traceIdOf } from "@app/core/scrapes/trace"
+import { ScrapeId } from "@app/schema/ids"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
 import * as Tracer from "effect/Tracer"
 import * as TestClock from "effect/testing/TestClock"
-import * as CoreTest from "../layers/Core.ts"
-import { ExecutionsTest } from "../layers/Executions.ts"
-import { reset, seed } from "../fixtures/Scraping.ts"
+import * as CoreTest from "../layers/Core"
+import { ExecutionsTest } from "../layers/Executions"
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })(
   "Lifecycle telemetry",
   (it) => {
     it.effect(
@@ -44,8 +43,8 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           })
 
           const row = yield* Effect.gen(function* () {
-            const scrapes = yield* Scrapes
-            const runner = yield* ScrapeRunner
+            const scrapes = yield* Scrapes.Service
+            const runner = yield* ScrapeRunner.Service
 
             const row = yield* scrapes
               .trigger({ parent })
@@ -53,13 +52,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
 
             yield* Effect.flip(scrapes.trigger({ parent }))
             yield* scrapes.bulk(
-              BulkScrape.members[0].make({ brandId: fixture.brandId }),
+              Scrape.Bulk.members[0].make({ brandId: fixture.brandId }),
             )
             yield* runner.claim(row.id)
             yield* runner.claim(row.id)
             yield* runner.fail(row.id, "unknown", "test")
             yield* Effect.flip(runner.claim(row.id))
-            const cron = yield* Cron
+            const cron = yield* Cron.Service
             yield* cron.tick()
 
             return row
@@ -168,13 +167,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
         Effect.gen(function* () {
           yield* reset
           const fixture = yield* seed({ paused: true })
-          const scrapes = yield* Scrapes
+          const scrapes = yield* Scrapes.Service
 
           const running = yield* scrapes.trigger({
             parent: (yield* fixture.listing).parent,
           })
 
-          const scrapeRunner = yield* ScrapeRunner
+          const scrapeRunner = yield* ScrapeRunner.Service
           yield* scrapeRunner.claim(running.id)
 
           const pending = yield* scrapes.trigger({
@@ -204,7 +203,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             context: base.context,
           })
 
-          const cron = yield* Cron
+          const cron = yield* Cron.Service
           yield* cron.tick().pipe(Effect.withTracer(tracer))
 
           const tick = spans.find((span) => span.name === "Cron.tick")!
@@ -263,7 +262,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             extractionTransition.attributes.get("shelf.extraction.id"),
           ).toBe(extracting.id)
           expect(extractionTransition.attributes.get("shelf.attempt")).toBe(1)
-          const extractions = yield* Extractions
+          const extractions = yield* Extractions.Service
           expect(
             (yield* extractions.get({ extractionId: extracting.id })).status,
           ).toBe("failed")
@@ -303,7 +302,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             span: (options) => new Tracer.NativeSpan(options),
           })
 
-          const scrapes = yield* Scrapes
+          const scrapes = yield* Scrapes.Service
 
           const result = yield* scrapes
             .trigger({ parent })
@@ -351,15 +350,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
           })
 
           const row = yield* Effect.gen(function* () {
-            const extractions = yield* Extractions
+            const extractions = yield* Extractions.Service
 
             const row = yield* extractions.trigger(
-              TriggerExtraction.members[0].make({
+              Extraction.Trigger.members[0].make({
                 scrapeId: scrape.id,
               }),
             )
 
-            const runner = yield* ExtractionRunner
+            const runner = yield* ExtractionRunner.Service
             expect(
               yield* extractions.redispatch({ extractionId: row.id }),
             ).toBe("already-active")
@@ -457,7 +456,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
             )
 
             const row = yield* extraction(scrape.id, 1, "pending")
-            const runner = yield* ExtractionRunner
+            const runner = yield* ExtractionRunner.Service
             const base = yield* Effect.tracer
             const spans: Tracer.Span[] = []
 

@@ -102,9 +102,9 @@ const make = Effect.gen(function* () {
 export class LanguageModelTest extends Context.Service<
   LanguageModelTest,
   Effect.Success<typeof make>
->()("test/LanguageModel", { make }) {}
+>()("@app/core/test/layers/LanguageModel", { make }) {}
 
-export const layerTest = Layer.effect(
+export const TestLayer = Layer.effect(
   LanguageModel.LanguageModel,
   Effect.map(LanguageModelTest, (test) => test.service),
 ).pipe(

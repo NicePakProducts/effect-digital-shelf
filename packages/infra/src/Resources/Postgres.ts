@@ -4,7 +4,7 @@ import { ConfigError } from "effect/Config"
 import { SourceError } from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
-import type { Stage } from "./Names.ts"
+import type { Stage } from "./Names"
 
 /** A malformed DATABASE_URL is a configuration failure; the message never carries the URL. */
 const invalid = (message: string) =>

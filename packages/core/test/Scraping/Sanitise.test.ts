@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { sanitise } from "@digital-shelf/core/Scraping/Sanitise"
+import { sanitise } from "../../src/scrapes/extractions/sanitise"
 
 describe("sanitise — strip set", () => {
   it("removes <script> blocks but keeps JSON-LD", () => {

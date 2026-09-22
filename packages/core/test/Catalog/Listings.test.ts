@@ -1,42 +1,32 @@
-import { ScrapeParent } from "@digital-shelf/domain/Scraping/Scrape"
+import { RetailersErrors, Retailers } from "@app/core/retailers"
+import { ListingsErrors, Listings } from "@app/core/listings"
+import { ProductsErrors, Products } from "@app/core/products"
+import { Scrape } from "@app/schema/scrape"
 import { eq } from "drizzle-orm"
 import * as DateTime from "effect/DateTime"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { query } from "@digital-shelf/core/Sql/Errors"
-import { keysOf } from "@digital-shelf/core/Scraping/R2Keys"
-import { emptyImpact } from "@digital-shelf/domain/Catalog/CascadeImpact"
-import { scrapes, extractions } from "@digital-shelf/domain/Sql/Scraping"
-import { R2BucketTest } from "../layers/R2Bucket.ts"
+import { Db } from "@app/db"
+import { query } from "@app/core/Sql/Errors"
+import { keysOf } from "@app/core/scrapes/r2-keys"
+import { emptyImpact } from "@app/schema/cascade"
+import { ScrapesTable } from "@app/db/schema/scrapes"
+import { ExtractionsTable } from "@app/db/schema/extractions"
+import { R2BucketTest } from "../layers/R2Bucket"
 import { expect, it } from "@effect/vitest"
-import { Brands } from "@digital-shelf/core/Catalog/Brands"
-import { Products } from "@digital-shelf/core/Catalog/Products"
-import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
-import { Variants } from "@digital-shelf/core/Catalog/Variants"
-import { Listings } from "@digital-shelf/core/Catalog/Listings"
-import {
-  ProductNotFound,
-  RetailerNotFound,
-  ListingNotFound,
-  VariantNotInProduct,
-} from "@digital-shelf/domain/Catalog/Errors"
-import {
-  ProductId,
-  RetailerId,
-  VariantId,
-  ListingId,
-} from "@digital-shelf/domain/Shared/Ids"
+import { Brands } from "@app/core/brands"
+import { ProductVariants } from "@app/core/products/variants"
+import { ProductId, RetailerId, VariantId, ListingId } from "@app/schema/ids"
 import { Effect, Schema } from "effect"
-import * as CoreTest from "../layers/Core.ts"
-import * as DbTest from "../layers/Db.ts"
-import { seed } from "../fixtures/Catalog.ts"
-import { history, extraction } from "../fixtures/Scraping.ts"
+import * as CoreTest from "../layers/Core"
+import * as DbTest from "../layers/Db"
+import { seed } from "../fixtures/Catalog"
+import { history, extraction } from "../fixtures/Scraping"
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })("Listings", (it) => {
   it.effect("uses attempt 2 when Extraction timestamps tie", () =>
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* seed()
-      const service = yield* Listings
+      const service = yield* Listings.Service
 
       const row = yield* service.create({
         productId: c.productId,
@@ -45,7 +35,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       })
 
       const scrape = yield* history(
-        ScrapeParent.members[0].make({ listingId: row.id }),
+        Scrape.Parent.members[0].make({ listingId: row.id }),
         "success",
         "1 hour",
       )
@@ -56,12 +46,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       // Force identical timestamps and make attempt 1's id sort last, so the old ordering fails deterministically.
       yield* query(
         db
-          .update(extractions)
+          .update(ExtractionsTable)
           .set({
             createdAt: DateTime.toDateUtc(first.createdAt),
             id: "00000000-0000-4000-8000-000000000001",
           })
-          .where(eq(extractions.id, second.id)),
+          .where(eq(ExtractionsTable.id, second.id)),
       )
       expect((yield* service.get({ listingId: row.id })).combinedStatus).toBe(
         "pending",
@@ -75,7 +65,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const c = yield* seed()
-        const service = yield* Listings
+        const service = yield* Listings.Service
 
         const row = yield* service.create({
           productId: c.productId,
@@ -88,7 +78,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
 
         for (const age of ["2 hours", "1 hour"] as const) {
           const scrape = yield* history(
-            ScrapeParent.members[0].make({ listingId: row.id }),
+            Scrape.Parent.members[0].make({ listingId: row.id }),
             "success",
             age,
           )
@@ -100,15 +90,15 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         }
 
         const db = yield* Db
-        expect(yield* query(db.select().from(scrapes))).toHaveLength(2)
-        expect(yield* query(db.select().from(extractions))).toHaveLength(2)
+        expect(yield* query(db.select().from(ScrapesTable))).toHaveLength(2)
+        expect(yield* query(db.select().from(ExtractionsTable))).toHaveLength(2)
         expect((yield* bucket.inspect).size).toBe(4)
         expect(yield* service.remove({ listingId: row.id })).toEqual({
           ...emptyImpact,
           scrapes: 2,
         })
-        expect(yield* query(db.select().from(scrapes))).toEqual([])
-        expect(yield* query(db.select().from(extractions))).toEqual([])
+        expect(yield* query(db.select().from(ScrapesTable))).toEqual([])
+        expect(yield* query(db.select().from(ExtractionsTable))).toEqual([])
         expect((yield* bucket.inspect).size).toBe(0)
       }),
   )
@@ -118,10 +108,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const c = yield* seed()
-        const variants = yield* Variants
+        const variants = yield* ProductVariants.Service
         const b = yield* variants.create({ productId: c.productId, name: "B" })
         const a = yield* variants.create({ productId: c.productId, name: "A" })
-        const listings = yield* Listings
+        const listings = yield* Listings.Service
 
         const row = yield* listings.create({
           productId: c.productId,
@@ -141,7 +131,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
     "rejects coverage outside the Product, including nonexistent ids, and rolls back updates",
     () =>
       Effect.gen(function* () {
-        const variants = yield* Variants
+        const variants = yield* ProductVariants.Service
         yield* DbTest.reset
         const a = yield* seed()
         const b = yield* seed()
@@ -151,7 +141,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
           name: "Other",
         })
 
-        const listings = yield* Listings
+        const listings = yield* Listings.Service
 
         const command = {
           productId: a.productId,
@@ -170,7 +160,10 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
               listings.create({ ...command, variantIds: [variantId] }),
             ),
           ).toEqual(
-            new VariantNotInProduct({ productId: a.productId, variantId }),
+            new ListingsErrors.VariantNotInProduct({
+              productId: a.productId,
+              variantId,
+            }),
           )
         }
 
@@ -187,7 +180,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
             }),
           ),
         ).toEqual(
-          new VariantNotInProduct({
+          new ListingsErrors.VariantNotInProduct({
             productId: a.productId,
             variantId: variant.id,
           }),
@@ -199,7 +192,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
     Effect.gen(function* () {
       yield* DbTest.reset
       const c = yield* seed()
-      const listings = yield* Listings
+      const listings = yield* Listings.Service
 
       const productId = Schema.decodeUnknownSync(ProductId)(
         "00000000-0000-4000-8000-000000000404",
@@ -214,7 +207,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
             url: c.url(""),
           }),
         ),
-      ).toEqual(new ProductNotFound({ productId }))
+      ).toEqual(new ProductsErrors.NotFound({ productId }))
       expect(
         yield* Effect.flip(
           listings.create({
@@ -223,12 +216,12 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
             url: c.url(""),
           }),
         ),
-      ).toEqual(new RetailerNotFound({ retailerId }))
+      ).toEqual(new RetailersErrors.NotFound({ retailerId }))
     }),
   )
   it.effect("keeps omitted coverage and clears an explicit empty set", () =>
     Effect.gen(function* () {
-      const variants = yield* Variants
+      const variants = yield* ProductVariants.Service
       yield* DbTest.reset
       const c = yield* seed()
 
@@ -237,7 +230,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         name: "A",
       })
 
-      const listings = yield* Listings
+      const listings = yield* Listings.Service
 
       const row = yield* listings.create({
         productId: c.productId,
@@ -266,7 +259,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const c = yield* seed()
-        const listings = yield* Listings
+        const listings = yield* Listings.Service
 
         const row = yield* listings.create({
           productId: c.productId,
@@ -275,7 +268,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         })
 
         if (container === "Brand") {
-          const brands = yield* Brands
+          const brands = yield* Brands.Service
           yield* brands.update({
             brandId: c.brandId,
             command: { paused: true },
@@ -283,7 +276,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         }
 
         if (container === "Product") {
-          const products = yield* Products
+          const products = yield* Products.Service
           yield* products.update({
             productId: c.productId,
             command: { paused: true },
@@ -291,7 +284,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
         }
 
         if (container === "Retailer") {
-          const retailers = yield* Retailers
+          const retailers = yield* Retailers.Service
           yield* retailers.update({
             retailerId: c.retailerId,
             command: { paused: true },
@@ -312,7 +305,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       Effect.gen(function* () {
         yield* DbTest.reset
         const c = yield* seed()
-        const listings = yield* Listings
+        const listings = yield* Listings.Service
 
         const row = yield* listings.create({
           productId: c.productId,
@@ -320,7 +313,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
           url: c.url("/item"),
         })
 
-        const parent = ScrapeParent.members[0].make({ listingId: row.id })
+        const parent = Scrape.Parent.members[0].make({ listingId: row.id })
         yield* history(parent, "failed", "3 hours")
         expect(
           (yield* listings.get({ listingId: row.id })).combinedStatus,
@@ -350,7 +343,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
       yield* DbTest.reset
       const a = yield* seed()
       const b = yield* seed()
-      const listings = yield* Listings
+      const listings = yield* Listings.Service
 
       const first = yield* listings.create({
         productId: a.productId,
@@ -394,13 +387,13 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })("Listings", (it) => {
     () =>
       Effect.gen(function* () {
         yield* DbTest.reset
-        const listings = yield* Listings
+        const listings = yield* Listings.Service
 
         const id = Schema.decodeUnknownSync(ListingId)(
           "00000000-0000-4000-8000-000000000404",
         )
 
-        const error = new ListingNotFound({ listingId: id })
+        const error = new ListingsErrors.NotFound({ listingId: id })
         expect(yield* Effect.flip(listings.get({ listingId: id }))).toEqual(
           error,
         )

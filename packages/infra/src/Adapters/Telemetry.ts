@@ -1,10 +1,4 @@
-/**
- * Exports invocation telemetry to Axiom with the Scrape trace identity and stage-specific levels.
- * Registered through Alchemy's `Telemetry.layer` at Worker init: the runtime bridge builds it into
- * every event's scope and closes that scope through `ctx.waitUntil`, so the flush never delays a
- * response (ADR 0007, #28). Production's Info log threshold suppresses the exporter's Debug failure messages.
- */
-import { layer as TraceIdentity } from "@digital-shelf/core/Scraping/Trace"
+import { layer as TraceIdentity } from "@app/core/scrapes/trace"
 import * as Layer from "effect/Layer"
 import type * as LogLevel from "effect/LogLevel"
 import * as Redacted from "effect/Redacted"
@@ -17,8 +11,14 @@ import type * as OtlpExporter from "effect/unstable/observability/OtlpExporter"
 import * as OtlpLogger from "effect/unstable/observability/OtlpLogger"
 import * as OtlpSerialization from "effect/unstable/observability/OtlpSerialization"
 import * as OtlpTracer from "effect/unstable/observability/OtlpTracer"
-import type { Stage } from "../Resources/Names.ts"
+import type { Stage } from "../Resources/Names"
 
+/**
+ * Exports invocation telemetry to Axiom with the Scrape trace identity and stage-specific levels.
+ * Registered through Alchemy's `Telemetry.layer` at Worker init: the runtime bridge builds it into
+ * every event's scope and closes that scope through `ctx.waitUntil`, so the flush never delays a
+ * response (ADR 0007, #28). Production's Info log threshold suppresses the exporter's Debug failure messages.
+ */
 export interface TelemetryOptions {
   readonly axiomToken: Redacted.Redacted<string>
   readonly axiomDomain: string
@@ -52,7 +52,7 @@ export const make = (
   // interval export firing mid-event would race that close and drop the batch.
   const exportInterval = "1 hour"
 
-  const otlp = Layer.mergeAll(
+  const OtlpLayer = Layer.mergeAll(
     OtlpTracer.layer({
       url: `https://${options.axiomDomain}/v1/traces`,
       headers: {
@@ -77,7 +77,7 @@ export const make = (
   ).pipe(Layer.provide([OtlpSerialization.layerProtobuf, httpClient]))
 
   return TraceIdentity().pipe(
-    Layer.provideMerge(otlp),
+    Layer.provideMerge(OtlpLayer),
     Layer.provideMerge(levels(options.stage)),
     // Health probes run every few seconds and would dominate the trace volume.
     Layer.provideMerge(HttpMiddleware.layerTracerDisabledForUrls(["/health"])),

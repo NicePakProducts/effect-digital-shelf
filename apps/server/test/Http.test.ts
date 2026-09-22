@@ -1,22 +1,25 @@
+import { Stage } from "alchemy/Stage"
 import { expect, it } from "@effect/vitest"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import * as CoreTest from "@digital-shelf/core/test/layers/Core"
+import { Db } from "@app/db"
+import * as CoreTest from "@app/core/test/layers/Core"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as HttpEffect from "effect/unstable/http/HttpEffect"
 import * as HttpRouter from "effect/unstable/http/HttpRouter"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
-import * as Http from "../src/Http.ts"
+import * as Http from "../src/http"
 
-it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
+it.layer(CoreTest.TestLayer, { timeout: "60 seconds" })(
   "server routes",
   (it) => {
     const handler = Effect.gen(function* () {
       const context =
-        yield* Effect.context<Layer.Success<typeof CoreTest.layerTest>>()
+        yield* Effect.context<Layer.Success<typeof CoreTest.TestLayer>>()
 
       const respond = yield* HttpRouter.toHttpEffect(
-        Http.layer("dev").pipe(Layer.provide(Layer.succeedContext(context))),
+        Http.RoutesLayer.pipe(Layer.provide(Layer.succeed(Stage, "dev"))).pipe(
+          Layer.provide(Layer.succeedContext(context)),
+        ),
       )
 
       return yield* respond
@@ -25,7 +28,7 @@ it.layer(CoreTest.layerTest, { timeout: "60 seconds" })(
     const request = (path: string) =>
       Effect.gen(function* () {
         const context =
-          yield* Effect.context<Layer.Success<typeof CoreTest.layerTest>>()
+          yield* Effect.context<Layer.Success<typeof CoreTest.TestLayer>>()
 
         const webHandler = HttpEffect.toWebHandler(
           handler.pipe(Effect.provide(context)),

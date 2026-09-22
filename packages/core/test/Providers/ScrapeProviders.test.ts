@@ -1,9 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import * as Scrappey from "@digital-shelf/core/Providers/Scrappey"
-import {
-  ScrapeProviders,
-  layerWith,
-} from "@digital-shelf/core/Providers/ScrapeProviders"
+import * as Scrappey from "../../src/scrapes/providers/scrappey"
+import { ScrapeProviders, layerWith } from "@app/core/scrapes/providers"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -12,9 +9,10 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as TestClock from "effect/testing/TestClock"
 import * as Tracer from "effect/Tracer"
+import * as HttpClient from "effect/unstable/http/HttpClient"
+import * as Browser from "../layers/Browser"
+import * as Http from "../layers/HttpClient"
 import success from "../fixtures/scrappey/success.json" with { type: "json" }
-import * as Browser from "../layers/Browser.ts"
-import * as Http from "../layers/HttpClient.ts"
 
 const request = {
   url: "https://www.example.com/product/1",
@@ -34,11 +32,14 @@ const providers = (options: {
       options.respond ?? (() => Http.json(success)),
     )
 
-    const service = yield* ScrapeProviders.pipe(
+    const service = yield* ScrapeProviders.Service.pipe(
       Effect.provide(
         layerWith({ launch: browser.launch }).pipe(
           Layer.provide(
-            Layer.mergeAll(Browser.layerTest, Http.layerTest(http.client)),
+            Layer.mergeAll(
+              Browser.TestLayer,
+              Layer.succeed(HttpClient.HttpClient, http.client),
+            ),
           ),
           Layer.provide(
             ConfigProvider.layerAdd(

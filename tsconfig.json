@@ -6,6 +6,7 @@
     "**/vitest.*.ts", // All vitest config files across all packages
     "./packages/*/test/**/*.ts",
     "./apps/*/test/**/*.ts",
+    "./apps/web/src/lib/auth*.ts", // Browser helpers exercised by the root test project
     "./alchemy.run.ts"
   ],
   "compilerOptions": {
@@ -18,16 +19,17 @@
     "paths": {
       // Path aliases let tests load internal modules and other workspace packages
       // that would otherwise be considered cyclic dependencies
-      "@digital-shelf/api": ["./packages/api/src/index.ts"],
-      "@digital-shelf/api/*": ["./packages/api/src/*"],
-      "@digital-shelf/core": ["./packages/core/src/index.ts"],
-      "@digital-shelf/core/test/*": ["./packages/core/test/*"],
-      "@digital-shelf/core/*": ["./packages/core/src/*"],
-      "@digital-shelf/domain": ["./packages/domain/src/index.ts"],
-      "@digital-shelf/domain/*": ["./packages/domain/src/*"],
-      "@digital-shelf/infra": ["./packages/infra/src/index.ts"],
-      "@digital-shelf/infra/*": ["./packages/infra/src/*"],
-      "@digital-shelf/server/*": ["./apps/server/src/*"]
+      "@app/core/test/*": ["./packages/core/test/*"],
+      "@app/core/*": ["./packages/core/src/*"],
+      "@app/db": ["./packages/db/src/db.ts"],
+      "@app/db/schema": ["./packages/db/src/schema/index.ts"],
+      "@app/db/*": ["./packages/db/src/*"],
+      "@app/schema/*": ["./packages/schema/src/*"],
+      "@app/infra": ["./packages/infra/src/index.ts"],
+      "@app/infra/*": ["./packages/infra/src/*"],
+      "@app/protocol/*": ["./packages/protocol/src/*"],
+      "@app/client": ["./packages/client/src/index.ts"],
+      "@app/client/*": ["./packages/client/src/*"]
     },
     "plugins": [
       {

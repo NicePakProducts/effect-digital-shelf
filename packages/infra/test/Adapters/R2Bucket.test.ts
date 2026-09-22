@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "@effect/vitest"
-import { R2Bucket, StorageError } from "@digital-shelf/core/Storage/R2Bucket"
-import * as Adapter from "@digital-shelf/infra/Adapters/R2Bucket"
+import { R2Bucket, StorageError } from "@app/core/storage/r2-bucket"
+import * as Adapter from "@app/infra/Adapters/R2Bucket"
 import type { ReadWriteBucketClient } from "alchemy/Cloudflare/R2"
 import type { RuntimeContext } from "alchemy/RuntimeContext"
 import * as Context from "effect/Context"
@@ -47,7 +47,7 @@ describe("R2 adapter", () => {
       const { client, objects } = fake()
 
       return Effect.gen(function* () {
-        const bucket = yield* R2Bucket
+        const bucket = yield* R2Bucket.Service
         expect(yield* bucket.get("missing")).toEqual(Option.none())
         yield* bucket.put("html/one", "<p>héllo</p>", "text/html")
         yield* bucket.put("raw/two", '{"ok":true}', "application/json")
@@ -82,7 +82,7 @@ describe("R2 adapter", () => {
           }
 
           return Effect.gen(function* () {
-            const bucket = yield* R2Bucket
+            const bucket = yield* R2Bucket.Service
 
             const call = Match.value(operation).pipe(
               Match.when("put", () => bucket.put("key", "body", "text/plain")),
@@ -107,7 +107,7 @@ describe("R2 adapter", () => {
     const cause = new Error("body read failed")
 
     return Effect.gen(function* () {
-      const bucket = yield* R2Bucket
+      const bucket = yield* R2Bucket.Service
       expect(yield* Effect.flip(bucket.get("html/one"))).toEqual(
         new StorageError({ operation: "get", key: "html/one", cause }),
       )
@@ -123,7 +123,7 @@ describe("R2 adapter", () => {
 
   it.effect("captures runtime services at layer construction", () => {
     class Binding extends Context.Service<Binding, string>()(
-      "test/R2Binding",
+      "@app/infra/test/Adapters/R2Bucket.test/Binding",
     ) {}
 
     const { client } = fake()
@@ -135,7 +135,7 @@ describe("R2 adapter", () => {
     }
 
     return Effect.gen(function* () {
-      const bucket = yield* R2Bucket
+      const bucket = yield* R2Bucket.Service
       expect(yield* bucket.get("key")).toEqual(Option.some("from binding"))
     }).pipe(
       Effect.provide(

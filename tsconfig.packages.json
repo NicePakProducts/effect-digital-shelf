@@ -7,16 +7,22 @@
       "path": "apps/server"
     },
     {
-      "path": "packages/api"
-    },
-    {
       "path": "packages/core"
     },
     {
-      "path": "packages/domain"
+      "path": "packages/schema"
     },
     {
       "path": "packages/infra"
+    },
+    {
+      "path": "packages/db"
+    },
+    {
+      "path": "packages/protocol"
+    },
+    {
+      "path": "packages/client"
     }
   ]
 }

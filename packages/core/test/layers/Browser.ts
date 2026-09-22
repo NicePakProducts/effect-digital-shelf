@@ -1,7 +1,7 @@
 import {
   BrowserRendering,
   type BrowserBinding,
-} from "@digital-shelf/core/Providers/BrowserRendering"
+} from "@app/core/scrapes/providers/browser-rendering"
 import type {
   Browser,
   BrowserContext,
@@ -9,7 +9,7 @@ import type {
   Launch,
   Page,
   PageResponse,
-} from "@digital-shelf/core/Providers/Playwright"
+} from "../../src/scrapes/providers/playwright"
 import * as Layer from "effect/Layer"
 
 /**
@@ -119,4 +119,4 @@ export const binding: BrowserBinding = {
   fetch: () => Promise.reject(new Error("binding.fetch is not used in tests")),
 }
 
-export const layerTest = Layer.succeed(BrowserRendering, binding)
+export const TestLayer = Layer.succeed(BrowserRendering.Service, binding)

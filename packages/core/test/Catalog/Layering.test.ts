@@ -1,22 +1,22 @@
-import { Brands } from "@digital-shelf/core/Catalog/Brands"
-import { Cascade } from "@digital-shelf/core/Catalog/Cascade"
-import { Pages } from "@digital-shelf/core/Catalog/Pages"
-import { Products } from "@digital-shelf/core/Catalog/Products"
-import { Variants } from "@digital-shelf/core/Catalog/Variants"
-import { Retailers } from "@digital-shelf/core/Catalog/Retailers"
-import { Listings } from "@digital-shelf/core/Catalog/Listings"
-import { ProductsRepo } from "@digital-shelf/core/Catalog/repositories/ProductsRepo"
-import { VariantsRepo } from "@digital-shelf/core/Catalog/repositories/VariantsRepo"
-import { RetailersRepo } from "@digital-shelf/core/Catalog/repositories/RetailersRepo"
-import { ListingsRepo } from "@digital-shelf/core/Catalog/repositories/ListingsRepo"
-import { PagesRepo } from "@digital-shelf/core/Catalog/repositories/PagesRepo"
-import { BrandsRepo } from "@digital-shelf/core/Catalog/repositories/BrandsRepo"
-import { CascadeRepo } from "@digital-shelf/core/Catalog/repositories/CascadeRepo"
-import { CascadeRoot } from "@digital-shelf/core/Catalog/repositories/CascadeRepo"
-import * as Layers from "@digital-shelf/core/Layers"
-import { Db } from "@digital-shelf/core/Sql/Db"
-import { emptyImpact } from "@digital-shelf/domain/Catalog/CascadeImpact"
-import * as Sql from "@digital-shelf/domain/Sql/index"
+import { R2Bucket } from "@app/core/storage/r2-bucket"
+import { Brands } from "@app/core/brands"
+import { Cascade } from "@app/core/cascade"
+import { Pages } from "@app/core/pages"
+import { Products } from "@app/core/products"
+import { ProductVariants } from "@app/core/products/variants"
+import { Retailers } from "@app/core/retailers"
+import { Listings } from "@app/core/listings"
+import { ProductsRepo } from "../../src/products/repository"
+import { VariantsRepo } from "../../src/products/variants/repository"
+import { RetailersRepo } from "../../src/retailers/repository"
+import { ListingsRepo } from "../../src/listings/repository"
+import { PagesRepo } from "../../src/pages/repository"
+import { BrandsRepo } from "../../src/brands/repository"
+import { CascadeRepo } from "../../src/cascade/repository"
+import { CascadeRoot, emptyImpact } from "@app/schema/cascade"
+import * as Layers from "../layers/Features"
+import { Db } from "@app/db"
+import * as Sql from "@app/db/schema"
 import * as PgliteClient from "@effect/sql-pglite/PgliteClient"
 import { describe, expect, expectTypeOf, it } from "@effect/vitest"
 import { PGlite } from "@electric-sql/pglite"
@@ -25,25 +25,41 @@ import * as PgDrizzle from "drizzle-orm/effect-pglite"
 import { drizzle } from "drizzle-orm/pglite"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as R2BucketTest from "../layers/R2Bucket.ts"
+import * as R2BucketTest from "../layers/R2Bucket"
 
 describe("Catalog layers", () => {
+  it("default catalog layers leave only Db and object storage open", () => {
+    expectTypeOf<
+      Layer.Services<
+        | typeof Products.layer
+        | typeof ProductVariants.layer
+        | typeof Brands.layer
+        | typeof Retailers.layer
+        | typeof Listings.layer
+        | typeof Pages.layer
+      >
+    >().toEqualTypeOf<Db | R2Bucket.Service>()
+    expectTypeOf<
+      Layer.Services<typeof ProductVariants.layerNoDeps>
+    >().toEqualTypeOf<
+      Db | Cascade.Service | ProductsRepo.Service | VariantsRepo.Service
+    >()
+  })
+
   it("feature methods need no services after construction", () => {
     expectTypeOf<
       Effect.Services<
+        | ReturnType<Brands.Interface[Exclude<keyof Brands.Interface, "list">]>
+        | Brands.Interface["list"]
+        | ReturnType<Cascade.Interface[keyof Cascade.Interface]>
+        | ReturnType<Products.Interface[keyof Products.Interface]>
+        | ReturnType<ProductVariants.Interface[keyof ProductVariants.Interface]>
         | ReturnType<
-            Brands["Service"][Exclude<keyof Brands["Service"], "list">]
+            Retailers.Interface[Exclude<keyof Retailers.Interface, "list">]
           >
-        | Brands["Service"]["list"]
-        | ReturnType<Cascade["Service"][keyof Cascade["Service"]]>
-        | ReturnType<Products["Service"][keyof Products["Service"]]>
-        | ReturnType<Variants["Service"][keyof Variants["Service"]]>
-        | ReturnType<
-            Retailers["Service"][Exclude<keyof Retailers["Service"], "list">]
-          >
-        | Retailers["Service"]["list"]
-        | ReturnType<Listings["Service"][keyof Listings["Service"]]>
-        | ReturnType<Pages["Service"][keyof Pages["Service"]]>
+        | Retailers.Interface["list"]
+        | ReturnType<Listings.Interface[keyof Listings.Interface]>
+        | ReturnType<Pages.Interface[keyof Pages.Interface]>
       >
     >().toEqualTypeOf<never>()
   })
@@ -54,7 +70,7 @@ describe("Catalog layers", () => {
    * the repository once per feature. Repository instances are private to their
    * features, so the stable field is the observable guard.
    */
-  it("every layer is a stable field, never allocated on access", () => {
+  it("every layer is a stable value, never allocated on access", () => {
     for (const service of [
       BrandsRepo,
       CascadeRepo,
@@ -66,14 +82,12 @@ describe("Catalog layers", () => {
       Brands,
       Cascade,
       Products,
-      Variants,
+      ProductVariants,
       Retailers,
       Listings,
       Pages,
     ]) {
-      const descriptor = Object.getOwnPropertyDescriptor(service, "layer")
-      expect(descriptor?.get === undefined).toBe(true)
-      expect(descriptor?.value).toBeDefined()
+      expect(service.layer).toBeDefined()
       expect(service.layer).toBe(service.layer)
     }
   })
@@ -85,15 +99,15 @@ describe("Catalog layers", () => {
         const counter = { built: 0 }
 
         const context = yield* Layer.build(
-          Layers.Catalog.pipe(
-            Layer.provide([countingDb(counter), R2BucketTest.layerTest]),
+          Layers.CatalogLayer.pipe(
+            Layer.provide([countingDb(counter), R2BucketTest.TestLayer]),
           ),
         )
 
         yield* Effect.gen(function* () {
-          const brands = yield* Brands
-          const products = yield* Products
-          const cascade = yield* Cascade
+          const brands = yield* Brands.Service
+          const products = yield* Products.Service
+          const cascade = yield* Cascade.Service
           const brand = yield* brands.create({ name: "Shared database" })
           yield* products.create({ brandId: brand.id, name: "Shared product" })
           const impact = { ...emptyImpact, products: 1 }
@@ -116,14 +130,14 @@ describe("Catalog layers", () => {
 
         yield* Effect.gen(function* () {
           const context = yield* Layer.build(
-            Layers.Catalog.pipe(
-              Layer.provide([countingDb(counter), R2BucketTest.layerTest]),
+            Layers.CatalogLayer.pipe(
+              Layer.provide([countingDb(counter), R2BucketTest.TestLayer]),
               Layer.fresh,
             ),
           )
 
           yield* Effect.gen(function* () {
-            const brands = yield* Brands
+            const brands = yield* Brands.Service
             const brand = yield* brands.create({ name: "Build A only" })
             expect(yield* brands.list).toEqual([brand])
           }).pipe(Effect.provide(context))
@@ -131,14 +145,14 @@ describe("Catalog layers", () => {
 
         yield* Effect.gen(function* () {
           const context = yield* Layer.build(
-            Layers.Catalog.pipe(
-              Layer.provide([countingDb(counter), R2BucketTest.layerTest]),
+            Layers.CatalogLayer.pipe(
+              Layer.provide([countingDb(counter), R2BucketTest.TestLayer]),
               Layer.fresh,
             ),
           )
 
           yield* Effect.gen(function* () {
-            const brands = yield* Brands
+            const brands = yield* Brands.Service
             expect(yield* brands.list).toEqual([])
             expect(counter.built).toBe(2)
           }).pipe(Effect.provide(context))
